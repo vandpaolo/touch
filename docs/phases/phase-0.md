@@ -1,11 +1,11 @@
 ---
 id: phase-0
 title: Foundations
-status: in_progress        # planned | in_progress | blocked | done — flipped 2026-05-16 via /pm-phase-start
+status: done               # planned | in_progress | blocked | done — flipped 2026-05-17 via /pm-phase-report
 started: 2026-05-16        # ISO date when flipped to in_progress
-finished: null             # ISO date when flipped to done
-min_goal_met: null         # true | false | null
-max_goal_met: null         # true | false | null
+finished: 2026-05-17       # ISO date when flipped to done
+min_goal_met: true         # true | false | null
+max_goal_met: true         # true | false | null
 blocker: null              # path to blocker doc if status = blocked
 depends_on: []             # phase-0 has no prerequisites
 audit: audits/2026-05-16-pre-phase-0.md
