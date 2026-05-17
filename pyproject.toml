@@ -66,6 +66,7 @@ select = [
 
 [tool.importlinter]
 root_package = "maquette"
+include_external_packages = true
 
 [[tool.importlinter.contracts]]
 name = "intent has no project dependencies"
@@ -92,4 +93,22 @@ forbidden_modules = [
     "maquette.adapters",
     "maquette.render",
     "maquette.cli",
+]
+
+[[tool.importlinter.contracts]]
+name = "adapters depend only on maquette.intent (plus stdlib, no I/O modules)"
+type = "forbidden"
+source_modules = ["maquette.adapters"]
+forbidden_modules = [
+    "maquette.intent_validation",
+    "maquette.pricing",
+    "maquette.config",
+    "maquette.agent",
+    "maquette.render",
+    "maquette.cli",
+    "os",
+    "pathlib",
+    "subprocess",
+    "shutil",
+    "tempfile",
 ]
