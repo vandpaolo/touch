@@ -42,3 +42,6 @@ Documentation = "https://github.com/vandpaolo/maquette/tree/main/docs"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/maquette"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
