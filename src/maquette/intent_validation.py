@@ -48,9 +48,7 @@ def _check_feature(f: PrimaryFeature) -> list[ContractViolation]:
     spec = _PRIMARY_REQUIRED.get(f.kind)
     if spec is None:
         return [
-            ContractViolation(
-                where, f.kind, None, f"unknown primary kind {f.kind!r}"
-            )
+            ContractViolation(where, f.kind, None, f"unknown primary kind {f.kind!r}")
         ]
     return _check_params(where, f.kind, f.params, spec)
 
@@ -62,9 +60,7 @@ def _check_modifier(m: Modifier) -> list[ContractViolation]:
     spec = _MODIFIER_REQUIRED.get(m.kind)
     if spec is None:
         return [
-            ContractViolation(
-                where, m.kind, None, f"unknown modifier kind {m.kind!r}"
-            )
+            ContractViolation(where, m.kind, None, f"unknown modifier kind {m.kind!r}")
         ]
     return _check_params(where, m.kind, m.params, spec)
 
@@ -112,9 +108,7 @@ def _check_params(
     for name, type_tag in spec.items():
         if name not in params:
             violations.append(
-                ContractViolation(
-                    where, kind, name, f"missing required param {name!r}"
-                )
+                ContractViolation(where, kind, name, f"missing required param {name!r}")
             )
             continue
         v = params[name]

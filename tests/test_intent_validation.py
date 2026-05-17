@@ -42,9 +42,7 @@ def test_box_positive():
 
 
 def test_box_negative_missing_height():
-    f = PrimaryFeature(
-        id="b", kind="box", params={"length": 50.0, "width": 50.0}
-    )
+    f = PrimaryFeature(id="b", kind="box", params={"length": 50.0, "width": 50.0})
     violations = _violations_for_feature(f)
     assert len(violations) == 1
     assert violations[0].field == "height"
@@ -52,9 +50,7 @@ def test_box_negative_missing_height():
 
 
 def test_cylinder_positive():
-    f = PrimaryFeature(
-        id="c", kind="cylinder", params={"radius": 15.0, "height": 40.0}
-    )
+    f = PrimaryFeature(id="c", kind="cylinder", params={"radius": 15.0, "height": 40.0})
     assert _violations_for_feature(f) == []
 
 
@@ -111,9 +107,7 @@ def test_revolve_negative_missing_axis():
 
 
 def test_loft_positive():
-    f = PrimaryFeature(
-        id="l", kind="loft", params={"sections": "sketch_a,sketch_b"}
-    )
+    f = PrimaryFeature(id="l", kind="loft", params={"sections": "sketch_a,sketch_b"})
     assert _violations_for_feature(f) == []
 
 
@@ -147,17 +141,13 @@ def test_hole_positive_depth():
 
 
 def test_hole_negative_missing_diameter():
-    m = Modifier(
-        id="h", kind="hole", target="body", params={"through": "true"}
-    )
+    m = Modifier(id="h", kind="hole", target="body", params={"through": "true"})
     violations = _violations_for_modifier(m)
     assert any(v.field == "diameter" for v in violations)
 
 
 def test_hole_negative_neither_depth_nor_through():
-    m = Modifier(
-        id="h", kind="hole", target="body", params={"diameter": 6.0}
-    )
+    m = Modifier(id="h", kind="hole", target="body", params={"diameter": 6.0})
     violations = _violations_for_modifier(m)
     assert len(violations) == 1
     assert violations[0].field is None
@@ -166,9 +156,7 @@ def test_hole_negative_neither_depth_nor_through():
 
 
 def test_fillet_positive():
-    m = Modifier(
-        id="f", kind="fillet", target="body", params={"radius": 2.0}
-    )
+    m = Modifier(id="f", kind="fillet", target="body", params={"radius": 2.0})
     assert _violations_for_modifier(m) == []
 
 
@@ -179,9 +167,7 @@ def test_fillet_negative_missing_radius():
 
 
 def test_chamfer_positive():
-    m = Modifier(
-        id="c", kind="chamfer", target="body", params={"distance": 1.5}
-    )
+    m = Modifier(id="c", kind="chamfer", target="body", params={"distance": 1.5})
     assert _violations_for_modifier(m) == []
 
 
@@ -202,9 +188,7 @@ def test_shell_positive():
 
 
 def test_shell_negative_missing_open_face():
-    m = Modifier(
-        id="s", kind="shell", target="body", params={"thickness": 1.0}
-    )
+    m = Modifier(id="s", kind="shell", target="body", params={"thickness": 1.0})
     violations = _violations_for_modifier(m)
     assert any(v.field == "open_face" for v in violations)
 

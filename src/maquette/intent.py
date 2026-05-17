@@ -5,9 +5,7 @@ from typing import Literal
 from pydantic import BaseModel, Field, model_validator
 
 Unit = Literal["mm", "cm", "m", "in"]
-PrimaryKind = Literal[
-    "box", "cylinder", "sphere", "extrude", "revolve", "loft"
-]
+PrimaryKind = Literal["box", "cylinder", "sphere", "extrude", "revolve", "loft"]
 ModifierKind = Literal["hole", "fillet", "chamfer", "shell", "pattern"]
 
 
@@ -46,7 +44,7 @@ class Intent(BaseModel):
     )
 
     @model_validator(mode="after")
-    def validate_references(self) -> "Intent":
+    def validate_references(self) -> Intent:
         feature_ids = [f.id for f in self.features]
         if len(set(feature_ids)) != len(feature_ids):
             raise ValueError("duplicate feature ids")

@@ -48,9 +48,7 @@ def price(model: str, tokens: Tokens) -> float:
     try:
         p = _TABLE[model]
     except KeyError as e:
-        raise KeyError(
-            f"unknown model {model!r}; known: {sorted(_TABLE)}"
-        ) from e
+        raise KeyError(f"unknown model {model!r}; known: {sorted(_TABLE)}") from e
     return (
         tokens.input * p.input_per_mtoken
         + tokens.output * p.output_per_mtoken

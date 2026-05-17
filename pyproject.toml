@@ -45,3 +45,51 @@ packages = ["src/maquette"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py312"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "UP",  # pyupgrade
+    "B",   # flake8-bugbear
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["B011"]  # asserting False is intentional in pytest.raises
+
+[tool.importlinter]
+root_package = "maquette"
+
+[[tool.importlinter.contracts]]
+name = "intent has no project dependencies"
+type = "forbidden"
+source_modules = ["maquette.intent"]
+forbidden_modules = [
+    "maquette.intent_validation",
+    "maquette.pricing",
+    "maquette.config",
+    "maquette.agent",
+    "maquette.adapters",
+    "maquette.render",
+    "maquette.cli",
+]
+
+[[tool.importlinter.contracts]]
+name = "intent_validation depends only on maquette.intent"
+type = "forbidden"
+source_modules = ["maquette.intent_validation"]
+forbidden_modules = [
+    "maquette.pricing",
+    "maquette.config",
+    "maquette.agent",
+    "maquette.adapters",
+    "maquette.render",
+    "maquette.cli",
+]

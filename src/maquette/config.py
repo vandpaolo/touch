@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import os
 import tomllib
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, fields
 from pathlib import Path
-from typing import Any, Callable, Final, Mapping
+from typing import Any, Final
 
 # Default values for every Config field. The Config dataclass declares
 # the same defaults; this table is the source of truth used by load().
@@ -66,7 +67,7 @@ class Config:
         *,
         pyproject_path: Path | None = None,
         env: Mapping[str, str] | None = None,
-    ) -> "Config":
+    ) -> Config:
         """Build a Config by merging defaults <- pyproject <- env <- CLI.
 
         Later sources override earlier ones. Unknown keys at any layer
@@ -77,9 +78,7 @@ class Config:
         merged.update(_from_env(env if env is not None else os.environ))
         merged.update(_filter_known(cli_overrides or {}))
 
-        coerced = {
-            name: _COERCERS[name](value) for name, value in merged.items()
-        }
+        coerced = {name: _COERCERS[name](value) for name, value in merged.items()}
         return Config(**coerced)
 
 

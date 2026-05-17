@@ -1,0 +1,20 @@
+# Pre-commit hooks (MAX deliverable for phase-0 day 4).
+#
+# Install once per clone:    pre-commit install
+# Run on demand:             pre-commit run --all-files
+#
+# The NX-grep guard mirrors the same check in .github/workflows/ci.yml.
+
+repos:
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.21.2
+    hooks:
+      - id: gitleaks
+
+  - repo: local
+    hooks:
+      - id: nx-grep-guard
+        name: forbid NXOpen imports in src/
+        entry: bash -c 'if grep -rE "^(import NXOpen|from NXOpen)" src/; then echo "NXOpen import found in src/ (N4)"; exit 1; fi'
+        language: system
+        pass_filenames: false

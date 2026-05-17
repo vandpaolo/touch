@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+from dataclasses import FrozenInstanceError
 
 import pytest
 
@@ -92,11 +93,11 @@ def test_known_models_returns_three_v0_models():
 
 def test_tokens_is_frozen():
     t = Tokens(input=1, output=2, cache_read=3, cache_creation=4)
-    with pytest.raises(Exception):
+    with pytest.raises(FrozenInstanceError):
         t.input = 99  # type: ignore[misc]
 
 
 def test_model_price_is_frozen():
     mp = ModelPrice(1.0, 2.0, 3.0, 4.0)
-    with pytest.raises(Exception):
+    with pytest.raises(FrozenInstanceError):
         mp.input_per_mtoken = 99.0  # type: ignore[misc]
