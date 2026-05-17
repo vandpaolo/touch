@@ -72,7 +72,8 @@ flowchart TB
 
 Hard rule (CI-enforced): `intent` has zero outbound dependencies on
 `agent.*`, `adapters.*`, or `render`. Everything depends on `intent`;
-`intent` depends on nothing. See [02-classes.md § Dependency rules].
+`intent` depends on nothing. See
+[`02-classes.md` § Dependency rules](./02-classes.md#dependency-rules).
 
 ## C4 — Level 3 (Component view, inside `agent`)
 
@@ -253,13 +254,16 @@ become ADRs.
 4. **Sandboxing strategy.** Subprocess + resource limits for v0.
    Containerised execution (Docker) is on the v0.1+ list if anything
    ever goes wrong here. Will be an ADR if it does.
-5. **Prompt versioning approach.** Hash the `prompts/` directory contents
-   at run time and stamp into `status.json`. Open: separate hashes per
-   file (so a planner-only edit doesn't invalidate evaluator caches)
-   vs single rolled-up hash. **Tracked as Gap G3 in PM record.**
-6. **SanityCheck tolerance.** Open: exact match vs ±X% vs ±X mm when
-   comparing extracted dimensions to Intent params. **Tracked as Gap G1
-   in PM record.** Default proposal: ±1% or ±0.5 mm, whichever is larger.
+5. **Prompt versioning approach.** **Resolved** in
+   [ADR 0003 § Decision](./adr/0003-prompt-caching-for-cost.md): single
+   rolled-up SHA-256 of all file contents under `prompts/`, stamped into
+   `status.json.prompts_hash`. Per-file hashes considered and declined —
+   re-evaluate only if selective cache invalidation becomes painful in
+   practice.
+6. **SanityCheck tolerance.** **Resolved** in
+   [ADR 0002 § Decision](./adr/0002-dimension-sanity-check.md): ±1% or
+   ±0.5 mm, whichever is larger. Implemented in `agent.sanity` (lands in
+   phase-2a).
 
 See:
 - [ADR 0001 — Intent as the pivot](./adr/0001-intent-as-pivot.md) — Accepted

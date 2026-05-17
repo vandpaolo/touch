@@ -1,14 +1,14 @@
 ---
 id: phase-1
 title: Adapter
-status: planned           # planned | in_progress | blocked | done
-started: null             # ISO date when flipped to in_progress
+status: in_progress       # flipped 2026-05-17 via /pm-phase-start (audit-v4 override; see audit doc § Override)
+started: 2026-05-17       # ISO date when flipped to in_progress
 finished: null            # ISO date when flipped to done
 min_goal_met: null        # true | false | null
 max_goal_met: null        # true | false | null
 blocker: null             # path to blocker doc if status = blocked
 depends_on: [phase-0]
-audit: null               # path to audit doc once /pm-audit (via /pm-phase-start) runs
+audit: audits/2026-05-17-pre-phase-1-v4.md
 ---
 
 # Phase 1 — Adapter

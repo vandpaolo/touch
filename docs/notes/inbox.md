@@ -148,7 +148,16 @@ alignment is real and worth being explicit about.
 
 ### ↪ From: Projects/Maquette/01-architecture.md
 
-> partially absorbed: NFR table → docs/01-requirements.md N1–N10 @ 2026-05-16.
+> absorbed into docs/02-architecture.md (C4 levels, Layered responsibilities,
+> Tech stack, Repo layout, Cross-cutting concerns) and docs/01-requirements.md
+> (N1–N10 NFR table) @ 2026-05-16.
+>
+> *Known divergences vs current formal docs (revised post-migration):*
+> *(a) The vault NFR section quotes a 30 s p95 latency target; current*
+> *[01-requirements.md](../01-requirements.md) N1 is **20 s p95** for v0*
+> *— tightened because NX emission was deferred to v0.1 (push-back B1).*
+> *(b) The vault frames NX as v0 scope in places; current scope places*
+> *NX in v0.1 — see [03-roadmap.md](../03-roadmap.md).*
 > Then fully absorbed: C4 diagrams, layered responsibilities, tech stack, repo
 > layout, cross-cutting concerns, decisions deferred → docs/02-architecture.md
 > @ 2026-05-16 (with revisions: v0 path simplified by NX-to-v0.1; new sanity
@@ -343,7 +352,7 @@ maquette/
 
 ### ↪ From: Projects/Maquette/02-intent-schema.md
 
-> fully absorbed → docs/02-data-model.md @ 2026-05-16 (ERD, entity definitions,
+> absorbed into docs/02-data-model.md @ 2026-05-16 (ERD, entity definitions,
 > per-kind contracts, pydantic skeleton, schema evolution rules). Also seeded
 > docs/02-classes.md § Intent module class diagram and § Aggregates/entities.
 
@@ -612,11 +621,11 @@ those buckets is `extras`-land for now.
 
 ### ↪ From: Projects/Maquette/03-agent-loop.md
 
-> partially absorbed: failure-mode taxonomy → docs/01-requirements.md R1–R6
-> @ 2026-05-16. Then fully absorbed: sequence diagrams, state machine,
-> code stubs, termination policy → docs/02-architecture.md (C4 component
-> view + cross-cutting) and docs/02-classes.md (Loop, RunConfig,
-> ExecutionResult classes) @ 2026-05-16.
+> absorbed into docs/01-requirements.md (R1–R6 failure-mode taxonomy)
+> and docs/02-architecture.md (C4 component view, sequence diagrams,
+> state machine, code stubs, termination policy, cross-cutting concerns)
+> and docs/02-classes.md (Loop, RunConfig, ExecutionResult classes)
+> @ 2026-05-16.
 
 
 # 03 — Agent loop
@@ -874,7 +883,7 @@ CLI exits non-zero. No partial deletion — the run folder stays for diagnosis.
 
 ### ↪ From: Projects/Maquette/04-adapters.md
 
-> fully absorbed → docs/02-architecture.md (Layered responsibilities,
+> absorbed into docs/02-architecture.md (Layered responsibilities,
 > Dependency rules) and docs/02-classes.md (AdapterRefusal, Build123dTarget
 > module-level functions, NX dependency-rule CI guard) @ 2026-05-16.
 
@@ -1132,7 +1141,14 @@ maquette — they exist for the user to run inside NX.
 
 ### ↪ From: Projects/Maquette/05-cli-and-io.md
 
-> mostly absorbed → docs/01-requirements.md F1, F5, F8–F14, N2, N10 @ 2026-05-16.
+> absorbed into docs/01-requirements.md (F1, F5, F8–F14, N2, N10) and
+> docs/02-architecture.md § Cross-cutting concerns @ 2026-05-16.
+>
+> *Known divergence vs current formal docs: the vault § CLI surface*
+> *lists `maquette inspect`, `maquette list`, `maquette replay` as v0*
+> *commands; current [01-requirements.md](../01-requirements.md)*
+> *§ "Deferred from v0" defers all three to v0.1.*
+>
 > v0-deferred items (maquette inspect/list/replay commands, --no-nx / --only-nx
 > flags, exit code 14 for evaluator) recorded under "Deferred from v0" and will
 > be re-absorbed when /pm-requirements runs against v0.1.
@@ -1327,9 +1343,17 @@ If any of these become real needs, they get an ADR first.
 
 ### ↪ From: Projects/Maquette/06-roadmap.md
 
-> partially absorbed: success criterion → docs/00-vision.md @ 2026-05-16.
-> Then fully absorbed: full milestone structure (v0 / v0.1 / v0.2 / Later-maybe
-> / Open decisions / Repo hygiene) → docs/03-roadmap.md @ 2026-05-16 (with
+> absorbed into docs/00-vision.md (success criterion) and
+> docs/03-roadmap.md (full milestone structure: v0 / v0.1 / v0.2 /
+> Later-maybe / Open decisions / Repo hygiene) @ 2026-05-16.
+>
+> *Known divergence vs current formal docs: the vault § Milestones*
+> *places the NX adapter and its `--no-nx` / `--only-nx` CLI flags in*
+> *v0; current [03-roadmap.md](../03-roadmap.md) and*
+> *[00-vision.md](../00-vision.md) place NX in v0.1 (per decision B1,*
+> *see [decisions.md](decisions.md)).*
+>
+> (Roadmap edits made during /pm-roadmap drafting:
 > revisions: NX moved v0→v0.1, sanity check added to v0, inspect/list/replay
 > moved v0→v0.1, sandboxing deferred; v0.1 reordered to put Evaluator before
 > NX per decision C2; Phase 2/3/7 split into 2a/2b/3.5/7a/7b/7c).

@@ -263,6 +263,21 @@ must be identical.
 | **Critique** | Output of the Evaluator (v0.1+): pass/fail + structured issues. |
 | **SanityWarning** | Output of the F6 dimension sanity check: a soft signal that an extracted dimension didn't match the Intent. Logged, never blocks. |
 | **ContractViolation** | Output of `intent_validation.validate_kind_contracts()`: a structured report that a `PrimaryFeature` or `Modifier` has params not satisfying its per-kind contract (e.g. a `box` missing `height`). Raised before the worker is called. |
+| **PromptsBundle** | In-memory representation of the `prompts/` directory loaded at runtime: a record carrying the planner system prompt, any sanity-check reference patterns, the evaluator system prompt (v0.1+), and the single rolled-up SHA-256 hash stamped into `status.json.prompts_hash` per ADR-0003. Passed into `agent.planner.plan(...)`; never mutated mid-run. |
+| **Planner** | The application service that converts a `Prompt` into a validated `Intent` via a structured-output Anthropic call. Stateless. Owns retry-on-schema-fail and Anthropic prompt caching. Module: `maquette.agent.planner`. |
+| **SanityChecker** | Domain service for the F6 dimension sanity check. Pure logic: regex-extract dimensions from a `Prompt`, compare against `Intent.parameters` + feature `params`, produce a `SanityResult`. Stateless. Module: `maquette.agent.sanity`. |
+| **Worker** | The application service that delegates `Intent → backend code` to the appropriate `Adapter`. Thin shim; no domain logic. Module: `maquette.agent.worker`. |
+| **Executor** | The application service that runs the worker's emitted code in a subprocess with a 30 s timeout (N9), captures STEP, writes `error.json` on crash, returns an `ExecutionResult`. Module: `maquette.agent.executor`. |
+| **Loop** | The application orchestrator: state machine across Planner → SanityChecker → Worker → Executor (→ Evaluator → Refiner in v0.1). The only writer to `output/<run-id>/`. Owns `trace.jsonl` and `status.json` emission. Module: `maquette.agent.loop`. |
+| **Renderer** | The application service that turns a STEP file into three orthographic PNGs via headless PyVista. Module: `maquette.render`. Sometimes referred to as `Render` (matching the module name) interchangeably. |
+| **Evaluator** | (v0.1+) The application service that uses a vision LLM to critique the renders against the original `Prompt` + `Intent` and produces a `Critique`. Module: `maquette.agent.evaluator`. |
+| **PlanResult** | Return value of `Planner.plan(...)`: carries the produced `Intent`, the `Tokens` consumed, and a retry count. Internal record. |
+| **SanityResult** | Return value of `SanityChecker.check(...)`: `{ok: bool, warnings: list[str], mismatches: list[DimensionMismatch]}`. Internal record. |
+| **DimensionMismatch** | Value object inside a `SanityResult`: one mismatch between a regex-extracted prompt dimension and an `Intent` parameter (`source`, `expected`, `found`, `message`). |
+| **ExecutionResult** | Return value of `Executor.execute(...)`: STEP path (optional), render paths, optional error message, exit code, duration. Internal record. |
+| **RunConfig** | Per-run configuration passed into `Loop.run(...)`: max iterations, token caps, exec timeout, model, sanity-enabled flag. **Distinct from `Config`**, which is the infrastructure-layer dataclass merged from CLI > env > pyproject > defaults at startup; `RunConfig` is the run-scoped subset the orchestrator needs. |
+| **Tokens** | Frozen dataclass tracking per-call token counts across the four classes that `maquette.pricing` distinguishes: `input`, `output`, `cache_read`, `cache_creation`. Sourced from `response.usage` per ADR-0003. |
+| **ModelPrice** | Frozen dataclass holding per-Mtok pricing for one model across the four `Tokens` classes. Looked up from `maquette.pricing._TABLE` by model id; values fixed by ADR-0003. |
 
 ### Aggregates, entities, value objects
 
