@@ -75,7 +75,17 @@ audit: null               # path to audit doc once /pm-phase-start runs
 - **Anthropic prompt caching shape** (per ADR 0003): system prompt
   passes as `[{"type": "text", "text": ..., "cache_control":
   {"type": "ephemeral"}}]`. Tested via mock-client assertion that
-  the call kwargs include `cache_control`.
+  the call kwargs include `cache_control`. **Pre-phase verification
+  (2026-05-18):** ADR 0003's shape verified against `anthropic==0.102.0`
+  by direct SDK introspection — `TextBlockParam` carries
+  `cache_control: Optional[CacheControlEphemeralParam]` (per-block,
+  matches the ADR). `Usage` fields `input_tokens`, `output_tokens`,
+  `cache_read_input_tokens`, `cache_creation_input_tokens` map to
+  our `Tokens` dataclass via `getattr(...)`. P2a-R1 + P2a-R5 closed
+  before phase start; no `/pm-blocker` filed. (Two additive SDK
+  changes noted but not affecting ADR shape: a new request-level
+  `cache_control` kwarg alternative, and a `ttl: Literal["5m","1h"]`
+  field on `CacheControlEphemeralParam`. Default is still 5m.)
 
 ## Minimum deliverable
 
