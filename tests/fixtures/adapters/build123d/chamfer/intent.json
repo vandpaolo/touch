@@ -1,0 +1,22 @@
+{
+  "name": "chamfer_basic",
+  "description": "1.5 mm chamfer on all edges of a 30 mm cube.",
+  "schema_version": 1,
+  "parameters": [],
+  "features": [
+    {
+      "id": "body",
+      "kind": "box",
+      "params": {"length": 30, "width": 30, "height": 30}
+    }
+  ],
+  "modifiers": [
+    {
+      "id": "c1",
+      "kind": "chamfer",
+      "target": "body",
+      "params": {"distance": 1.5}
+    }
+  ],
+  "extras": null
+}

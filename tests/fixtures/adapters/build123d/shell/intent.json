@@ -1,0 +1,22 @@
+{
+  "name": "shell_basic",
+  "description": "1 mm shell of a 30 mm cube with the +Z face left open.",
+  "schema_version": 1,
+  "parameters": [],
+  "features": [
+    {
+      "id": "body",
+      "kind": "box",
+      "params": {"length": 30, "width": 30, "height": 30}
+    }
+  ],
+  "modifiers": [
+    {
+      "id": "s1",
+      "kind": "shell",
+      "target": "body",
+      "params": {"thickness": 1, "open_face": "+z"}
+    }
+  ],
+  "extras": null
+}

@@ -1,0 +1,22 @@
+{
+  "name": "pattern_basic",
+  "description": "Linear pattern: 4 copies of a 10 mm cube spaced 15 mm along X.",
+  "schema_version": 1,
+  "parameters": [],
+  "features": [
+    {
+      "id": "body",
+      "kind": "box",
+      "params": {"length": 10, "width": 10, "height": 10}
+    }
+  ],
+  "modifiers": [
+    {
+      "id": "p1",
+      "kind": "pattern",
+      "target": "body",
+      "params": {"count": 4, "spacing": 15, "axis": "x"}
+    }
+  ],
+  "extras": null
+}

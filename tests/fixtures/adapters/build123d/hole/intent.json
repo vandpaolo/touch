@@ -1,0 +1,25 @@
+{
+  "name": "cube_with_hole",
+  "description": "50 mm centered cube with a 20 mm hole through the centre, drilled along Z.",
+  "schema_version": 1,
+  "parameters": [
+    {"name": "size", "value": 50, "unit": "mm"},
+    {"name": "hole_diam", "value": 20, "unit": "mm"}
+  ],
+  "features": [
+    {
+      "id": "body",
+      "kind": "box",
+      "params": {"length": 50, "width": 50, "height": 50, "centered": "true"}
+    }
+  ],
+  "modifiers": [
+    {
+      "id": "drill",
+      "kind": "hole",
+      "target": "body",
+      "params": {"diameter": 20, "through": "true", "axis": "z"}
+    }
+  ],
+  "extras": null
+}

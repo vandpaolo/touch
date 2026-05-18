@@ -63,8 +63,8 @@ def _export(intent: Intent) -> str:
 
 
 def _extras_block(extras: str) -> str:
-    # Day 3 fills verbatim-append behaviour.
-    raise NotImplementedError("_extras_block: Day 3")
+    # Verbatim append; never parse or rewrite Intent.extras.
+    return f"\n# --- user extras ---\n{extras}"
 
 
 # ---------- per-kind emitters (placeholders until Days 2-3) ----------------
@@ -137,24 +137,57 @@ def _emit_loft(f: PrimaryFeature) -> str:
     return f"{f.id} = loft({sections})\n"
 
 
+_THROUGH_HOLE_DEPTH = 1000.0  # mm; "large enough to pass through any v0 part"
+
+
 def _emit_hole(m: Modifier) -> str:
-    raise NotImplementedError("_emit_hole: Day 3")
+    p = m.params
+    radius = float(p["diameter"]) / 2.0
+    if _is_truthy_str(p.get("through")):
+        depth = _THROUGH_HOLE_DEPTH
+    else:
+        depth = float(p["depth"])
+    # Algebra-mode: subtract a Cylinder. _Hole_ in BuildPart context is
+    # the parametric alternative; Cylinder-subtraction is simpler for
+    # emit-time code without a context manager.
+    return f"{m.target} = {m.target} - Cylinder({radius}, {depth})\n"
 
 
 def _emit_fillet(m: Modifier) -> str:
-    raise NotImplementedError("_emit_fillet: Day 3")
+    radius = float(m.params["radius"])
+    # Edge selection is coarse in v0 (data-model § Per-kind contracts):
+    # all edges of the target feature.
+    return f"{m.target} = fillet({m.target}.edges(), {radius})\n"
 
 
 def _emit_chamfer(m: Modifier) -> str:
-    raise NotImplementedError("_emit_chamfer: Day 3")
+    distance = float(m.params["distance"])
+    return f"{m.target} = chamfer({m.target}.edges(), {distance})\n"
 
 
 def _emit_shell(m: Modifier) -> str:
-    raise NotImplementedError("_emit_shell: Day 3")
+    p = m.params
+    thickness = float(p["thickness"])
+    open_face = str(p["open_face"]).strip().lower()
+    # Parse "+z" / "-x" etc. into a face selector along that axis.
+    sign_part = "[-1]" if open_face.startswith("+") else "[0]"
+    axis_letter = open_face[-1].upper()
+    selector = f"{m.target}.faces().sort_by(Axis.{axis_letter}){sign_part}"
+    return (
+        f"{m.target} = offset({m.target}, amount=-{thickness}, openings={selector})\n"
+    )
 
 
 def _emit_pattern(m: Modifier) -> str:
-    raise NotImplementedError("_emit_pattern: Day 3")
+    p = m.params
+    count = int(float(p["count"]))
+    spacing = float(p["spacing"])
+    axis_key = str(p["axis"]).lower()
+    axis_expr = _AXIS_MAP.get(axis_key, "Axis.X")
+    return (
+        f"{m.target} = {m.target} * "
+        f"LinearLocations({spacing}, {count}, axis={axis_expr})\n"
+    )
 
 
 _PRIMARY_DISPATCH: Final[dict[PrimaryKind, Callable[[PrimaryFeature], str]]] = {

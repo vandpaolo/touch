@@ -1,0 +1,22 @@
+{
+  "name": "fillet_basic",
+  "description": "2 mm fillet on all edges of a 30 mm cube.",
+  "schema_version": 1,
+  "parameters": [],
+  "features": [
+    {
+      "id": "body",
+      "kind": "box",
+      "params": {"length": 30, "width": 30, "height": 30}
+    }
+  ],
+  "modifiers": [
+    {
+      "id": "r1",
+      "kind": "fillet",
+      "target": "body",
+      "params": {"radius": 2}
+    }
+  ],
+  "extras": null
+}
