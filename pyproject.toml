@@ -46,6 +46,20 @@ packages = ["src/maquette"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 
+[tool.coverage.run]
+source = ["maquette"]
+branch = false
+
+[tool.coverage.report]
+include = [
+    "src/maquette/intent.py",
+    "src/maquette/intent_validation.py",
+    "src/maquette/pricing.py",
+    "src/maquette/config.py",
+    "src/maquette/adapters/*",
+]
+show_missing = true
+
 [tool.ruff]
 line-length = 88
 target-version = "py312"

@@ -10,9 +10,9 @@ jobs:
   checks:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 
@@ -45,5 +45,5 @@ jobs:
 
       - name: Coverage (soft target >=80% on intent + intent_validation)
         run: |
-          coverage run --include="src/maquette/intent.py,src/maquette/intent_validation.py" -m pytest -q
-          coverage report -m
+          coverage run -m pytest -q
+          coverage report
