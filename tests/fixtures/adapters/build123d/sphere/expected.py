@@ -3,4 +3,4 @@ from build123d import *
 
 ball = Sphere(10.0)
 
-# STEP export will land Day 4
+export_step(ball, "part.step")

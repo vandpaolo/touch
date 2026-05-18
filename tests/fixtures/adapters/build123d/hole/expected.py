@@ -9,4 +9,4 @@ body = Box(50.0, 50.0, 50.0, align=(Align.CENTER, Align.CENTER, Align.CENTER))
 
 body = body - Cylinder(10.0, 1000.0)
 
-# STEP export will land Day 4
+export_step(body, "part.step")

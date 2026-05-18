@@ -3,4 +3,4 @@ from build123d import *
 
 cyl = Cylinder(15.0, 40.0)
 
-# STEP export will land Day 4
+export_step(cyl, "part.step")

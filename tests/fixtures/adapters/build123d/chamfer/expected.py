@@ -5,4 +5,4 @@ body = Box(30.0, 30.0, 30.0)
 
 body = chamfer(body.edges(), 1.5)
 
-# STEP export will land Day 4
+export_step(body, "part.step")

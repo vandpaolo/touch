@@ -58,8 +58,13 @@ def _preamble(intent: Intent) -> str:
 
 
 def _export(intent: Intent) -> str:
-    # Day 4 fills STEP-export emission.
-    return "# STEP export will land Day 4\n"
+    # The "final" shape is the variable named after the last feature.
+    # Modifiers reassign their target variable in place, so this name
+    # holds the assembled solid after all per-kind emissions.
+    if not intent.features:
+        return ""
+    final_id = intent.features[-1].id
+    return f'export_step({final_id}, "part.step")\n'
 
 
 def _extras_block(extras: str) -> str:

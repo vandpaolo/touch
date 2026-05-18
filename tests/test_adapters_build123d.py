@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import subprocess
-import sys
 from pathlib import Path
 
 import pytest
@@ -63,23 +61,5 @@ def test_extras_appended_verbatim():
     assert code.index("# --- user extras ---") < code.index(extras_text)
 
 
-def test_box_emit_runs_under_subprocess():
-    """The box fixture's emitted code must execute without error.
-
-    Per phase-1 plan Day 2 done-when: 'emit output for the `box` fixture
-    runs without error under `python -c "<output>"` (no STEP export yet
-    — just BREP construction smoke)'.
-    """
-    intent = _load_intent("box")
-    code = build123d_target.emit(intent)
-    result = subprocess.run(
-        [sys.executable, "-c", code],
-        capture_output=True,
-        text=True,
-        timeout=60,
-    )
-    assert result.returncode == 0, (
-        f"build123d construction smoke failed.\n"
-        f"--- code ---\n{code}\n"
-        f"--- stderr ---\n{result.stderr}"
-    )
+# Subprocess round-trip tests live in tests/test_adapter_roundtrip.py
+# (this file is snapshot-equality only).
