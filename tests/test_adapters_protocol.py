@@ -60,7 +60,13 @@ def test_unknown_modifier_kind_raises_adapter_refusal():
     assert "bevel" in exc_info.value.reason
 
 
-def test_known_kind_box_dispatches_to_placeholder():
+def test_known_kind_box_dispatches_and_emits_source():
+    """Day 2: real _emit_box landed, so the dispatch path returns code.
+
+    (Previously this test asserted NotImplementedError for the Day-1
+    placeholder. The placeholder is gone; per-kind correctness is
+    covered by tests/test_adapters_build123d.py::test_emit_matches_snapshot.)
+    """
     box = PrimaryFeature(
         id="body",
         kind="box",
@@ -68,8 +74,8 @@ def test_known_kind_box_dispatches_to_placeholder():
     )
     intent = Intent(
         name="cube",
-        description="placeholder smoke",
+        description="dispatch smoke",
         features=[box],
     )
-    with pytest.raises(NotImplementedError, match="_emit_box"):
-        build123d_target.emit(intent)
+    code = build123d_target.emit(intent)
+    assert "body = Box(" in code

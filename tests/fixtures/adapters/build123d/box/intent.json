@@ -1,0 +1,15 @@
+{
+  "name": "box_basic",
+  "description": "50 x 40 x 30 mm uncentered box.",
+  "schema_version": 1,
+  "parameters": [],
+  "features": [
+    {
+      "id": "body",
+      "kind": "box",
+      "params": {"length": 50, "width": 40, "height": 30}
+    }
+  ],
+  "modifiers": [],
+  "extras": null
+}

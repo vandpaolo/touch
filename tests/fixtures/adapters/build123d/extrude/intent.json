@@ -1,0 +1,15 @@
+{
+  "name": "extrude_basic",
+  "description": "Extrude sketch_a 5 mm.",
+  "schema_version": 1,
+  "parameters": [],
+  "features": [
+    {
+      "id": "slab",
+      "kind": "extrude",
+      "params": {"profile": "sketch_a", "distance": 5}
+    }
+  ],
+  "modifiers": [],
+  "extras": null
+}

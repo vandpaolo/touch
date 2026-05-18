@@ -50,6 +50,7 @@ testpaths = ["tests"]
 line-length = 88
 target-version = "py312"
 src = ["src", "tests"]
+extend-exclude = ["tests/fixtures"]
 
 [tool.ruff.lint]
 select = [

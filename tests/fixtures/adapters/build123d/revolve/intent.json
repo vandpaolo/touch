@@ -1,0 +1,15 @@
+{
+  "name": "revolve_basic",
+  "description": "Revolve sketch_a 360 deg around Z.",
+  "schema_version": 1,
+  "parameters": [],
+  "features": [
+    {
+      "id": "solid",
+      "kind": "revolve",
+      "params": {"profile": "sketch_a", "axis": "z", "angle_deg": 360}
+    }
+  ],
+  "modifiers": [],
+  "extras": null
+}

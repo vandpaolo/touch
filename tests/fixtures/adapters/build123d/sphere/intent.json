@@ -1,0 +1,15 @@
+{
+  "name": "sphere_basic",
+  "description": "10 mm radius sphere at origin.",
+  "schema_version": 1,
+  "parameters": [],
+  "features": [
+    {
+      "id": "ball",
+      "kind": "sphere",
+      "params": {"radius": 10}
+    }
+  ],
+  "modifiers": [],
+  "extras": null
+}

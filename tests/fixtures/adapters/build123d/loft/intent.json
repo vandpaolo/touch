@@ -1,0 +1,15 @@
+{
+  "name": "loft_basic",
+  "description": "Loft between two sketches.",
+  "schema_version": 1,
+  "parameters": [],
+  "features": [
+    {
+      "id": "shell",
+      "kind": "loft",
+      "params": {"sections": "sketch_a,sketch_b"}
+    }
+  ],
+  "modifiers": [],
+  "extras": null
+}
