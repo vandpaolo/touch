@@ -1,14 +1,14 @@
 ---
 id: phase-2a
 title: Pipeline (LLM-facing half)
-status: planned           # planned | in_progress | blocked | done
-started: null             # ISO date when flipped to in_progress
+status: in_progress       # flipped 2026-05-18 via /pm-phase-start (audit-v2 override; see audit doc § Override)
+started: 2026-05-18       # ISO date when flipped to in_progress
 finished: null            # ISO date when flipped to done
 min_goal_met: null        # true | false | null
 max_goal_met: null        # true | false | null
 blocker: null             # path to blocker doc if status = blocked
 depends_on: [phase-1]
-audit: null               # path to audit doc once /pm-phase-start runs
+audit: audits/2026-05-18-pre-phase-2a-v2.md
 ---
 
 # Phase 2a — Pipeline (LLM-facing half)
