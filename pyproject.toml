@@ -58,6 +58,7 @@ include = [
     "src/maquette/config.py",
     "src/maquette/adapters/*",
     "src/maquette/agent/sanity.py",
+    "src/maquette/agent/planner.py",
 ]
 show_missing = true
 
@@ -109,6 +110,18 @@ forbidden_modules = [
     "maquette.adapters",
     "maquette.render",
     "maquette.cli",
+]
+
+[[tool.importlinter.contracts]]
+name = "agent.planner depends only on intent + intent_validation + pricing + anthropic + stdlib"
+type = "forbidden"
+source_modules = ["maquette.agent.planner"]
+forbidden_modules = [
+    "maquette.config",
+    "maquette.adapters",
+    "maquette.render",
+    "maquette.cli",
+    "maquette.agent.sanity",
 ]
 
 [[tool.importlinter.contracts]]
