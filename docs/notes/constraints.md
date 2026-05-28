@@ -27,14 +27,22 @@ no STEP for any extras-only Intent. The planner system prompt already
 promises the opposite (few-shot line: "must define a `body` variable so
 the adapter's `export_step(body, ...)` works").
 
-Constraint to ratify in architecture:
-- `body` is the **conventional export variable** for the build123d
-  adapter. The final solid is always bound to `body`.
-- `_export` emits `export_step(body, "part.step")`. When `features` is
-  non-empty, the last feature's id is `body` by convention (every
-  fixture/example already uses it); when `features` is empty but
-  `extras` is present, the extras block MUST assign `body`, and the
-  adapter still exports it.
-- This is a `02-data-model.md` adapter-contract change (was silent on
-  which variable gets exported). Freeze is lifted (no active phase) so
-  it's editable now, ahead of phase-2b.
+Constraint as ratified in ADR-0004 (this supersedes the first-draft
+"uniform `body`" idea below — the fixtures showed the final-feature id
+varies, so a uniform rule was **rejected**):
+- **Feature-based Intent** (`features` non-empty): the adapter exports
+  `features[-1].id`, unchanged. The final feature's id is whatever the
+  planner named it — the 11 snapshot fixtures use `body`, `cyl`, `slab`,
+  `solid`, `ball`, `shell`. No reserved name on this path.
+- **Extras-only Intent** (`features` empty, `extras` present): the
+  extras block MUST assign `body`; the adapter emits
+  `export_step(body, "part.step")`. `body` is the reserved name for the
+  escape hatch only.
+- **Degenerate Intent** (both empty): `AdapterRefusal(where="export:empty")`.
+- The adapter does not parse `extras`; a missing `body` binding surfaces
+  as a `NameError` at execution time.
+
+> First-draft note (kept for history, **not** what was adopted): an
+> earlier reading proposed a uniform "`body` is always the export
+> variable." Rejected in ADR-0004 because it would break 5 of the 11
+> snapshot fixtures whose final feature id is not `body`.
