@@ -424,3 +424,18 @@ either a note section or a decision here.
   the user's "view via web" wish. F7 (3 PNGs) unchanged.
 - → src/maquette/render/orthographic.py; pyproject.toml (pyvista comment);
   .github/workflows/ci.yml (swap step)
+
+## 2026-05-28 — /pm-phase-plan phase-3
+
+- Q (P3-Q1): How to handle mid-run Anthropic API errors (auth/rate-limit/
+  network) during planning? loop._plan only caught PlannerExhausted, so
+  an APIError escaped Loop.run before a run folder existed.
+- A: Harden the loop. loop._plan catches broad Anthropic API errors and
+  maps them to PLANNING_FAILED / exit 10 + error.json, so every
+  invocation yields a complete run folder (F8/F12/N10). CLI still wraps
+  Loop.run as a backstop (exit 1 on truly unexpected errors).
+- → docs/phases/phase-3.md § Min deliverable + Day 1 + P3-R2 + exit #3
+
+- Q (day count): 3 units (2 min + 1 max) vs roadmap gantt's 2d?
+- A: Keep 3 (Day 1 cli+loop-hardening, Day 2 tests+README, Day 3 MAX).
+- → docs/phases/phase-3.md § Sprint / day breakdown
