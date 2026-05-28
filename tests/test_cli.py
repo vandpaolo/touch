@@ -32,7 +32,31 @@ def _fake_loop(exit_code: int, capture: dict):
             run_dir = self._out_root / "2026-01-01T00-00-00__test"
             run_dir.mkdir(parents=True, exist_ok=True)
             (run_dir / "status.json").write_text(
-                json.dumps({"exit_code": exit_code}), encoding="utf-8"
+                json.dumps(
+                    {
+                        "status": "DONE_OK" if exit_code == 0 else "FAILED",
+                        "exit_code": exit_code,
+                        "duration_s": 1.5,
+                        "cost_usd_estimate": 0.0123,
+                    }
+                ),
+                encoding="utf-8",
+            )
+            (run_dir / "trace.jsonl").write_text(
+                json.dumps({"step": "PROMPT_RECEIVED", "duration_s": 0.0})
+                + "\n"
+                + json.dumps(
+                    {
+                        "step": "PLANNING",
+                        "duration_s": 1.2,
+                        "tokens_in": 30,
+                        "tokens_out": 278,
+                        "cache_read_tokens": 0,
+                        "cache_creation_tokens": 3138,
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
             )
             return run_dir
 
@@ -120,3 +144,26 @@ def test_help_lists_all_flags():
     assert result.exit_code == 0
     for flag in ("--out", "--max-iter", "--exec-timeout", "--model", "-q", "-v"):
         assert flag in result.output
+
+
+def test_quiet_suppresses_summary(tmp_path, monkeypatch, cli_env):
+    monkeypatch.setattr(cli_mod, "Loop", _fake_loop(0, {}))
+    result = runner.invoke(app, ["design", "x", "--out", str(tmp_path), "-q"])
+    assert result.exit_code == 0
+    assert "DONE_OK" not in result.output  # summary suppressed
+    assert str(tmp_path / "2026-01-01T00-00-00__test") in result.output  # F12 kept
+
+
+def test_verbose_prints_per_call_tokens(tmp_path, monkeypatch, cli_env):
+    monkeypatch.setattr(cli_mod, "Loop", _fake_loop(0, {}))
+    result = runner.invoke(app, ["design", "x", "--out", str(tmp_path), "-v"])
+    assert result.exit_code == 0
+    assert "PLANNING" in result.output
+    assert "in=30" in result.output  # per-LLM-call tokens
+
+
+def test_empty_prompt_exit_2(tmp_path, monkeypatch, cli_env):
+    monkeypatch.setattr(cli_mod, "Loop", _fake_loop(0, {}))
+    result = runner.invoke(app, ["design", "   ", "--out", str(tmp_path)])
+    assert result.exit_code == 2
+    assert "empty" in result.output

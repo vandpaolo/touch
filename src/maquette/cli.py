@@ -23,6 +23,7 @@ from maquette.config import Config
 _PROMPTS_FILE = Path(__file__).resolve().parents[2] / "prompts" / "planner.system.md"
 
 _EXIT_GENERIC = 1
+_EXIT_BAD_ARGS = 2
 
 app = typer.Typer(
     add_completion=False,
@@ -60,6 +61,10 @@ def design(
     """Generate a parametric solid + STEP from a natural-language prompt."""
     load_dotenv()
 
+    if not prompt.strip():
+        typer.echo("error: prompt must not be empty.", err=True)
+        raise typer.Exit(_EXIT_BAD_ARGS)
+
     if not os.environ.get("ANTHROPIC_API_KEY"):
         typer.echo(
             "error: ANTHROPIC_API_KEY is not set (put it in your environment "
@@ -74,8 +79,9 @@ def design(
 
     run_dir = _run(prompt, cfg)
 
+    _report(run_dir, quiet=quiet, verbose=verbose)  # human detail -> stderr
     exit_code = _exit_code_from(run_dir)
-    typer.echo(str(run_dir))  # F12: print the run dir on every exit.
+    typer.echo(str(run_dir))  # F12: run dir -> stdout, on every exit.
     raise typer.Exit(exit_code)
 
 
@@ -132,11 +138,51 @@ def _runconfig_from(cfg: Config) -> RunConfig:
     )
 
 
+def _report(run_dir: Path, *, quiet: bool, verbose: bool) -> None:
+    """Human-readable detail to stderr. `-q` prints nothing here (stdout
+    still gets the run dir); `-v` adds a per-step / per-LLM-call log."""
+    if quiet:
+        return
+    status = _read_json(run_dir / "status.json")
+    typer.echo(
+        f"{status.get('status', '?')}  exit={status.get('exit_code', '?')}  "
+        f"{float(status.get('duration_s', 0)):.1f}s  "
+        f"${float(status.get('cost_usd_estimate', 0)):.4f}",
+        err=True,
+    )
+    if not verbose:
+        return
+    for event in _read_trace(run_dir):
+        line = f"  {event.get('step', '?')}  {float(event.get('duration_s', 0)):.3f}s"
+        if event.get("step") == "PLANNING":
+            line += (
+                f"  in={event.get('tokens_in')} out={event.get('tokens_out')}"
+                f" cache_read={event.get('cache_read_tokens')}"
+                f" cache_creation={event.get('cache_creation_tokens')}"
+            )
+        typer.echo(line, err=True)
+
+
+def _read_json(path: Path) -> dict:
+    if not path.exists():
+        return {}
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _read_trace(run_dir: Path) -> list[dict]:
+    trace = run_dir / "trace.jsonl"
+    if not trace.exists():
+        return []
+    return [
+        json.loads(line)
+        for line in trace.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+
+
 def _exit_code_from(run_dir: Path) -> int:
-    status_path = run_dir / "status.json"
-    if not status_path.exists():
-        return _EXIT_GENERIC
-    return int(json.loads(status_path.read_text(encoding="utf-8"))["exit_code"])
+    status = _read_json(run_dir / "status.json")
+    return int(status.get("exit_code", _EXIT_GENERIC))
 
 
 if __name__ == "__main__":
