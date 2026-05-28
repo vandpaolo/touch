@@ -1,6 +1,6 @@
 ---
 project_status: building   # planning | building | shipped — flipped 2026-05-16 (phase-0 in_progress)
-active_phase: phase-2b     # set 2026-05-28 via /pm-phase-start
+active_phase: null         # cleared 2026-05-28 via /pm-phase-report (phase-2b done)
 ---
 
 # 03 — Roadmap

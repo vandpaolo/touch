@@ -1,11 +1,11 @@
 ---
 id: phase-2b
 title: Pipeline (runtime + orchestration half)
-status: in_progress       # flipped 2026-05-28 via /pm-phase-start
+status: done              # flipped 2026-05-28 via /pm-phase-report
 started: 2026-05-28        # ISO date when flipped to in_progress
-finished: null            # ISO date when flipped to done
-min_goal_met: null        # true | false | null
-max_goal_met: null        # true | false | null
+finished: 2026-05-28       # ISO date when flipped to done
+min_goal_met: true        # true | false | null
+max_goal_met: true        # true | false | null
 blocker: null             # path to blocker doc if status = blocked
 depends_on: [phase-2a]
 audit: audits/2026-05-28-pre-phase-2b.md
