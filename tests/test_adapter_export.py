@@ -82,6 +82,40 @@ def test_extras_only_exports_body():
     assert 'export_step(body, "part.step")' in code
 
 
+def test_parameter_named_like_build123d_fn_does_not_shadow(tmp_path: Path):
+    """A parameter named after a build123d function (e.g. 'chamfer') must
+    not be emitted as a top-level assignment that shadows it — else the
+    modifier's chamfer(...) call crashes ('float' object is not callable)."""
+    from maquette.intent import Parameter
+
+    intent = Intent(
+        name="cyl_chamfered",
+        description="cylinder with an all-edges chamfer; param named 'chamfer'",
+        parameters=[Parameter(name="chamfer", value=2.0, unit="mm")],
+        features=[
+            PrimaryFeature(
+                id="body", kind="cylinder", params={"radius": 15.0, "height": 40.0}
+            )
+        ],
+        modifiers=[
+            Modifier(id="c1", kind="chamfer", target="body", params={"distance": 2.0})
+        ],
+    )
+    code = build123d_target.emit(intent)
+    assert "\nchamfer = 2.0" not in code  # not emitted as a shadowing assignment
+    assert "chamfer(body.edges(), 2.0)" in code  # the function call survives
+
+    result = subprocess.run(
+        [sys.executable, "-c", code],
+        capture_output=True,
+        text=True,
+        timeout=60,
+        cwd=tmp_path,
+    )
+    assert result.returncode == 0, f"round-trip failed:\n{result.stderr}"
+    assert (tmp_path / "part.step").stat().st_size > 0
+
+
 def test_degenerate_intent_refuses():
     """No features and no extras -> AdapterRefusal(where='export:empty')."""
     intent = Intent(

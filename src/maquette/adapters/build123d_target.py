@@ -44,6 +44,30 @@ def emit(intent: Intent) -> str:
 # ---------- preamble / export / extras (filled in Days 2-4) ---------------
 
 
+# build123d identifiers the emitted geometry references. A parameter that
+# shadows one would clobber it at module scope (e.g. a param named
+# "chamfer" hides the chamfer() function the modifier then calls). These
+# parameter assignments are decorative — the geometry uses literals — so
+# a colliding one is omitted rather than emitted.
+_RESERVED_NAMES: Final[frozenset[str]] = frozenset(
+    {
+        "Box",
+        "Cylinder",
+        "Sphere",
+        "extrude",
+        "revolve",
+        "loft",
+        "fillet",
+        "chamfer",
+        "offset",
+        "LinearLocations",
+        "Align",
+        "Axis",
+        "export_step",
+    }
+)
+
+
 def _preamble(intent: Intent) -> str:
     lines = [
         f"# build123d source for Intent: {intent.name}",
@@ -53,6 +77,12 @@ def _preamble(intent: Intent) -> str:
         lines.append("")
         lines.append("# parameters (units assumed mm in v0)")
         for p in intent.parameters:
+            if p.name in _RESERVED_NAMES:
+                lines.append(
+                    f"# parameter {p.name!r} = {p.value} omitted "
+                    "(would shadow a build123d name; geometry uses the literal)"
+                )
+                continue
             lines.append(f"{p.name} = {p.value}")
     return "\n".join(lines) + "\n"
 
