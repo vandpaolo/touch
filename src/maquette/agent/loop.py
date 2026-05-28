@@ -129,7 +129,9 @@ class Loop:
         result = Executor(run_dir, self.cfg.exec_timeout_s).execute(code_path)
         if result.exit_code != 0:
             state = "EXEC_TIMEOUT" if result.exit_code == 13 else "EXEC_FAILED"
-            self._emit(run, state, error=result.error, exec_duration_s=result.duration_s)
+            self._emit(
+                run, state, error=result.error, exec_duration_s=result.duration_s
+            )
             # The executor already wrote error.json; do not overwrite it.
             return self._finalize(run_dir, run, state, result.exit_code, None)
         self._emit(run, "EXECUTING", exec_duration_s=result.duration_s)
