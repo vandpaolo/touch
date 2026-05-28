@@ -139,7 +139,10 @@ def test_bad_arg_exit_2(tmp_path, cli_env):
     assert result.exit_code == 2
 
 
-def test_help_lists_all_flags():
+def test_help_lists_all_flags(monkeypatch):
+    # Pin a wide width so Rich does not wrap/truncate flag names (CI runs
+    # at 80 cols, which splits long options like --exec-timeout).
+    monkeypatch.setenv("COLUMNS", "200")
     result = runner.invoke(app, ["design", "--help"])
     assert result.exit_code == 0
     for flag in ("--out", "--max-iter", "--exec-timeout", "--model", "-q", "-v"):
