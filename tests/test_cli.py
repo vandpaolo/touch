@@ -139,14 +139,27 @@ def test_bad_arg_exit_2(tmp_path, cli_env):
     assert result.exit_code == 2
 
 
-def test_help_lists_all_flags(monkeypatch):
-    # Pin a wide width so Rich does not wrap/truncate flag names (CI runs
-    # at 80 cols, which splits long options like --exec-timeout).
-    monkeypatch.setenv("COLUMNS", "200")
-    result = runner.invoke(app, ["design", "--help"])
-    assert result.exit_code == 0
-    for flag in ("--out", "--max-iter", "--exec-timeout", "--model", "-q", "-v"):
-        assert flag in result.output
+def test_help_renders_and_all_flags_registered():
+    # --help must render without error...
+    assert runner.invoke(app, ["design", "--help"]).exit_code == 0
+    # ...and every documented flag must be registered. Introspect the Click
+    # command directly rather than parsing Rich-rendered --help text, which
+    # wraps/truncates differently across terminal widths + rich versions.
+    import typer
+
+    design_cmd = typer.main.get_command(app).commands["design"]
+    registered = {opt for p in design_cmd.params for opt in getattr(p, "opts", [])}
+    for flag in (
+        "--out",
+        "--max-iter",
+        "--exec-timeout",
+        "--model",
+        "--quiet",
+        "-q",
+        "--verbose",
+        "-v",
+    ):
+        assert flag in registered, f"{flag} not registered on `design`"
 
 
 def test_quiet_suppresses_summary(tmp_path, monkeypatch, cli_env):
