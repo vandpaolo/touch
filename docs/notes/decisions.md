@@ -452,3 +452,30 @@ either a note section or a decision here.
 - A: Mock-only push CI (no key secret, per phase-2a). The 3-prompt live
   smoke is a gated `pytest -m live` test, run manually. No billable CI.
 - → docs/phases/phase-3.5.md § Policies + Max deliverable
+
+## 2026-05-28 — /pm-vision (blocker 2026-05-28-v0-references-exceed-schema)
+
+- Q: How to resolve the v0-references-exceed-schema blocker? (User: "do
+  all four resolutions.")
+- A: Sequenced. NOW (vision): restate references honestly + add a v0
+  capability bound. THEN (roadmap): front-load schema edge-selection/
+  hole-positioning (opt 2) + correctness guard/Evaluator (opt 4) into
+  early v0.1. Nothing dropped; v0 ships honest, capability lands next.
+- → docs/00-vision.md § Success criteria + capability bound; docs/00-pr-faq.md
+
+- Q: v0 ship references — which, and how strict?
+- A: Cube + cylinder ("a 2 mm chamfer", all-edges, drop "top edge") are
+  the HARD gate (schema-native, reliable). L-bracket ("a 6 mm mounting
+  hole", single) is a BEST-EFFORT showcase of the extras relief valve —
+  demonstrated, not gating (extras un-guarded until v0.1 Evaluator).
+- → docs/00-vision.md § Success criteria
+
+- Q (Conflict C1): vision 30 s vs N1 20 s ship bar?
+- A: 20 s (N1). Vision + pr-faq updated 30 s → 20 s. C1 resolved.
+- → docs/00-vision.md, docs/00-pr-faq.md
+
+- Cross-layer follow-ups (rest of the blocker resolution): /pm-requirements
+  (F5 "matches within capability bound", R7 materialized + best-effort
+  extras, restate N1/N2 "3 prompts" → 2 gate + 1 showcase, add v0 scope
+  boundary); /pm-roadmap (phase-3.5 references; front-load opt-2 + opt-4
+  into early v0.1).

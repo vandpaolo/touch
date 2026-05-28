@@ -102,16 +102,48 @@ gets out of the way.
 
 ## Success criteria
 
-v0 ships when **all three** v0 reference prompts succeed end-to-end on
-a clean clone of the repo (with only `ANTHROPIC_API_KEY` set):
+v0 ships on a clean clone of the repo (installed per the README —
+including the headless render backend — with only `ANTHROPIC_API_KEY`
+set) when:
 
-1. **Cube with through-hole** — e.g. `"a 50 mm cube with a 20 mm hole through the centre"`
-2. **Cylinder with chamfer** — e.g. `"a 30 mm diameter, 40 mm tall cylinder with a 2 mm chamfer on the top edge"`
-3. **Simple L-bracket** — e.g. `"a 60 × 40 × 5 mm L-bracket with a 6 mm hole in the centre of each flange"`
+**Hard ship gate — both schema-native references must pass:**
 
-For each prompt, the produced STEP file must open in FreeCAD and show
-the described part, within 30 s wall-clock and < $0.10 in API cost.
+1. **Cube with through-hole** — `"a 50 mm cube with a 20 mm hole through the centre"`
+2. **Cylinder with chamfer** — `"a 30 mm diameter, 40 mm tall cylinder with a 2 mm chamfer"` *(v0 chamfers all edges — see the capability bound below)*
+
+Each must produce a STEP that opens in FreeCAD and shows the described
+part, within **20 s** wall-clock and < $0.10 in API cost.
+
+**Best-effort showcase — demonstrated, not gating:**
+
+3. **L-bracket with a mounting hole** (compound shape via the `extras`
+   relief valve) — `"a 60 × 40 × 5 mm L-bracket with a 6 mm mounting hole"`.
+   This exercises the `extras` escape hatch end-to-end. Because `extras`
+   is un-guarded LLM-written code until the v0.1 Evaluator lands, it is
+   **not** a hard ship gate — a single bad generation does not block v0;
+   it may need a reroll. v0 ships with a known-good L-bracket run captured
+   as an example.
+
 NX-journal output is verified separately under v0.1.
+
+### v0 capability bound — what "matches the prompt" means
+
+v0 commits to geometry expressible in the `Intent` schema (6 primaries +
+5 modifiers) **plus the `extras` relief valve** for compound shapes the
+schema can't name (the L-bracket above). Within that bound the result
+must match the prompt. v0 deliberately does **not** support:
+
+- **Edge-specific selection** — chamfer/fillet apply to *all* edges of
+  the target, not a named one ("…on the top edge" is beyond v0).
+- **Multi-face / oriented hole placement** — `hole` is centred on the
+  target along one axis; "a hole in *each flange*" of an L (one of which
+  needs a sideways axis) is beyond v0.
+
+These are the first v0.1 work (schema-v2 first-class edge selection +
+hole positioning, and the vision-LLM Evaluator that catches geometry
+that silently doesn't match). v0's reference prompts are phrased to stay
+inside the bound; `extras` remains best-effort (no correctness guard
+until the Evaluator lands — see risk R7 in requirements).
 
 ## Strategic-fit map
 

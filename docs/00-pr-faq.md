@@ -46,7 +46,7 @@ with output that lands cleanly back in NX as real features.
 **What is the smallest thing we can ship?**
 `maquette design "a 50 mm cube with a 20 mm hole through the centre"`
 producing a STEP file that opens in FreeCAD and shows the described part,
-within 30 s and < $0.10 in API cost.
+within 20 s and < $0.10 in API cost.
 
 **What's the biggest risk?**
 Silent semantic failure: the LLM emits a valid `Intent`, the adapter
@@ -61,10 +61,15 @@ we file a `/pm-blocker` and pivot to a different backend (e.g. FreeCAD)
 — the multi-backend pattern is robust to backend-specific failure modes.
 
 **How will we know it worked?**
-v0 success: all three reference prompts (cube with hole, cylinder with
-chamfer, simple bracket) generate a STEP that opens cleanly in FreeCAD,
-within 30 s and < $0.10 per generation. v0.1 adds the NX journal landing
-as a real feature tree in the NX Part Navigator for the same three prompts.
+v0 success: the two schema-native references (cube with hole, cylinder
+with an all-edges chamfer) generate a STEP that opens cleanly in FreeCAD,
+within 20 s and < $0.10 per generation, *within the v0 capability bound*
+(no edge-specific selection or oriented multi-face holes — those are
+v0.1). The L-bracket-with-hole (compound shape via the `extras` relief
+valve) is a demonstrated best-effort showcase, not a hard gate, since
+`extras` is un-guarded until the v0.1 Evaluator. v0.1 adds the NX journal
+landing as a real feature tree in the NX Part Navigator for the same
+prompts.
 
 **What does failure look like?**
 Every prompt produces a STEP that runs but is visually wrong, requiring
