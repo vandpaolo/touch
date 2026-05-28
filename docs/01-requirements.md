@@ -18,7 +18,7 @@ This document covers **v0 only**. v0.1 and v0.2 requirements live in
 | F2 | A Planner call converts the prompt to a validated `Intent` (pydantic) | The resulting `intent.json` parses cleanly against the `Intent` schema; invalid LLM output triggers one retry before failing exit 10 | must |
 | F3 | A Worker emits build123d Python from the `Intent` via the build123d adapter | The adapter is a pure function `Intent → str`; emits byte-identical code for the same Intent across runs | must |
 | F4 | The build123d adapter supports the full v0 Intent schema | All 6 PrimaryKinds (box, cylinder, sphere, extrude, revolve, loft) and all 5 ModifierKinds (hole, fillet, chamfer, shell, pattern) compile to valid build123d code with snapshot fixtures per kind | must |
-| F5 | An Executor runs the worker's code in a subprocess and produces a STEP file | `output/<run-id>/part.step` exists, is > 0 bytes, and (per the v0 success criterion) **a human reviewer confirms the geometry matches the prompt description**. STEP non-emptiness is the automatable bar; geometric correctness is human-verified in v0 (Evaluator is v0.1) | must |
+| F5 | An Executor runs the worker's code in a subprocess and produces a STEP file | `output/<run-id>/part.step` exists, is > 0 bytes, and (per the v0 success criterion) **a human reviewer confirms the geometry matches the prompt description — within the v0 capability bound** (vision § capability bound: schema-native geometry + the `extras` relief valve; *not* edge-specific selection or oriented multi-face holes). STEP non-emptiness is the automatable bar; geometric correctness is human-verified in v0 (Evaluator is v0.1) | must |
 | F6 | A dimension sanity check runs after planner output | Numeric dimensions present in the prompt (regex match for patterns like `"50 mm"`, `"20mm"`, `"60 × 40"`) are compared against `Intent.parameters` and feature params. Mismatches log a `DIMENSION_WARNING` entry to `trace.jsonl` and a `warnings` array entry in `status.json`. Does **not** fail the run — it's a visibility signal, not a hard gate | must |
 | F7 | A Renderer produces three orthographic PNG views (front, side, top) | `output/<run-id>/renders/{front,side,top}.png` exist as valid PNGs on success. Renderer failure does NOT block exit 0 — STEP is the primary artefact; renders are marked missing in `status.json` and the run continues | should |
 | F8 | Each generation lives in `output/<run-id>/` with the artefact set | Folder contains: `prompt.txt`, `intent.json`, `code.py`, `part.step`, `renders/`, `trace.jsonl`, `status.json` (and `error.json` on failure) | must |
@@ -52,13 +52,19 @@ when that version is being shaped.
   (acceptable risk for personal-tool use).
 - **Conversational mode and parameter resliders** (v0.2): `maquette
   converse`, `maquette tweak`, session-file persistence.
+- **Edge-specific selection + oriented/multi-face hole placement**
+  (early v0.1, schema-v2): chamfer/fillet a named edge; place a hole on
+  a chosen face/axis. Surfaced by the phase-3.5 blocker
+  (`blockers/2026-05-28-v0-references-exceed-schema.md`); to be
+  sequenced near the front of v0.1 alongside the Evaluator in
+  `03-roadmap.md`.
 
 ## Non-functional requirements
 
 | ID | NFR | Target | Verification |
 |----|-----|--------|--------------|
-| N1 | Single-shot latency (prompt → STEP) | < **20 s** p95 on a simple part for v0 (tightened from 30 s now that NX emission is deferred to v0.1) | Smoke test on the 3 v0 reference prompts; assert wall-clock < 20 s; record p95 across ≥ 10 runs per prompt |
-| N2 | LLM cost per generation | < $0.10 on a simple part. **No cost cap behaviour in v0** — overruns are recorded in `status.json.cost_usd_estimate` and the run continues to completion (per gap G2). Cost cap behaviour deferred to v0.1+ if it becomes a real problem | `trace.jsonl` token counts × `maquette/pricing.py` table; assert per-run estimate < $0.10 on the 3 v0 reference prompts; track actual SDK-reported usage |
+| N1 | Single-shot latency (prompt → STEP) | < **20 s** p95 on a simple part for v0 (tightened from 30 s now that NX emission is deferred to v0.1) | Smoke test on the 2 hard-gate references (cube, cylinder — vision § Success criteria); assert wall-clock < 20 s; record p95 across ≥ 10 runs per prompt. The L-bracket showcase is measured too but is best-effort, not gating |
+| N2 | LLM cost per generation | < $0.10 on a simple part. **No cost cap behaviour in v0** — overruns are recorded in `status.json.cost_usd_estimate` and the run continues to completion (per gap G2). Cost cap behaviour deferred to v0.1+ if it becomes a real problem | `trace.jsonl` token counts × `maquette/pricing.py` table; assert per-run estimate < $0.10 on the 2 hard-gate references; track actual SDK-reported usage |
 | N3 | Adapter determinism | Same `Intent` → byte-identical emitted code | Snapshot tests: emit twice, diff must be empty; CI fails on drift; one fixture per supported kind (11 total per N3 ↔ F4) |
 | N4 | Repo hygiene around NX (all milestones, not just v0) | Zero NX imports in `src/` (ever) | CI guard: `grep -r "^import NXOpen\|^from NXOpen" src/` returns nothing |
 | N5 | Headless execution | Runs on a Linux server without a display | Smoke test in headless env (no `DISPLAY`); PyVista off-screen + build123d headless |
@@ -178,6 +184,15 @@ sequenceDiagram
   ever. The NX adapter is written from the public NX Open API docs only.
 - **v0 Intent schema = 6 PrimaryKinds + 5 ModifierKinds** (per gap G3).
   The build123d adapter must compile all 11 to valid code.
+- **v0 capability bound** (vision § capability bound): v0 commits to
+  geometry expressible in the schema (6 + 5) **plus the `extras` relief
+  valve** for compound shapes the schema can't name. v0 does **not**
+  support edge-specific chamfer/fillet selection (e.g. "the top edge")
+  or oriented/multi-face hole placement (e.g. "a hole in *each flange*").
+  `extras` is **best-effort** — un-guarded LLM-written code, no
+  correctness check until the v0.1 Evaluator. Reference prompts + the
+  ship gate stay inside this bound (the L-bracket is a best-effort
+  showcase, not a hard gate).
 
 ### Assumptions (chosen, may revise)
 
@@ -211,7 +226,7 @@ sequenceDiagram
 | R4 | Subprocess crashes / no STEP produced | low | high | Capture stderr in `error.json`; exit 12 |
 | R5 | Subprocess times out | low | med | Hard 30 s default; SIGKILL; write `error.json`; exit 13 |
 | R6 | Renderer fails | low | low | Keep STEP, mark renders missing in `status.json`, continue at exit 0 |
-| R7 | **Silent semantic failure** (geometry doesn't match prompt) | **high** | **high** | F6 dimension sanity check is the cheap v0 guardrail (warns the user). v0.1 vision-LLM Evaluator is the proper mitigation. Long-term: expand Intent schema as classes of mismatch surface |
+| R7 | **Silent semantic failure** (geometry doesn't match prompt) | **high** | **high** | **Materialised in phase-3.5** (blocker `2026-05-28-v0-references-exceed-schema`): the cylinder "top edge" + L-bracket "each flange" references demanded geometry past the v0 capability bound, routed to fragile `extras`. v0 mitigation: (a) reference prompts + ship gate restricted to schema-native geometry (cube, cylinder); (b) F6 dimension check warns; (c) `extras` is explicitly best-effort/un-guarded (the L-bracket is a showcase, not a gate). Proper fix = **early v0.1**: vision-LLM Evaluator + schema-v2 first-class edge selection & hole positioning |
 | R8 | Cost overrun on real prompts (above $0.10) | med | med | No cost cap in v0 (per G2). Cost is recorded accurately in `status.json` and surfaces in `maquette list` (v0.1) so overruns are visible. Cap behaviour added in v0.1+ if needed |
 | R9 | build123d API churn breaks adapter | low | med | Snapshot tests (one per kind) pin adapter output to a build123d version; regression CI catches drift |
 | R10 | LLM cost exceeds $0.10 on the demo cube (vision success criterion miss) | low | high | Prompt-cache the planner system prompt + few-shots (Anthropic prompt caching); tight schema keeps output tokens small. Re-evaluate at first end-to-end run |
