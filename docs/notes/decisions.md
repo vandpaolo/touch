@@ -404,3 +404,23 @@ either a note section or a decision here.
 - Q (P1): Split loop.py across Day 4 (core) + Day 5 (trace/status), or merge?
 - A: Merge into one Day 4 loop task. Plan now 4 min + 1 max = 5 units.
 - → docs/phases/phase-2b.md § Sprint / day breakdown
+
+## 2026-05-28 — Headless render backend (phase-2b day 2 implementation)
+
+- Q: How to render orthographic PNGs headless on nexus (no X server)?
+  Stock `vtk` wheel is X11-only and segfaults off-screen; no Xvfb/OSMesa.
+- A: Swap `vtk` -> `vtk-osmesa==9.3.1` (VTK's wheel index,
+  https://wheels.vtk.org). Bundled OSMesa CPU software GL; no X, no Xvfb
+  subprocess, no sudo, works on bare ubuntu CI. Chosen over Xvfb (sudo +
+  display process + now-legacy) after a research-agent analysis.
+- Gotcha 1: OpenCascade (OCP, via build123d) and VTK-OSMesa fight over
+  the Mesa GL context — loading OCP before rendering -> blank frames. Fix:
+  STEP->STL conversion runs in a subprocess; the render process never
+  imports build123d.
+- Gotcha 2: OSMesa needs an explicit plotter.render() before screenshot,
+  else blank frame.
+- Web bonus (future, not built): build123d export_gltf -> .glb viewable
+  in a browser <model-viewer> is ~free; possible later enhancement for
+  the user's "view via web" wish. F7 (3 PNGs) unchanged.
+- → src/maquette/render/orthographic.py; pyproject.toml (pyvista comment);
+  .github/workflows/ci.yml (swap step)
