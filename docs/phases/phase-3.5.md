@@ -1,12 +1,12 @@
 ---
 id: phase-3.5
 title: Smoke + 3 reference examples (v0 ships)
-status: blocked           # flipped 2026-05-28 via /pm-blocker
+status: in_progress       # unblocked 2026-05-28 via /pm-blocker resolve
 started: 2026-05-28        # ISO date when flipped to in_progress
 finished: null            # ISO date when flipped to done
 min_goal_met: null        # true | false | null
 max_goal_met: null        # true | false | null
-blocker: blockers/2026-05-28-v0-references-exceed-schema.md
+blocker: null             # resolved: blockers/2026-05-28-v0-references-exceed-schema.md
 depends_on: [phase-3]
 audit: audits/2026-05-28-pre-phase-3.5.md
 ---

@@ -2,9 +2,9 @@
 id: 2026-05-28-v0-references-exceed-schema
 phase: phase-3.5
 severity: hard
-status: open
+status: resolved
 discovered: 2026-05-28
-resolved: null
+resolved: 2026-05-28
 re_entry: both
 ---
 
@@ -104,4 +104,43 @@ sound; the gap is specifically where the references exceed the schema.
 
 ## Resolution
 
-<!-- left empty; filled when the re-design locks and the blocker is resolved -->
+Resolved 2026-05-28 via the **"do all four, sequenced"** approach (user
+decision): unblock + ship an honest v0 now, and front-load the deeper
+fixes into early v0.1 — nothing dropped.
+
+**NOW (v0) — locked across three design layers:**
+
+- **Vision** ([`00-vision.md`](../00-vision.md), commit `d4f4e5d`):
+  references restated within v0 capability — cylinder → "a 2 mm chamfer"
+  (all edges, dropped "top edge"); L-bracket → "a 6 mm mounting hole"
+  (single, dropped "each flange"). **Ship gate = cube + cylinder**
+  (schema-native, reliable); the **L-bracket is a best-effort `extras`
+  showcase, not a hard gate** (extras is un-guarded until the v0.1
+  Evaluator). Added an explicit **v0 capability bound** (no edge-specific
+  selection, no oriented multi-face holes) so the over-promise can't
+  recur. Latency bar aligned 30 s → 20 s (conflict C1 closed). PR-FAQ
+  updated to match.
+- **Requirements** ([`01-requirements.md`](../01-requirements.md), commit
+  `794a2e0`): F5 bounded by the capability bound; N1/N2 verified on the
+  two hard-gate references; R7 annotated as materialised here with the v0
+  mitigation; new capability-bound constraint; edge-selection +
+  oriented-hole placement added to the deferred-from-v0 list.
+- **Roadmap** ([`03-roadmap.md`](../03-roadmap.md), commit `9f80a37`):
+  phase-3.5 restated to the honest gate; **Phase 4 (Evaluator)** flagged
+  as the front-of-v0.1 correctness guard (opt 4); new **Phase 4.5 —
+  Schema v2a (edge selection + hole positioning)** pulled forward from
+  phase-10 (opt 2) to make the over-specified cases first-class schema.
+
+**THEN (early v0.1):** Phase 4 (Evaluator/refine — catches silent
+semantic failure) and Phase 4.5 (schema edge-selection + hole-positioning
+— removes the reliance on fragile `extras`). Phase 10 keeps the remaining
+schema-v2 scope.
+
+**Also fixed in passing (implementation, not design):** the executor
+doubled the code path with a relative `out_dir` (commit `2df4e27`) — the
+real reason the cube initially failed in verification; unrelated to this
+blocker's design issue but surfaced in the same session.
+
+**Follow-up before resuming:** the phase-3.5 *plan* doc still carries the
+pre-blocker references; refresh it via `/pm-phase-plan phase-3.5` so the
+plan matches the restated vision/roadmap before re-running.
