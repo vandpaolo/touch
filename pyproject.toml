@@ -71,6 +71,7 @@ include = [
     "src/maquette/agent/planner.py",
     "src/maquette/agent/worker.py",
     "src/maquette/agent/executor.py",
+    "src/maquette/agent/loop.py",
     "src/maquette/render/*",
 ]
 show_missing = true
@@ -220,4 +221,12 @@ forbidden_modules = [
     "maquette.agent.worker",
     "maquette.agent.loop",
     "anthropic",
+]
+
+[[tool.importlinter.contracts]]
+name = "agent.loop orchestrates but never imports the cli"
+type = "forbidden"
+source_modules = ["maquette.agent.loop"]
+forbidden_modules = [
+    "maquette.cli",
 ]
