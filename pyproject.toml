@@ -70,6 +70,7 @@ include = [
     "src/maquette/agent/sanity.py",
     "src/maquette/agent/planner.py",
     "src/maquette/agent/worker.py",
+    "src/maquette/agent/executor.py",
     "src/maquette/render/*",
 ]
 show_missing = true
@@ -200,4 +201,23 @@ forbidden_modules = [
     "maquette.agent",
     "maquette.adapters",
     "maquette.cli",
+]
+
+[[tool.importlinter.contracts]]
+name = "agent.executor is a pure subprocess manager (stdlib only, no render)"
+type = "forbidden"
+source_modules = ["maquette.agent.executor"]
+forbidden_modules = [
+    "maquette.intent",
+    "maquette.intent_validation",
+    "maquette.pricing",
+    "maquette.config",
+    "maquette.render",
+    "maquette.adapters",
+    "maquette.cli",
+    "maquette.agent.planner",
+    "maquette.agent.sanity",
+    "maquette.agent.worker",
+    "maquette.agent.loop",
+    "anthropic",
 ]
