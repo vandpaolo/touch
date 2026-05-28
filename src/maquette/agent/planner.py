@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import re
+import time
 from dataclasses import dataclass
 from typing import Any
 
@@ -44,6 +45,7 @@ class PlanResult:
     intent: Intent
     tokens: Tokens
     retries: int
+    duration_s: float = 0.0
 
 
 _JSON_FENCE_RE = re.compile(r"```(?:json)?\s*(\{.*?\})\s*```", re.DOTALL)
@@ -65,8 +67,10 @@ def plan(
     cumulative = _zero_tokens()
     user_content = prompt
     last_error: str | None = None
+    total_duration = 0.0
 
     for attempt in range(2):
+        start = time.perf_counter()
         response = client.messages.create(
             model=model,
             max_tokens=2048,
@@ -79,6 +83,7 @@ def plan(
             ],
             messages=[{"role": "user", "content": user_content}],
         )
+        total_duration += time.perf_counter() - start
         cumulative = _add_tokens(cumulative, _tokens_from_response(response))
         text = _response_text(response)
 
@@ -94,7 +99,12 @@ def plan(
             except ValidationError as e:
                 last_error = f"schema validation failed: {e}"
             else:
-                return PlanResult(intent=intent, tokens=cumulative, retries=attempt)
+                return PlanResult(
+                    intent=intent,
+                    tokens=cumulative,
+                    retries=attempt,
+                    duration_s=total_duration,
+                )
 
         user_content = (
             prompt

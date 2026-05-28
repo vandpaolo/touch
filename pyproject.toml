@@ -45,6 +45,10 @@ packages = ["src/maquette"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+addopts = "-m 'not live'"
+markers = [
+    "live: hits the real Anthropic API; gated by ANTHROPIC_API_KEY (run with `pytest -m live`)",
+]
 
 [tool.coverage.run]
 source = ["maquette"]
@@ -59,6 +63,7 @@ include = [
     "src/maquette/adapters/*",
     "src/maquette/agent/sanity.py",
     "src/maquette/agent/planner.py",
+    "src/maquette/agent/worker.py",
 ]
 show_missing = true
 
@@ -122,6 +127,21 @@ forbidden_modules = [
     "maquette.render",
     "maquette.cli",
     "maquette.agent.sanity",
+]
+
+[[tool.importlinter.contracts]]
+name = "agent.worker depends only on maquette.intent + adapters + stdlib"
+type = "forbidden"
+source_modules = ["maquette.agent.worker"]
+forbidden_modules = [
+    "maquette.intent_validation",
+    "maquette.pricing",
+    "maquette.config",
+    "maquette.render",
+    "maquette.cli",
+    "maquette.agent.sanity",
+    "maquette.agent.planner",
+    "anthropic",
 ]
 
 [[tool.importlinter.contracts]]

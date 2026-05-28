@@ -119,6 +119,74 @@ Output:
 }
 ```
 
+## Few-shot: cylinder with chamfer
+
+User prompt:
+
+> a 30 mm radius cylinder 60 mm tall with a 2 mm chamfer on every edge
+
+Output:
+
+```json
+{
+  "name": "cyl_with_chamfer",
+  "description": "30 mm radius cylinder 60 mm tall with 2 mm chamfer on all edges.",
+  "schema_version": 1,
+  "parameters": [
+    {"name": "radius", "value": 30, "unit": "mm"},
+    {"name": "height", "value": 60, "unit": "mm"},
+    {"name": "chamfer", "value": 2, "unit": "mm"}
+  ],
+  "features": [
+    {
+      "id": "body",
+      "kind": "cylinder",
+      "params": {"radius": 30, "height": 60, "centered": "true"}
+    }
+  ],
+  "modifiers": [
+    {
+      "id": "edge",
+      "kind": "chamfer",
+      "target": "body",
+      "params": {"distance": 2}
+    }
+  ],
+  "extras": null
+}
+```
+
+## Few-shot: L-bracket with holes (extras-based escape hatch)
+
+User prompt:
+
+> an L-bracket 100 × 60 × 5 mm with two 6 mm mounting holes on the
+> vertical face
+
+The v0 schema has no L-shape primary and no `union` modifier, so the
+geometry goes in `extras` as raw build123d source. The `extras` block
+must define a `body` variable so the adapter's `export_step(body, ...)`
+call still resolves.
+
+Output:
+
+```json
+{
+  "name": "l_bracket",
+  "description": "L-bracket 100x60x5 mm with two 6 mm mounting holes on the vertical face.",
+  "schema_version": 1,
+  "parameters": [
+    {"name": "length", "value": 100, "unit": "mm"},
+    {"name": "height", "value": 60, "unit": "mm"},
+    {"name": "thickness", "value": 5, "unit": "mm"},
+    {"name": "hole_diam", "value": 6, "unit": "mm"}
+  ],
+  "features": [],
+  "modifiers": [],
+  "extras": "from build123d import BuildPart, BuildSketch, Plane, Polyline, make_face, extrude, Locations, Hole\nwith BuildPart() as bp:\n    with BuildSketch(Plane.XZ) as sk:\n        Polyline((0, 0), (100, 0), (100, 5), (5, 5), (5, 60), (0, 60), close=True)\n        make_face()\n    extrude(amount=60)\n    with Locations((30, 30, 5), (70, 30, 5)):\n        Hole(radius=3, depth=10)\nbody = bp.part"
+}
+```
+
 ## Output requirement
 
 Return **only** the JSON object. No prose, no commentary, no fences. If

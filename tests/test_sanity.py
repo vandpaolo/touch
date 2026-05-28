@@ -202,6 +202,46 @@ def test_empty_intent_returns_ok() -> None:
     assert result.ok is True
 
 
+def test_centred_keyword_does_not_create_false_positive() -> None:
+    # "centred" implies derived coordinates the regex never sees (no
+    # numeric value in the keyword itself). Should yield no warnings.
+    intent = _simple_cube_intent(50.0)
+    result = check("a 50 mm cube centred at the origin", intent)
+    assert result.ok is True
+    assert result.warnings == []
+
+
+def test_centred_cylinder_along_axis_no_false_positive() -> None:
+    # Cylinder centred along the X axis — no derived dimensions in
+    # the prompt that the regex would flag.
+    intent = Intent(
+        name="cyl",
+        description="",
+        parameters=[Parameter(name="r", value=10, unit="mm")],
+        features=[
+            PrimaryFeature(
+                id="body",
+                kind="cylinder",
+                params={"radius": 10, "height": 30},
+            )
+        ],
+    )
+    result = check(
+        "a 10 mm radius 30 mm tall cylinder centred along the X axis",
+        intent,
+    )
+    assert result.ok is True
+
+
+def test_centred_does_not_whitewash_genuine_numeric_mismatch() -> None:
+    # Prompt says 80 mm cube, intent has 50 mm. The "centred" word
+    # must not suppress the warning.
+    intent = _simple_cube_intent(50.0)
+    result = check("an 80 mm cube centred at the origin", intent)
+    assert result.ok is False
+    assert any(m.source == "80 mm" for m in result.mismatches)
+
+
 def test_no_unit_token_in_prompt_is_not_extracted() -> None:
     # "a cube with 4 walls" → no unit → not extracted → no spurious mismatch.
     result = check(

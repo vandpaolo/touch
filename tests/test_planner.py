@@ -179,6 +179,18 @@ def test_non_json_response_triggers_retry_and_exhausts() -> None:
     assert client.messages.create.call_count == 2
 
 
+def test_duration_s_is_populated() -> None:
+    client = MagicMock()
+    client.messages.create.return_value = _make_response(
+        json.dumps(_CUBE_WITH_HOLE_JSON)
+    )
+    result = plan(client, "prompt", "claude-opus-4-7", _bundle())
+    assert result.duration_s >= 0.0
+    # Not exact, but the perf_counter wrap should produce a small positive
+    # number (mocked calls return immediately).
+    assert result.duration_s < 1.0
+
+
 def test_usage_fields_missing_defaults_to_zero() -> None:
     # Defensive against SDK variation (P2a-R5).
     client = MagicMock()
