@@ -48,6 +48,22 @@ def test_success_produces_step(tmp_path: Path):
     assert not (tmp_path / "error.json").exists()
 
 
+def test_relative_out_dir_does_not_double_path(tmp_path: Path, monkeypatch):
+    """Regression: a relative out_dir + cwd=out_dir must not double the
+    code path (out_dir/out_dir/code.py). The default `maquette design`
+    uses a relative out_root (output/), so this is the common path."""
+    monkeypatch.chdir(tmp_path)
+    out = Path("run")
+    out.mkdir()
+    code_path = out / "code.py"
+    code_path.write_text(_OK_SNIPPET, encoding="utf-8")
+
+    result = Executor(out_dir=out, timeout_s=60).execute(code_path)
+
+    assert result.exit_code == 0, f"unexpected failure: {result.error}"
+    assert (out / "part.step").stat().st_size > 0
+
+
 def test_crash_writes_error_json_exit_12(tmp_path: Path):
     code_path = _write_code(tmp_path, _CRASH_SNIPPET)
     result = Executor(out_dir=tmp_path, timeout_s=60).execute(code_path)

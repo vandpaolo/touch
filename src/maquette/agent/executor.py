@@ -57,11 +57,13 @@ class Executor:
     def execute(self, code_path: Path) -> ExecutionResult:
         start = perf_counter()
         proc = subprocess.Popen(
-            # -I (isolated): do NOT prepend the run dir to sys.path. The
-            # emitted file is named code.py (F8); without isolation it would
-            # shadow the stdlib `code` module and break build123d's imports.
-            # Isolation also ignores env/user-site, a small sandboxing win.
-            [sys.executable, "-I", str(code_path)],
+            # Absolute path: the subprocess runs with cwd=out_dir, so a
+            # relative code_path would resolve against out_dir and double
+            # (out_dir/out_dir/code.py). -I (isolated): do NOT prepend the
+            # run dir to sys.path — the emitted file is named code.py (F8)
+            # and would otherwise shadow the stdlib `code` module and break
+            # build123d's imports. Isolation also ignores env/user-site.
+            [sys.executable, "-I", str(code_path.resolve())],
             cwd=self.out_dir,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
