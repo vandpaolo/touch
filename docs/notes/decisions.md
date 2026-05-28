@@ -439,3 +439,16 @@ either a note section or a decision here.
 - Q (day count): 3 units (2 min + 1 max) vs roadmap gantt's 2d?
 - A: Keep 3 (Day 1 cli+loop-hardening, Day 2 tests+README, Day 3 MAX).
 - → docs/phases/phase-3.md § Sprint / day breakdown
+
+## 2026-05-28 — /pm-phase-plan phase-3.5
+
+- Q (Conflict C1): v0 ship latency bar — vision says 30 s, N1 + roadmap
+  exit say 20 s p95. Which?
+- A: 20 s (N1, the committed NFR). Vision's 30 s left unedited but flagged;
+  a /pm-vision touch could align it later. Phase-2b run was 10.1 s (margin).
+- → docs/phases/phase-3.5.md § Policies + Exit criteria
+
+- Q (probe): CI smoke / ANTHROPIC_API_KEY in CI?
+- A: Mock-only push CI (no key secret, per phase-2a). The 3-prompt live
+  smoke is a gated `pytest -m live` test, run manually. No billable CI.
+- → docs/phases/phase-3.5.md § Policies + Max deliverable
