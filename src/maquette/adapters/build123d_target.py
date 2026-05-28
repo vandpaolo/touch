@@ -58,13 +58,23 @@ def _preamble(intent: Intent) -> str:
 
 
 def _export(intent: Intent) -> str:
-    # The "final" shape is the variable named after the last feature.
-    # Modifiers reassign their target variable in place, so this name
-    # holds the assembled solid after all per-kind emissions.
-    if not intent.features:
-        return ""
-    final_id = intent.features[-1].id
-    return f'export_step({final_id}, "part.step")\n'
+    # Export-variable convention per ADR-0004.
+    # Feature-based Intent: the final shape is the variable named after
+    # the last feature. Modifiers reassign their target variable in
+    # place, so this name holds the assembled solid after all emissions.
+    if intent.features:
+        final_id = intent.features[-1].id
+        return f'export_step({final_id}, "part.step")\n'
+    # Extras-only Intent: the extras block must bind `body` (the reserved
+    # export name for the escape hatch). A missing binding surfaces as a
+    # NameError at execution time; extras is never parsed here.
+    if intent.extras:
+        return 'export_step(body, "part.step")\n'
+    # Degenerate Intent: no geometry to export.
+    raise AdapterRefusal(
+        reason="Intent has no features and no extras; nothing to export",
+        where="export:empty",
+    )
 
 
 def _extras_block(extras: str) -> str:

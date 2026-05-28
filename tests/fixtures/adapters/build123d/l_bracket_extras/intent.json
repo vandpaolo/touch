@@ -1,0 +1,9 @@
+{
+  "name": "l_bracket_extras",
+  "description": "L-bracket 100x60x5 mm with two 6 mm mounting holes; geometry via extras (v0 schema has no L-shape primary or union). Extras are hand-corrected known-good build123d (the live planner few-shot omits the required BuildLine wrapper around Polyline).",
+  "schema_version": 1,
+  "parameters": [],
+  "features": [],
+  "modifiers": [],
+  "extras": "from build123d import BuildPart, BuildSketch, BuildLine, Plane, Polyline, make_face, extrude, Locations, Hole\nwith BuildPart() as bp:\n    with BuildSketch(Plane.XZ) as sk:\n        with BuildLine() as ln:\n            Polyline((0, 0), (100, 0), (100, 5), (5, 5), (5, 60), (0, 60), close=True)\n        make_face()\n    extrude(amount=60)\n    with Locations((30, 30, 5), (70, 30, 5)):\n        Hole(radius=3, depth=10)\nbody = bp.part"
+}
