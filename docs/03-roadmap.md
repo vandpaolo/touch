@@ -37,7 +37,8 @@ gantt
     Phase 3.5   Smoke + 3 examples      :p3h, after p3, 2d
     section v0.1
     Phase 4     Evaluator + refine loop :p4, after p3h, 5d
-    Phase 5     NX adapter              :p5, after p4, 4d
+    Phase 4.5   Schema v2a edge+hole    :p45, after p4, 4d
+    Phase 5     NX adapter              :p5, after p45, 4d
     Phase 6     Supporting commands     :p6, after p5, 3d
     Phase 7a    Sandboxing              :p7a, after p6, 2d
     Phase 7b    Example regression CI   :p7b, after p7a, 2d
@@ -87,22 +88,28 @@ The gantt is for *ordering* only. No calendar dates committed.
 - **Exit criterion:** `maquette design "..."` invocation from a fresh shell produces a run folder, returns the correct exit code on success and on each documented failure path, and prints the run directory.
 - **Plan:** `phases/phase-3.md` *(not yet drafted)*
 
-### Phase 3.5 — Smoke + 3 reference examples (v0 ships at the end of this phase)
-- **Goal:** v0 success criterion verified — all three reference prompts succeed end-to-end on a clean clone, manually checked in FreeCAD.
-- **Min:** Manual verification of the 3 v0 reference prompts (cube w/ hole, cylinder w/ chamfer, L-bracket w/ holes) producing FreeCAD-openable STEPs that visually match the descriptions; latency + cost measured per run; results captured in the phase report.
-- **Max:** Smoke test in CI gated on a real `ANTHROPIC_API_KEY` env var (runs all 3 reference prompts); latency p95 measurement script (10× runs per prompt); cost-per-run assertion via `status.json.cost_usd_estimate`.
-- **Exit criterion:** v0 success criterion (vision § Success criteria) holds — all three reference prompts produce a STEP that opens in FreeCAD and visually matches the description, each within 20 s wall-clock and < $0.10 in API cost on a clean clone with only `ANTHROPIC_API_KEY` set. **v0 is shipped.**
-- **Plan:** `phases/phase-3.5.md` *(not yet drafted)*
+### Phase 3.5 — Smoke + reference examples (v0 ships at the end of this phase)
+- **Goal:** v0 success criterion verified — the schema-native reference prompts succeed end-to-end on a clean clone, manually checked in FreeCAD, within the v0 capability bound (vision § Success criteria, restated 2026-05-28 per blocker `2026-05-28-v0-references-exceed-schema`).
+- **Min:** Manual verification of the **two hard-gate references** (cube w/ hole; cylinder w/ all-edges chamfer) producing FreeCAD-openable STEPs that visually match, each < 20 s and < $0.10; plus the **L-bracket-with-mounting-hole best-effort showcase** (extras relief valve — demonstrated, not gating); latency + cost recorded; results captured in the phase report.
+- **Max:** Live smoke test (`pytest -m live`, gated by `ANTHROPIC_API_KEY`, not on push CI) running the references; latency p95 script (10× runs per gate prompt); cost-per-run assertion via `status.json.cost_usd_estimate`; curated `examples/` (incl. a known-good L-bracket run).
+- **Exit criterion:** the **two hard-gate references** produce a STEP that opens in FreeCAD and visually matches, each within 20 s wall-clock and < $0.10 in API cost on a clean clone (README install incl. the vtk-osmesa swap, only `ANTHROPIC_API_KEY` set); the L-bracket showcase has at least one known-good captured run. **v0 is shipped.**
+- **Plan:** [phases/phase-3.5.md](phases/phase-3.5.md) *(drafted; currently `blocked` pending this re-design)*
 
 ## Phases — v0.1
 
 (Detailed planning happens at `/pm-phase-plan` time, post-v0. Goals + min/max sketched here for sequencing.)
 
 ### Phase 4 — Evaluator + refinement loop
-- **Goal:** R7 (silent semantic failure) is properly mitigated — a vision LLM catches geometric mismatch and the loop refines automatically. (Ordered first in v0.1 per decision C2: R7 is the highest-impact addition.)
+- **Goal:** R7 (silent semantic failure) is properly mitigated — a vision LLM catches geometric mismatch and the loop refines automatically. (Ordered first in v0.1 per decision C2: R7 is the highest-impact addition. This is the **correctness guard** the phase-3.5 blocker called for — front of v0.1.)
 - **Min:** `agent/evaluator.py` with `evaluate(client, prompt, intent, render_paths) → Critique`; refinement state in `agent/loop.py` (REFINING ↔ EXECUTING); `critiques.jsonl` per run; `--max-iter` default flipped to 3; isometric render added (`renders/iso.png`); exit code 14 wired for evaluator-fail-budget-exhausted.
 - **Max:** Termination policy fully wired (max-iter, token budget, unrecoverable error counts); `examples/` regression corpus reaches ≥10 hand-curated good sessions.
 - **Exit criterion:** On the 10-prompt v0.1 corpus, ≥8 produce an evaluator-passing STEP within `max_iterations=3` and < $0.50 / prompt. (Tightened from the original 7/10 per push-back B2.)
+
+### Phase 4.5 — Schema v2a: edge selection + hole positioning
+- **Goal:** Close the highest-value `extras` use-cases the phase-3.5 blocker exposed by making them **first-class schema** — so "chamfer the top edge" and "a hole in each flange" no longer depend on fragile, un-guarded LLM-written `extras`. (Pulled forward from phase-10 per the 2026-05-28 blocker re-design: edge selection + hole positioning are the hot cases; the rest of schema-v2 stays in phase-10.)
+- **Min:** `Intent` schema additions (bump `schema_version`): edge-selection qualifier on `fillet`/`chamfer` (e.g. a coarse selector like `edges: "top" | "all" | …`); hole positioning + axis on `hole` (face/offset + axis). Adapter support in `build123d_target` for the new params; per-kind snapshot fixtures; planner system-prompt + few-shots updated to prefer the schema over `extras`; migration so old payloads still read.
+- **Max:** The cylinder and L-bracket references expressible **without `extras`**; the v0 L-bracket showcase re-runs schema-native and passes the evaluator (phase-4); `extras` usage on the corpus drops measurably.
+- **Exit criterion:** "a 30 mm cylinder with a 2 mm chamfer on the top edge" and "an L-bracket with a hole in each flange" produce correct geometry via the schema (no `extras`), verified by the phase-4 evaluator + snapshot fixtures.
 
 ### Phase 5 — NX adapter
 - **Goal:** Emit a runnable NX Open journal alongside the build123d code, preserving feature-tree fidelity.
@@ -150,11 +157,11 @@ The gantt is for *ordering* only. No calendar dates committed.
 - **Max:** A web-style param panel (HTML, no JS framework) as a v0.2 follow-up if there's a reason.
 - **Exit criterion:** A v0 cube-with-hole run can be tweaked three times to adjust dimensions; verified zero tokens in all three resulting `trace.jsonl` files.
 
-### Phase 10 — Intent schema v2
-- **Goal:** The schema absorbs the most common `extras` use-cases from v0 / v0.1 runs.
-- **Min:** Analysis of `extras` usage across the regression corpus; schema-v2 spec; pydantic schema bumped to `schema_version: 2`; migration helper for v1 → v2 payloads; old `examples/` payloads remain readable.
-- **Max:** First-class sketches as entities; edge selection for fillet/chamfer; whatever else the corpus shows is hot.
-- **Exit criterion:** ≥80% of prior `extras` usage replaced by first-class schema; migration tested on all `examples/`.
+### Phase 10 — Intent schema v2 (remainder)
+- **Goal:** The schema absorbs the most common *remaining* `extras` use-cases from v0 / v0.1 runs. (Edge selection + hole positioning were pulled forward to **phase-4.5** per the 2026-05-28 blocker re-design; this phase handles whatever else the corpus shows is hot.)
+- **Min:** Analysis of `extras` usage across the regression corpus; schema-v2 spec for the remaining hot cases; pydantic schema bumped (building on phase-4.5's `schema_version` bump); migration helper; old `examples/` payloads remain readable.
+- **Max:** First-class sketches as entities; whatever else the corpus shows is hot beyond edge selection / hole positioning.
+- **Exit criterion:** ≥80% of prior `extras` usage replaced by first-class schema (phase-4.5 + phase-10 combined); migration tested on all `examples/`.
 
 ## Later, maybe
 
