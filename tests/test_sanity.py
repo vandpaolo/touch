@@ -244,7 +244,5 @@ def test_centred_does_not_whitewash_genuine_numeric_mismatch() -> None:
 
 def test_no_unit_token_in_prompt_is_not_extracted() -> None:
     # "a cube with 4 walls" → no unit → not extracted → no spurious mismatch.
-    result = check(
-        "a 50 mm cube with 4 walls", _simple_cube_intent(50.0)
-    )
+    result = check("a 50 mm cube with 4 walls", _simple_cube_intent(50.0))
     assert result.ok is True
