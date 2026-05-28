@@ -43,6 +43,9 @@ dev = [
     "coverage~=7.14.0",
 ]
 
+[project.scripts]
+maquette = "maquette.cli:app"
+
 [project.urls]
 Documentation = "https://github.com/vandpaolo/maquette/tree/main/docs"
 
@@ -72,6 +75,7 @@ include = [
     "src/maquette/agent/worker.py",
     "src/maquette/agent/executor.py",
     "src/maquette/agent/loop.py",
+    "src/maquette/cli.py",
     "src/maquette/render/*",
 ]
 show_missing = true
@@ -94,6 +98,10 @@ select = [
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["B011"]  # asserting False is intentional in pytest.raises
+
+[tool.ruff.lint.flake8-bugbear]
+# Typer's CLI idiom puts typer.Option/Argument calls in argument defaults.
+extend-immutable-calls = ["typer.Option", "typer.Argument"]
 
 [tool.importlinter]
 root_package = "maquette"
@@ -229,4 +237,22 @@ type = "forbidden"
 source_modules = ["maquette.agent.loop"]
 forbidden_modules = [
     "maquette.cli",
+]
+
+[[tool.importlinter.contracts]]
+name = "cli is a thin shell — goes through the loop, not the mid-pipeline"
+type = "forbidden"
+source_modules = ["maquette.cli"]
+# Only direct cli imports are forbidden; the cli reaches these transitively
+# through agent.loop (its whole job), which is fine.
+allow_indirect_imports = "true"
+forbidden_modules = [
+    "maquette.intent",
+    "maquette.intent_validation",
+    "maquette.pricing",
+    "maquette.adapters",
+    "maquette.render",
+    "maquette.agent.sanity",
+    "maquette.agent.worker",
+    "maquette.agent.executor",
 ]

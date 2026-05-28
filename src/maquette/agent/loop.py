@@ -27,6 +27,8 @@ from pathlib import Path
 from time import perf_counter
 from typing import Any
 
+from anthropic import AnthropicError
+
 from maquette.adapters import AdapterRefusal
 from maquette.agent import worker
 from maquette.agent.executor import Executor
@@ -148,6 +150,10 @@ class Loop:
             pr = plan(self._client, prompt, self.cfg.model, self._prompts)
         except PlannerExhausted as e:
             return None, f"planner exhausted: {e}"
+        except AnthropicError as e:
+            # Auth / rate-limit / network errors during planning are a
+            # planning failure (exit 10) — the run folder is still written.
+            return None, f"anthropic API error: {e}"
         run.tokens = pr.tokens
         self._emit(
             run,

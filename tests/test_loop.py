@@ -113,6 +113,20 @@ def test_planning_failure_exit_10(tmp_path, monkeypatch):
     assert run_dir.name.endswith("__unplanned")
 
 
+def test_anthropic_api_error_is_planning_failure(tmp_path, monkeypatch):
+    """P3-Q1: an Anthropic API error during planning -> exit 10 + run folder."""
+    from anthropic import AnthropicError
+
+    _patch_plan(monkeypatch, exc=AnthropicError("rate limited"))
+    run_dir = _loop(tmp_path).run("a 50 mm cube")
+
+    status = _status(run_dir)
+    assert status["status"] == "PLANNING_FAILED"
+    assert status["exit_code"] == 10
+    assert (run_dir / "error.json").exists()
+    assert (run_dir / "status.json").exists()  # complete folder despite the error
+
+
 def test_adapter_refusal_exit_11(tmp_path, monkeypatch):
     _patch_plan(monkeypatch, intent=_intent())
 
