@@ -359,3 +359,48 @@ either a note section or a decision here.
   ≥80% coverage backstop is more sustainable. Documented in § Policies
   / Testing discipline.
 - → docs/phases/phase-0.md § Policies / Testing discipline
+
+## 2026-05-28 — /pm-architecture (CF#1 adapter export contract)
+
+- Q (probe): How to resolve carry-forward #1 (extras-only Intents emit
+  no export_step)?
+- A: /pm-architecture touch now (freeze lifted, no active phase).
+  Confirmed live first (Opus 4.7): L-bracket → features:[] + extras
+  defining `body`, emitted code had no export_step.
+- Decision (ADR-0004): `body` is the reserved export var for the
+  extras-only path ONLY; feature-based Intents keep exporting
+  features[-1].id (uniform "always body" would break 5 snapshot
+  fixtures: cylinder/extrude/loft/revolve/sphere).
+- → docs/02-data-model.md § Adapter export contract; docs/adr/0004
+
+- Q (G1): Degenerate Intent — features empty AND extras empty/absent.
+  Refuse or stay silent?
+- A: AdapterRefusal(where="export:empty"). A no-geometry Intent is a
+  planner failure; surface it, don't produce a STEP-less run.
+- → docs/02-data-model.md § Adapter export contract; ADR-0004 Decision
+
+- Q (G2): Enforce the `body` assignment in extras — light-check + refuse
+  early, or trust extras?
+- A: Trust extras; do not parse. export_step(body,...) emitted
+  unconditionally on the extras-only path; missing `body` → NameError at
+  execution (executor → error.json, phase-2b). Preserves "never parse or
+  rewrite Intent.extras".
+- → docs/02-data-model.md § Adapter export contract; ADR-0004 Decision
+
+## 2026-05-28 — /pm-architecture (render ownership) + /pm-phase-plan phase-2b
+
+- Q (B1, phase-2b plan): Who owns rendering — Executor or Loop?
+- A: Loop. Rationale: single-responsibility (executor = pure subprocess
+  + sandbox, the concern phase-7a builds on); F7 non-fatal render falls
+  out naturally (executor exit code stays execution-only); executor
+  tests stay PyVista-free. Discovered the C4 container view already drew
+  `Loop --> Render` while 02-classes.md contradicted it (executor→render
+  + ExecutionResult.renders) — the move *resolves* that contradiction
+  rather than introducing a pivot. Cheap now (no code yet).
+- → docs/02-classes.md (module map executor/render rows; ExecutionResult
+  drops `renders`; Loop class diagram + note); docs/02-architecture.md
+  (L2 dataflow edge → `Loop -. STEP path .-> Render`); docs/phases/phase-2b.md
+
+- Q (P1): Split loop.py across Day 4 (core) + Day 5 (trace/status), or merge?
+- A: Merge into one Day 4 loop task. Plan now 4 min + 1 max = 5 units.
+- → docs/phases/phase-2b.md § Sprint / day breakdown

@@ -67,7 +67,7 @@ flowchart TB
     AgentMods --> Intent
     AgentMods --> Adapters
     Adapters --> Intent
-    Render -. STEP path .-> AgentMods
+    Loop -. STEP path .-> Render
 ```
 
 Hard rule (CI-enforced): `intent` has zero outbound dependencies on

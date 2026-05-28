@@ -231,6 +231,40 @@ Validation happens in this order; each layer assumes the previous passed.
    Refusal is a structured `AdapterRefusal` with `where=<feature|modifier>:<kind>`,
    not a crash.
 
+## Adapter export contract
+
+The build123d adapter emits exactly one `export_step(<var>, "part.step")`
+call as the final line of the program. Which variable holds the solid
+depends on the Intent shape (see [ADR-0004](adr/0004-build123d-export-variable.md)):
+
+- **Feature-based Intent** (`features` non-empty). `<var>` is the id of
+  the *last* feature, `features[-1].id`. Modifiers reassign their target
+  variable in place, so the last feature's id holds the fully-assembled
+  solid after every emission. The name is whatever the planner gave the
+  final feature — fixtures use `body`, `cyl`, `slab`, `solid`, `ball`,
+  `shell`. No reserved name is required on this path.
+- **Extras-only Intent** (`features` empty, `extras` present). The
+  `extras` block **must** assign a variable named `body`; the adapter
+  emits `export_step(body, "part.step")`. `body` is the reserved export
+  name for the escape hatch. This is the contract behind the planner's
+  extras-based few-shots (e.g. the L-bracket), each of which ends with
+  `body = bp.part`. Confirmed against the live planner 2026-05-28: the
+  L-bracket reference prompt returns `features: []` + extras defining
+  `body` (see `notes/constraints.md`).
+- **Empty `features` and empty/absent `extras`** (degenerate). The
+  adapter has nothing to export and raises
+  `AdapterRefusal(where="export:empty")`. A no-geometry Intent is a
+  planner failure; the Loop surfaces the refusal rather than producing a
+  STEP-less run.
+
+**Enforcement of the `body` assignment.** The adapter does **not** parse
+`extras` to verify it assigns `body` — `extras` stays opaque ("never
+parse or rewrite Intent.extras"). On the extras-only path the adapter
+emits `export_step(body, "part.step")` unconditionally; if the extras
+block failed to bind `body`, it surfaces as a `NameError` when the
+executor runs the program (→ `error.json`, phase-2b), one layer later
+but with a clean structured failure.
+
 ## Example — the v0 cube-with-hole reference
 
 ```json

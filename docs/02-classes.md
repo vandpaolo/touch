@@ -20,11 +20,11 @@
 | `maquette.agent.planner` | Prompt → Intent via Claude | `plan(client, prompt, model, prompts) → PlanResult` | agent.loop | anthropic, intent, prompts files |
 | `maquette.agent.sanity` | F6 dimension extraction + comparison | `check(prompt, intent) → SanityResult` | agent.loop | intent, re |
 | `maquette.agent.worker` | Adapter delegation | `emit_code(intent) → str`, `emit_journal(intent) → str` (v0.1) | agent.loop | intent, adapters |
-| `maquette.agent.executor` | Subprocess execution + STEP capture + error.json | `Executor.execute(code_path, out_dir, timeout_s) → ExecutionResult` | agent.loop | subprocess, pathlib, render |
+| `maquette.agent.executor` | Subprocess execution + STEP capture + error.json | `Executor.execute(code_path, out_dir, timeout_s) → ExecutionResult` | agent.loop | subprocess, pathlib, json |
 | `maquette.agent.evaluator` (v0.1) | Vision-LLM critique | `evaluate(client, prompt, intent, render_paths) → Critique` | agent.loop (v0.1) | anthropic, intent |
 | `maquette.adapters.build123d_target` | Intent → build123d source | `emit(intent) → str`, `AdapterRefusal` | agent.worker | intent, textwrap |
 | `maquette.adapters.nx_open_target` (v0.1) | Intent → NX Open journal | `emit(intent) → str` | agent.worker (v0.1) | intent, textwrap (never NXOpen) |
-| `maquette.render` | Headless PyVista render | `orthographic(step_path) → list[Path]` | agent.executor | pyvista, ocp |
+| `maquette.render` | Headless PyVista render | `orthographic(step_path, out_dir) → list[Path]` | agent.loop | pyvista, ocp |
 
 ## Class diagrams
 
@@ -146,7 +146,6 @@ classDiagram
     }
     class ExecutionResult {
         +Optional~Path~ step_path
-        +list~Path~ renders
         +Optional~str~ error
         +int exit_code
         +float duration_s
@@ -180,7 +179,15 @@ classDiagram
     Loop ..> SanityChecker : calls
     Loop ..> Worker : calls
     Loop ..> Executor : calls
+    Loop ..> Render : calls
 ```
+
+The `Loop` owns rendering: after the `Executor` returns an
+`ExecutionResult` with a valid `step_path`, the `Loop` calls
+`render.orthographic(step_path, run_dir)` as a separate, **non-fatal**
+step (F7). The `Executor` is a pure subprocess manager (N6, N9) and does
+not import `render` — keeping execution-safety and rendering as distinct
+concerns (matches the C4 container view, where `Loop --> Render`).
 
 ### Render module
 
@@ -275,7 +282,7 @@ must be identical.
 | **SanityResult** | Return value of `SanityChecker.check(...)`: `{ok: bool, warnings: list[str], mismatches: list[DimensionMismatch]}`. Internal record. |
 | **Dimension** | Value object representing a numeric quantity extracted from a user prompt by `SanityChecker._extract_dimensions`: a tuple of `(value: float, unit: Unit, raw: str)` where `raw` is the source substring (e.g. `"50 mm"`). Internal to `agent.sanity`; compared against `Intent.parameters` + feature/modifier params to produce `DimensionMismatch` entries. Distinct from `DimensionMismatch` — `Dimension` is what the regex *finds*; `DimensionMismatch` is what the comparison *flags*. |
 | **DimensionMismatch** | Value object inside a `SanityResult`: one mismatch between a regex-extracted prompt dimension and an `Intent` parameter (`source`, `expected`, `found`, `message`). |
-| **ExecutionResult** | Return value of `Executor.execute(...)`: STEP path (optional), render paths, optional error message, exit code, duration. Internal record. |
+| **ExecutionResult** | Return value of `Executor.execute(...)`: STEP path (optional), optional error message, exit code, duration. Internal record. Rendering is **not** part of execution — the `Loop` renders separately from the returned `step_path`. |
 | **RunConfig** | Per-run configuration passed into `Loop.run(...)`: max iterations, token caps, exec timeout, model, sanity-enabled flag. **Distinct from `Config`**, which is the infrastructure-layer dataclass merged from CLI > env > pyproject > defaults at startup; `RunConfig` is the run-scoped subset the orchestrator needs. |
 | **Tokens** | Frozen dataclass tracking per-call token counts across the four classes that `maquette.pricing` distinguishes: `input`, `output`, `cache_read`, `cache_creation`. Sourced from `response.usage` per ADR-0003. |
 | **ModelPrice** | Frozen dataclass holding per-Mtok pricing for one model across the four `Tokens` classes. Looked up from `maquette.pricing._TABLE` by model id; values fixed by ADR-0003. |

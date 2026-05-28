@@ -43,3 +43,4 @@ What else was on the table, and why we didn't pick it.
 - [0001 — Intent as the pivot](./0001-intent-as-pivot.md) — Accepted (2026-05-12)
 - [0002 — Dimension sanity check as a v0 guardrail](./0002-dimension-sanity-check.md) — Accepted (2026-05-16)
 - [0003 — Anthropic prompt caching for the cost target](./0003-prompt-caching-for-cost.md) — Accepted (2026-05-16)
+- [0004 — build123d export variable convention](./0004-build123d-export-variable.md) — Accepted (2026-05-28)
