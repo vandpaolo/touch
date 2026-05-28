@@ -23,6 +23,12 @@ dependencies = [
     # Compatible: minor-floats allowed.
     "anthropic~=0.102.0",
     "pydantic~=2.13.0",
+    # pyvista pulls the X11-only `vtk` wheel. For headless rendering (N5)
+    # the install must swap it for `vtk-osmesa==9.3.1` (bundled OSMesa,
+    # CPU software GL, no display): after install run
+    #   pip uninstall -y vtk
+    #   pip install --extra-index-url https://wheels.vtk.org vtk-osmesa==9.3.1
+    # CI does this in a dedicated step; see .github/workflows/ci.yml.
     "pyvista~=0.48.0",
     "typer~=0.25.0",
     "python-dotenv~=1.2.0",
@@ -64,6 +70,7 @@ include = [
     "src/maquette/agent/sanity.py",
     "src/maquette/agent/planner.py",
     "src/maquette/agent/worker.py",
+    "src/maquette/render/*",
 ]
 show_missing = true
 
@@ -179,4 +186,18 @@ forbidden_modules = [
     "subprocess",
     "shutil",
     "tempfile",
+]
+
+[[tool.importlinter.contracts]]
+name = "render depends on no other maquette module (pyvista + build123d + stdlib only)"
+type = "forbidden"
+source_modules = ["maquette.render"]
+forbidden_modules = [
+    "maquette.intent",
+    "maquette.intent_validation",
+    "maquette.pricing",
+    "maquette.config",
+    "maquette.agent",
+    "maquette.adapters",
+    "maquette.cli",
 ]
