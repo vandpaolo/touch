@@ -24,6 +24,7 @@ import re
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
+from time import perf_counter
 from typing import Any
 
 from maquette.adapters import AdapterRefusal
@@ -62,6 +63,7 @@ class _Run:
     events: list[dict[str, Any]] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
     tokens: Tokens = field(default_factory=lambda: Tokens(0, 0, 0, 0))
+    last_t: float = field(default_factory=perf_counter)
 
 
 class Loop:
@@ -127,10 +129,10 @@ class Loop:
         result = Executor(run_dir, self.cfg.exec_timeout_s).execute(code_path)
         if result.exit_code != 0:
             state = "EXEC_TIMEOUT" if result.exit_code == 13 else "EXEC_FAILED"
-            self._emit(run, state, error=result.error, duration_s=result.duration_s)
+            self._emit(run, state, error=result.error, exec_duration_s=result.duration_s)
             # The executor already wrote error.json; do not overwrite it.
             return self._finalize(run_dir, run, state, result.exit_code, None)
-        self._emit(run, "EXECUTING", duration_s=result.duration_s)
+        self._emit(run, "EXECUTING", exec_duration_s=result.duration_s)
 
         self._render(run, result.step_path, run_dir)
 
@@ -149,7 +151,7 @@ class Loop:
             run,
             "PLANNING",
             retries=pr.retries,
-            duration_s=pr.duration_s,
+            planner_duration_s=pr.duration_s,
             tokens_in=pr.tokens.input,
             tokens_out=pr.tokens.output,
             cache_read_tokens=pr.tokens.cache_read,
@@ -187,7 +189,13 @@ class Loop:
         return run_dir
 
     def _emit(self, run: _Run, step: str, **fields: Any) -> None:
-        event = {"ts": datetime.now(UTC).isoformat(), "step": step}
+        now = perf_counter()
+        event: dict[str, Any] = {
+            "ts": datetime.now(UTC).isoformat(),
+            "step": step,
+            "duration_s": round(now - run.last_t, 6),
+        }
+        run.last_t = now
         event.update({k: v for k, v in fields.items() if v is not None})
         run.events.append(event)
 

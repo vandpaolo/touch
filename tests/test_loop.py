@@ -8,7 +8,10 @@ PNG round-trip. Failure paths monkeypatch the relevant stage.
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
+
+import pytest
 
 from maquette.adapters import AdapterRefusal
 from maquette.agent import loop as loop_mod
@@ -16,6 +19,8 @@ from maquette.agent.loop import Loop, RunConfig
 from maquette.agent.planner import PlannerExhausted, PlanResult, PromptsBundle
 from maquette.intent import Intent
 from maquette.pricing import Tokens
+
+_PROMPTS_FILE = Path(__file__).resolve().parents[1] / "prompts" / "planner.system.md"
 
 _HOLE_INTENT = (
     Path(__file__).parent
@@ -164,3 +169,31 @@ def test_render_failure_is_non_fatal(tmp_path, monkeypatch):
     assert (run_dir / "part.step").exists()
     assert status["artefacts"]["renders"] == []
     assert any("render failed" in w for w in status["warnings"])
+
+
+@pytest.mark.live
+@pytest.mark.skipif(
+    os.environ.get("ANTHROPIC_API_KEY") is None, reason="no ANTHROPIC_API_KEY"
+)
+def test_live_end_to_end_cube(tmp_path):
+    """Exit criterion #5: a real Loop.run produces the full run folder."""
+    from anthropic import Anthropic
+
+    prompts = PromptsBundle(planner_system=_PROMPTS_FILE.read_text(encoding="utf-8"))
+    loop = Loop(out_root=tmp_path, cfg=RunConfig(), client=Anthropic(), prompts=prompts)
+    run_dir = loop.run(_CUBE_PROMPT)
+
+    for name in (
+        "prompt.txt",
+        "intent.json",
+        "code.py",
+        "part.step",
+        "trace.jsonl",
+        "status.json",
+    ):
+        assert (run_dir / name).exists(), f"missing {name}"
+    assert len(list((run_dir / "renders").glob("*.png"))) == 3
+    status = _status(run_dir)
+    assert status["status"] == "DONE_OK"
+    assert status["exit_code"] == 0
+    assert status["cost_usd_estimate"] > 0

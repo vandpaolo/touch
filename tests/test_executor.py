@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from time import perf_counter
 
 from maquette.agent.executor import ExecutionResult, Executor
 
@@ -19,6 +20,13 @@ _OK_SNIPPET = (
 _CRASH_SNIPPET = "raise RuntimeError('boom from generated code')\n"
 _NO_STEP_SNIPPET = "x = 1 + 1\n"
 _HANG_SNIPPET = "import time\ntime.sleep(30)\n"
+# Ignores SIGTERM, forcing the executor to escalate to SIGKILL (N9).
+_SIGTERM_IGNORING_SNIPPET = (
+    "import signal, time\n"
+    "signal.signal(signal.SIGTERM, signal.SIG_IGN)\n"
+    "while True:\n"
+    "    time.sleep(0.05)\n"
+)
 
 
 def _write_code(tmp_path: Path, source: str) -> Path:
@@ -76,3 +84,17 @@ def test_timeout_is_exit_13(tmp_path: Path):
     assert "timed out" in (result.error or "")
     payload = json.loads((tmp_path / "error.json").read_text(encoding="utf-8"))
     assert payload["exit_code"] == 13
+
+
+def test_sigterm_ignoring_process_is_sigkilled(tmp_path: Path):
+    """N9: a process that ignores SIGTERM is escalated to SIGKILL and reaped
+    within timeout + grace, leaving no orphan (execute() returns promptly)."""
+    code_path = _write_code(tmp_path, _SIGTERM_IGNORING_SNIPPET)
+    start = perf_counter()
+    result = Executor(out_dir=tmp_path, timeout_s=1).execute(code_path)
+    elapsed = perf_counter() - start
+
+    assert result.exit_code == 13
+    # timeout (1s) + SIGKILL grace (2s) + margin; if SIGKILL had not reaped
+    # the child, communicate() would block well past this bound.
+    assert elapsed < 8, f"executor did not reap the runaway child (took {elapsed:.1f}s)"
