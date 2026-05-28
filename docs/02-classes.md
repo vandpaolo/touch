@@ -263,7 +263,7 @@ must be identical.
 | **Modifier** | Operation applied to a PrimaryFeature (e.g. a `hole`). |
 | **Adapter** | Pure function `Intent → str` that emits backend code. Two adapters exist: `build123d_target` (v0) and `nx_open_target` (v0.1). |
 | **AdapterRefusal** | Structured exception when an adapter cannot translate a given Intent. Carries a `where` field (e.g. `feature:loft`) for diagnostics. |
-| **Build123dTarget** | The concrete v0 `Adapter` for the build123d backend. Module `maquette.adapters.build123d_target`. Pure `emit(intent) → str` with per-kind dispatch for the 11 v0 kinds; raises `AdapterRefusal` on an unknown kind or a degenerate Intent; follows the export-variable convention in [ADR-0004](../adr/0004-build123d-export-variable.md). |
+| **Build123dTarget** | The concrete v0 `Adapter` for the build123d backend. Module `maquette.adapters.build123d_target`. Pure `emit(intent) → str` with per-kind dispatch for the 11 v0 kinds; raises `AdapterRefusal` on an unknown kind or a degenerate Intent; follows the export-variable convention in [ADR-0004](./adr/0004-build123d-export-variable.md). |
 | **NxOpenTarget** | (v0.1) The concrete `Adapter` for the Siemens NX backend. Module `maquette.adapters.nx_open_target`. Emits an NX Open Python journal and **never imports `NXOpen`** (CI-guarded, N4). Conforms to the same `Adapter` Protocol; mypy/pyright check it at type-check time. |
 | **Extras** | The escape hatch on an Intent: raw backend code appended verbatim to the adapter output. |
 | **Run** | A single invocation of `maquette design`. Identified by `run-id`. |
