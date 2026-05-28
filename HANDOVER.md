@@ -1,76 +1,89 @@
-# Handover — Maquette, phase-2a day 1
+# Handover — Maquette, between phase-2a (done) and phase-2b (not yet planned)
 
 > *Start here in any fresh chat session that opens this project. Once
-> phase-2a is `done`, rewrite this file for phase-2b. Always keep it
-> short enough to read in 60 seconds.*
+> phase-2b is planned + started, rewrite the "You are here" + task
+> sections for it. Always keep this short enough to read in 60 seconds.*
 
 ## You are here
 
 - **Project:** Maquette — natural-language CAD prompt → editable parametric solid + STEP.
-- **Active phase:** `phase-2a` — Pipeline (LLM-facing half). Status: `in_progress`, started 2026-05-18.
-- **Audit:** [`docs/audits/2026-05-18-pre-phase-2a-v2.md`](docs/audits/2026-05-18-pre-phase-2a-v2.md) (PASS with documented override on out-of-phase glossary leaves + README-frontmatter strict-reading).
-- **Last commit:** `607e74f docs: phase-2a audit cycle + start (via /pm-phase-start)` on `main`, pushed.
-- **Scope is frozen.** No edits to `docs/00-*`, `docs/01-*`, `docs/02-*`, `docs/03-*`, or `docs/adr/` without filing `/pm-blocker` first. Implementation only.
+- **Phase-2a is `done`** (closed 2026-05-28 via `/pm-phase-report`, min + max both met). See [`docs/phases/phase-2a-report.md`](docs/phases/phase-2a-report.md).
+- **No phase is active.** `docs/03-roadmap.md` frontmatter has `active_phase: null`. Scope freeze is **lifted** — design docs are editable again until the next `/pm-phase-start`.
+- **Next move:** `/pm-phase-plan phase-2b` to detail the runtime/orchestration half, then `/pm-phase-start phase-2b`. But **read carry-forward #1 below first** — there's a design-layer decision that may want a `/pm-architecture` touch or a `/pm-blocker` before phase-2b coding.
+- **Last commit:** `42fdea3 style: ruff format test_sanity.py (CI fix)` on `main`, pushed. CI green ([run 26561976828](https://github.com/vandpaolo/maquette/actions/runs/26561976828)).
+- **Doc-only changes pending commit:** the `/pm-phase-report` frontmatter flips + this handover + the report itself are unstaged at handover time (see `git status`).
 
 ## Phases done so far
 
 | Phase | Closed | min/max | Highlights |
 |---|---|---|---|
 | `phase-0` Foundations | 2026-05-17 | true/true | Intent schema + intent_validation + pricing + config; 68 tests; CI green |
-| `phase-1` Adapter | 2026-05-18 | true/true | build123d adapter for all 11 v0 kinds; 3-reference round-trips; cube-with-hole STEP verified visually in NX |
+| `phase-1` Adapter | 2026-05-18 | true/true | build123d adapter for all 11 v0 kinds; 3-reference round-trips; cube-with-hole STEP verified in NX |
+| `phase-2a` Pipeline (LLM-facing) | 2026-05-28 | true/true | `agent.sanity` + `agent.planner` (Anthropic prompt caching) + `agent.worker` shim; planner system prompt with 3 few-shots; 129 tests, 6 import-linter contracts |
 
-100 tests across the project at end of phase-1. CI green on every push to `main`.
+129 tests passing (+ 3 live tests skipped by default). CI green on every push to `main`.
+
+## What phase-2a shipped (the LLM-facing pipeline)
+
+- [`src/maquette/agent/sanity.py`](src/maquette/agent/sanity.py) — F6 dimension check. `check(prompt, intent) -> SanityResult`. Pure, regex-based, ±1%/±0.5 mm tolerance (ADR-0002).
+- [`src/maquette/agent/planner.py`](src/maquette/agent/planner.py) — F2. `plan(client, prompt, model, prompts) -> PlanResult`. Anthropic call with `cache_control` ephemeral system prompt (ADR-0003), 3-tier JSON extraction, one retry (on JSON-extraction OR schema fail) within a 2-call budget, `PlannerExhausted` on exhaustion. Carries `Tokens` + `retries` + `duration_s`. `PromptsBundle` (with `.hash`, currently empty) lives here.
+- [`src/maquette/agent/worker.py`](src/maquette/agent/worker.py) — F3 shim. `emit_code` delegates to the phase-1 build123d adapter; `emit_journal` stubs v0.1.
+- [`prompts/planner.system.md`](prompts/planner.system.md) — Intent schema + 11-kind contract tables + 3 few-shots (cube-with-hole, cylinder-with-chamfer, L-bracket-with-extras) + v0-gap → extras guidance.
+- [`tests/test_planner_live.py`](tests/test_planner_live.py) — `@pytest.mark.live` smoke, gated by `ANTHROPIC_API_KEY`, excluded from default `pytest` via `addopts = "-m 'not live'"`.
+
+## Carry-forward — READ BEFORE PLANNING PHASE-2B
+
+**1. (HIGH) Extras-only Intents produce no STEP export.** The L-bracket
+few-shot tells the planner to emit geometry in `Intent.extras` with
+*empty* `features`. But [`_export`](src/maquette/adapters/build123d_target.py)
+returns `""` when `features` is empty → the emitted program defines
+`body = bp.part` (by convention) but never calls `export_step(...)`.
+Phase-2a never ran the executor so this didn't surface in tests, but
+phase-2b's round-trip will hit it on the L-bracket reference prompt.
+There's also no contract forcing extras to define `body`. **This crosses
+the frozen design layer** (`02-data-model.md` adapter contract), so the
+fix is likely a `/pm-architecture` touch or `/pm-blocker`, not a silent
+code edit. Decide early. Full detail: phase-2a-report § Surprises #1 +
+Recommended changes #1.
+
+**2. (MED) Live API path is untested.** Everything in phase-2a is
+mock-driven. Run `pytest -m live` (needs `ANTHROPIC_API_KEY` in env)
+before wiring the loop — it surfaces real retry rate (P2a-R2), JSON-fence
+behaviour, and whether the L-bracket few-shot actually elicits valid
+extras. No key was exercised this phase.
+
+**3. (LOW) `PromptsBundle.hash` is empty** — phase-2b's `agent.loop`
+computes the rolled-up SHA-256 of `prompts/` per ADR-0003 and stamps
+`status.json.prompts_hash`. Field exists; loop fills it.
+
+**4. (LOW) `PlanResult.duration_s` is ready** for `trace.jsonl` — loop
+should record it per planner call.
+
+**5. (process) Run the FULL CI sequence before pushing.** `ruff check`
+and `ruff format --check` are *separate* gates; phase-2a burned a CI
+cycle missing the latter. See "Useful commands" for the full list.
 
 ## Read in this order (under 10 minutes total)
 
-1. `./CLAUDE.md` — project guide, framework reference.
-2. [`docs/phases/phase-2a.md`](docs/phases/phase-2a.md) — your phase plan: policies locked, MIN/MAX, day breakdown, exit criteria. **This is your day-by-day spec.**
-3. [`docs/phases/phase-1-report.md`](docs/phases/phase-1-report.md) § Recommended changes for next phase — eight items feeding phase-2a's choices (hole-positioning via extras, sanity tolerance locked, etc.). Plus § Surprises (which limitations of the v0 schema the planner system prompt must teach the LLM about).
-4. [`docs/adr/0002-dimension-sanity-check.md`](docs/adr/0002-dimension-sanity-check.md) — the implementation spec for Day 1's `agent.sanity`. Tolerance ±1% or ±0.5 mm whichever larger; visibility-signal-not-gate.
-5. [`docs/adr/0003-prompt-caching-for-cost.md`](docs/adr/0003-prompt-caching-for-cost.md) — the Anthropic call shape for Day 2's `agent.planner`. **Pre-phase verified against `anthropic==0.102.0` SDK on 2026-05-18; ADR shape valid as documented.** See phase-2a.md § Policies locked for the verification note.
-6. [`docs/02-classes.md`](docs/02-classes.md) § Module map + § Agent module class diagrams — concrete class shapes for `PlanResult`, `SanityResult`, `DimensionMismatch`, `Dimension`.
+1. `./CLAUDE.md` — project guide, framework reference, scope-freeze rule.
+2. [`docs/phases/phase-2a-report.md`](docs/phases/phase-2a-report.md) — what just shipped, the 7 surprises, and the 6 recommended changes feeding phase-2b.
+3. [`docs/03-roadmap.md`](docs/03-roadmap.md) § Phase 2b — the goal/min/max/exit-criterion stub you'll expand with `/pm-phase-plan`.
+4. [`docs/02-classes.md`](docs/02-classes.md) § Agent module — class shapes for `Executor`, `ExecutionResult`, `Loop`, `RunConfig` (the phase-2b surface).
+5. [`docs/adr/0002`](docs/adr/0002-dimension-sanity-check.md) § Loop integration — how the loop consumes `SanityResult` (logs `DIMENSION_WARNING`, continues, never gates).
 
-## Policies locked for phase-2a (do not deviate without `/pm-blocker`)
+## Phase-2b at a glance (from roadmap; not yet a detailed plan)
 
-- **Hole-positioning carry-forward:** planner system prompt instructs LLM to route off-centre hole positions through `Intent.extras` (not ad-hoc `params` keys). v0 schema stays stable through v0 ship. No `/pm-blocker` needed.
-- **L-bracket / non-primitive shapes:** planner emits raw build123d source in `extras` for shapes the 11-kind schema can't express.
-- **Coarse edge selection:** fillet/chamfer modifiers chamfer/fillet *all* edges of the target. If a prompt says "top edge only," planner emits explicit edge selection in `extras`. Schema-v2 candidate.
-- **Sanity tolerance:** ±1% or ±0.5 mm, whichever is larger (ADR 0002). Referenced from the module docstring.
-- **Testing strategy:** unit tests use `unittest.mock` patched Anthropic client (no key, no network, fast). Live integration tests use `@pytest.mark.live` + `pytest.skipif(os.environ.get("ANTHROPIC_API_KEY") is None)` and are excluded from default CI matrix until phase-3.5.
-- **Anthropic call shape:** `system=[{"type": "text", "text": ..., "cache_control": {"type": "ephemeral"}}]` per ADR 0003 (verified against SDK).
-
-## Day 1 — your current task
-
-`agent.sanity` + import-linter contract.
-
-**Outputs:**
-- `src/maquette/agent/sanity.py` — `Dimension`, `DimensionMismatch`, `SanityResult` frozen dataclasses; module-level `check(prompt: str, intent: Intent) -> SanityResult` with regex extraction `(\d+(?:\.\d+)?)\s*(mm|cm|m|in)` plus delimited `<n>×<n>×<n> mm`; unit-normalised comparison to all Intent numeric values; ±1% or ±0.5 mm tolerance; module docstring links ADR 0002.
-- `[tool.importlinter]` contract added to `pyproject.toml`: `agent.sanity → maquette.intent + stdlib only` (no other maquette modules, no I/O modules).
-- `tests/test_sanity.py` — ≥ 8 tests covering tolerance edges (just-inside vs just-outside ±0.5 mm and ±1%), multi-axis prompts (`60 × 40 × 5 mm`), unit-aware comparison (50 mm vs 5 cm), empty-prompt and empty-intent edge cases.
-
-**Done when:**
-- All sanity tests pass.
-- `check("a 50 mm cube with a 20 mm hole through the centre", <cube-with-hole Intent>)` returns `SanityResult(ok=True, ...)`.
-- `lint-imports` reports **4 contracts kept** (3 from phase-0/1 + the new sanity contract).
-- `pyright src/` exits 0.
-- `pytest -q` passes (current baseline: 100 tests).
-
-## After Day 1
-
-| Day | Task | Lives in |
-|-----|------|----------|
-| 2 | `agent.planner` (Anthropic prompt caching + JSON extraction + retry-on-schema-fail + PlannerExhausted exception + Tokens mapping) + initial `prompts/planner.system.md` (Intent schema + 11-kind contracts + cube-with-hole few-shot + v0-gap guidance) | `src/maquette/agent/planner.py`, `prompts/planner.system.md`, `tests/test_planner.py` (mocked client) |
-| 3 | `agent.worker` (thin shim delegating to phase-1's build123d adapter) + (MAX) `PlanResult.duration_s` + centred-keyword sanity false-positive tests + cylinder-with-chamfer + L-bracket-with-extras few-shots + `@pytest.mark.live` integration smoke gated on `ANTHROPIC_API_KEY` | `src/maquette/agent/worker.py`, `tests/test_worker.py`, `tests/test_planner_live.py` (MAX) |
-
-Full exit criteria are in [docs/phases/phase-2a.md § Exit criteria](docs/phases/phase-2a.md).
+- **Goal:** Worker code runs in a sandboxed subprocess, STEP captured, renders produced, Loop ties it together with `trace.jsonl` + `status.json`.
+- **Min:** `agent/executor.py` (subprocess + 30 s timeout + STEP capture + `error.json`); `render/orthographic.py` (PyVista headless, 3 PNGs); `agent/loop.py` (state machine `PROMPT_RECEIVED → PLANNING → CODE_EMITTING → EXECUTING → DONE_OK | *_FAILED`, `trace.jsonl`, `status.json` with `cost_usd_estimate` via `pricing.py`).
+- **Max:** end-to-end integration test with mocked LLM; per-step duration in `trace.jsonl`; SIGKILL test (infinite-loop code killed within timeout + 2 s grace, N9).
+- **Exit:** `Loop.run("a 50 mm cube with a 20 mm hole through the centre")` produces a complete `output/<run-id>/` folder from a REPL with a real `ANTHROPIC_API_KEY`.
 
 ## If you hit a design gap
 
-**Do not modify design docs.** Run `/pm-blocker` and describe the gap. Phase-1 surfaced two real ones (hole positioning, L-bracket) that were absorbed into phase-2a's locked policies above — that's how the framework wants design pivots to surface, explicit and visible, not via silent mid-code edits.
-
-Likely candidates this phase:
-- **SDK API drift mid-implementation** beyond the pre-phase verification. Possible if upstream releases a new `anthropic` version between commits. (Pinned `~=0.102.0`, so minor releases only; should be stable.)
-- **System prompt under-specification** (P2a-R2) — only surfaces under real LLM calls. If MAX live tests show high retry rates, that's prompt-design iteration inside phase-2a, not a blocker.
+**Do not modify design docs while a phase is `in_progress`.** Run
+`/pm-blocker`. Right now no phase is active, so design docs are editable —
+but once you `/pm-phase-start phase-2b`, the freeze re-applies. Carry-forward
+#1 above is the most likely blocker/architecture trigger.
 
 ## Useful commands
 
@@ -78,25 +91,29 @@ Likely candidates this phase:
 # Current project state
 ~/.claude/skills/pm-status/status.sh .
 
-# Latest CI status (last green run was on phase-1 day 5 MAX)
-gh run list --limit 1
-
-# Run all tests (currently 100 passing)
-.venv/bin/pytest -q
-
-# Run only unit tests, skipping any future live tests
-.venv/bin/pytest -q -m "not live"
-
-# Coverage on tracked modules (config in pyproject)
+# FULL local CI sequence (run ALL of these before pushing — see carry-forward #5)
+.venv/bin/ruff check src/ tests/
+.venv/bin/ruff format --check src/ tests/
+.venv/bin/pyright src/
+.venv/bin/lint-imports
+grep -rE "^(import NXOpen|from NXOpen)" src/   # must print nothing
+.venv/bin/pytest -q                            # 129 passed, 3 deselected
 .venv/bin/coverage run -m pytest -q && .venv/bin/coverage report
+
+# Live planner smoke (needs ANTHROPIC_API_KEY; skipped by default)
+.venv/bin/pytest -m live
+
+# Latest CI status
+gh run list --limit 1
 ```
 
-## When phase-2a is done
+## When phase-2b is done
 
-Run `/pm-phase-report` — close out, capture what shipped / what slipped / surprises, flip status to `done`. Then `/pm-phase-plan phase-2b` to detail the next phase (Pipeline runtime + orchestration half: `agent.executor`, `render.orthographic`, `agent.loop` with `trace.jsonl` + `status.json`), and `/pm-phase-start phase-2b` to greenlight.
-
-Phase-2b lands the loop that ties everything together; phase-3 wires the CLI; phase-3.5 verifies the 3 v0 reference prompts manually and **v0 ships**.
+Run `/pm-phase-report`. Then `/pm-phase-plan phase-3` (CLI) and
+`/pm-phase-start phase-3`. After phase-3 comes phase-3.5 (smoke + 3
+reference prompts verified manually) — **v0 ships at the end of 3.5.**
 
 ## Carry-forward to revisit before phase-5
 
-- **Glossary close-out** — phase-1-report recommendation #8 + phase-2a audit-v2 override. Run a `/pm-architecture` pass to add the remaining leaf terms (`PrimaryKind`, `ModifierKind`, `Unit`, `Mesh`, `Pricing`, `Config`, `Refiner`) plus any phase-2a-introduced terms not already added. Eliminates the audit-loop pattern that's hit every `/pm-phase-start` so far.
+- **Glossary close-out** — phase-1-report rec #8 + phase-2a audit-v2 override. A `/pm-architecture` pass to close remaining leaf glossary terms. Phase-2a closed `Dimension` + `DimensionMismatch` (now implemented + defined); `Build123dTarget` + `NxOpenTarget` remain. Eliminates the audit-loop pattern hit every `/pm-phase-start` so far. Not blocking phase-2b/3.
+- **Extras-only export contract** (carry-forward #1) — if not resolved in phase-2b, it blocks the L-bracket reference prompt in phase-3.5.
