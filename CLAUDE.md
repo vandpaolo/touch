@@ -1,7 +1,7 @@
 # Maquette — Claude project guide
 
 This project follows the **PM Framework** at
-`~/projects/vault_theonepiece/Areas/Programming/PM Framework/FRAMEWORK.md`.
+`~/projects/pm-framework/FRAMEWORK.md`.
 
 **Origin:** Maquette was first designed as long-form prose in
 `~/projects/vault_theonepiece/Projects/Maquette/`. Those originals are
