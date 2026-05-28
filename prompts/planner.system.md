@@ -83,6 +83,12 @@ emitted code. Common cases:
 Always prefer the structured schema when the prompt fits. `extras` is
 the documented escape hatch, not the default.
 
+**`extras` must be runnable build123d.** It is executed verbatim, so it
+must compile and run. In particular, sketch curve objects (`Polyline`,
+`Line`, `Spline`, etc.) only work inside a `BuildLine` context — wrap
+them in `with BuildLine() as ln:` *inside* the `BuildSketch`, then call
+`make_face()`. Always bind the final solid to `body`.
+
 ## Few-shot: cube with hole
 
 User prompt:
@@ -183,7 +189,7 @@ Output:
   ],
   "features": [],
   "modifiers": [],
-  "extras": "from build123d import BuildPart, BuildSketch, Plane, Polyline, make_face, extrude, Locations, Hole\nwith BuildPart() as bp:\n    with BuildSketch(Plane.XZ) as sk:\n        Polyline((0, 0), (100, 0), (100, 5), (5, 5), (5, 60), (0, 60), close=True)\n        make_face()\n    extrude(amount=60)\n    with Locations((30, 30, 5), (70, 30, 5)):\n        Hole(radius=3, depth=10)\nbody = bp.part"
+  "extras": "from build123d import BuildPart, BuildSketch, BuildLine, Plane, Polyline, make_face, extrude, Locations, Hole\nwith BuildPart() as bp:\n    with BuildSketch(Plane.XZ) as sk:\n        with BuildLine() as ln:\n            Polyline((0, 0), (100, 0), (100, 5), (5, 5), (5, 60), (0, 60), close=True)\n        make_face()\n    extrude(amount=60)\n    with Locations((30, 30, 5), (70, 30, 5)):\n        Hole(radius=3, depth=10)\nbody = bp.part"
 }
 ```
 
