@@ -1,79 +1,89 @@
 # 00 — PR-FAQ
 
-> *Synthesized from `notes/inbox.md` (migrated vault content) on 2026-05-16.
-> Update via `/pm-vision`. The vault did not contain a PR-FAQ; this is a
-> first draft assembled from vision content + reasonable inference. Two
-> FAQ slots (biggest risk, what failure looks like) are flagged as Gaps.*
+> *Rewritten 2026-05-29 for the **Touch** pivot. Update via `/pm-vision`.*
 
-## Press release (as if v1 already shipped)
+## Press release (as if it already shipped)
 
-**Headline:** Describe a part. Get a CAD model in seconds.
+**Headline:** CAD you can talk to — point at the model and say what you want.
 
-**Sub-headline:** Maquette translates plain-language part descriptions into
-editable build123d code and STEP files, with optional NX Open journal
-handoff that preserves the feature tree.
+**Sub-headline:** Touch is an open-source 3D CAD editor where you orbit a
+part, click a face, and describe the change in plain language. It builds
+the geometry, asks when it's unsure, and you watch the model take shape
+step by step.
 
 **Body:**
 
-CAD authoring for first-draft geometry is mostly mechanical translation:
-"a 50 mm cube with a 20 mm hole through the centre" is trivially describable
-but tedious to type into a feature tree. Engineers spend hours doing what is
-essentially dictation in GUI form.
+Modelling a simple part in traditional CAD is mostly mechanical: sketch,
+extrude, select a face, place a hole, fight the feature tree. The shape
+is easy to *say* — "a 40×40×25 box, hollow it to a shell, cut a USB slot
+in this wall" — but slow to *click*.
 
-Maquette takes the prompt, asks a strict structured LLM to emit an `Intent`
-(a small pydantic schema), then runs deterministic adapters that translate
-the Intent into build123d code (run headless to export STEP) and into an
-NX Open journal (replay it in NX to get a fully parametric feature tree).
+Touch turns that sentence into the workflow. The interface is a 3D
+workplane with classic NX-style controls and a VS-Code-like project tree.
+You click where you want something to happen, a prompt box appears, and
+you describe it. Clear instructions execute immediately; ambiguous ones
+become a short conversation. Because Touch knows *where you clicked*, it
+can place features positionally — "a hole *here*", "hollow *this* from the
+top" — which a one-shot text prompt never could.
 
-The flow: one command, one prompt, three orthographic renders, a STEP file
-ready to open in any CAD tool, and an NX journal ready to land as a real
-feature tree. The system never replaces CAD — it hands you a maquette
-(rough first draft) and gets out of the way.
+Under the hood, a Claude-powered planner converts your click + words into
+a structured CAD operation, and a build123d/OpenCascade kernel builds it,
+streaming the updated geometry back to the 3D view. You install Touch as a
+desktop app, drop in your own Claude API key, and model.
+
+Touch is the evolution of Maquette, a prototype that proved an LLM could
+generate correct parametric geometry from a prompt. Touch makes it
+interactive, positional, and conversational — a CAD editor, not a one-shot
+generator.
 
 ## FAQ (internal)
 
 **Why now?**
-LLMs are reliable for constrained code generation and structured outputs.
-CAD has scriptable backends (build123d, NX Open). Bridging the two with a
-small, focused tool is now within reach without re-inventing CAD.
+Maquette (v0) already proved the hard part — an LLM reliably turning
+intent into correct build123d/OpenCascade geometry via a strict schema.
+The research (2026-05-29) confirmed the coupling is solved: a Python
+kernel server streaming meshes to a web 3D frontend over WebSocket is a
+proven pattern (Onshape, ocp-vscode), and the *same* frontend runs as a
+browser tab in dev or wrapped as a desktop `.exe`. The remaining work is
+product, not unsolved research.
 
 **Who is this for?**
-Primary: the author, as personal tooling for fast first-draft geometry
-(brackets, mounts, enclosures, jigs). Secondary: free-CAD users wanting a
-prompt-to-part on-ramp. Tertiary: NX seat owners wanting a fast scratchpad
-with output that lands cleanly back in NX as real features.
+Primary: the author + engineer friends — working engineers who do lots of
+CAD, aren't especially tech-savvy, and want to rough out parts by pointing
+and describing, running a desktop app with their own Claude key.
+Secondary: the broader engineer/maker + open-source-CAD crowd wanting
+AI-native modelling. Tertiary: people exploring click+converse / agentic
+design tooling.
 
 **What is the smallest thing we can ship?**
-`maquette design "a 50 mm cube with a 20 mm hole through the centre"`
-producing a STEP file that opens in FreeCAD and shows the described part,
-within 20 s and < $0.10 in API cost.
+Touch v0 (POC): model the mini-PC enclosure entirely by touching —
+empty editor → click a plane → "a 40×40×25 box" → click the top →
+"hollow it with a 30×30×15 box" → click a wall → "cut a USB slot here" →
+export a STEP that opens in FreeCAD and matches — in a packaged `.exe` a
+friend can install and run with their own API key.
 
 **What's the biggest risk?**
-Silent semantic failure: the LLM emits a valid `Intent`, the adapter
-compiles it, the build123d code runs, the STEP file is produced — but
-the geometry doesn't match what the prompt described. The user must
-visually verify every output, eroding the speed benefit. Mitigations:
-the v0.1 vision-based Evaluator catches mismatches; the Intent schema
-is intentionally expandable, so categories of semantic mismatch that
-surface in practice can be hardened by tightening the schema. If a
-backend (e.g. NX Open) turns out to be a brittle source of failures,
-we file a `/pm-blocker` and pivot to a different backend (e.g. FreeCAD)
-— the multi-backend pattern is robust to backend-specific failure modes.
+Two. (1) **Picking that survives edits** — clicking a face and reliably
+mapping it back to the right CAD face, especially as the model changes
+(the topological-naming problem). Mitigation: kernel owns face identity +
+per-face IDs in the streamed mesh (Onshape-style) and operations
+referenced by re-derivable geometry (replicad-style "finders"); v0 stays
+append-only to sidestep the worst of it. (2) **Desktop packaging** of a
+web frontend + a Python/OpenCascade backend into a `.exe` that
+non-technical friends can run — native-dependency bundling is fiddly.
+Mitigation: prove it with an early end-to-end spike (round-trip +
+picked-face + packaged `.exe`) before building features.
 
 **How will we know it worked?**
-v0 success: the two schema-native references (cube with hole, cylinder
-with an all-edges chamfer) generate a STEP that opens cleanly in FreeCAD,
-within 20 s and < $0.10 per generation, *within the v0 capability bound*
-(no edge-specific selection or oriented multi-face holes — those are
-v0.1). The L-bracket (compound shape via the `extras` relief valve) is a
-demonstrated best-effort showcase, not a hard gate, since `extras` is
-un-guarded until the v0.1 Evaluator. v0.1 adds the NX journal
-landing as a real feature tree in the NX Part Navigator for the same
-prompts.
+The full mini-PC enclosure flow works *inside the app* on a clean
+install; the produced STEP opens in FreeCAD and matches; at least one
+ambiguous prompt triggers a clarifying conversation instead of a wrong
+guess; and an engineer friend successfully installs the `.exe`, enters
+their key, and models something.
 
 **What does failure look like?**
-Every prompt produces a STEP that runs but is visually wrong, requiring
-the user to open it in CAD and re-verify the geometry by eye every time.
-At that point the tool offers no speed advantage over hand-authoring,
-and the user stops using it. This is the inverse of the success
-criterion: speed without trustworthy correctness is just an expensive toy.
+Clicking a face gives the wrong geometry or the wrong selection often
+enough that you stop trusting it; or the `.exe` is too fragile for a
+non-technical friend to install and run; or the click+converse loop is
+slower/clunkier than just opening real CAD. At that point Touch is a demo,
+not a tool people reach for.

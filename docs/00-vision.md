@@ -1,169 +1,174 @@
 # 00 — Vision
 
-> *Synthesized from `notes/inbox.md` (migrated vault content) on 2026-05-16.
-> Update via `/pm-vision`.*
+> *Rewritten 2026-05-29 for the **Touch** pivot (formerly Maquette).
+> Synthesized from `notes/inbox.md` (the 2026-05-29 Touch pivot section +
+> architecture research) + the shipped-Maquette vision. Update via
+> `/pm-vision`.*
 
-> *A maquette is the rough preliminary model an artist makes before sculpting
-> the final piece. The AI hands you the maquette; you finish the real thing.*
+> *Touch: the only thing you do is touch. Orbit the model, click a face,
+> say what you want — the part takes shape under your hands.*
 
 ## The problem
 
-Going from a design intent in someone's head to an editable CAD model is
-slow. The current path is:
+CAD is powerful and slow. For most first-draft and bread-and-butter
+parts — brackets, mounts, enclosures, fixtures — the shape is trivial to
+*describe* ("a 40×40×25 box, hollow it to a 5 mm shell, cut a USB slot in
+that face") but tedious to *build*: sketch, extrude, select faces, place
+holes, click through a feature tree, repeat for every revision.
 
-- Open CAD (FreeCAD, Onshape, Fusion, NX, SolidWorks).
-- Hand-author sketches, extrusions, holes, fillets.
-- Tweak parameters by clicking through a feature tree.
-- Repeat for every revision, every variant, every "what if it were 20% bigger".
+The predecessor project, **Maquette** (shipped v0), proved an LLM can
+turn a natural-language prompt into *correct parametric geometry* via a
+strict `Intent` schema + build123d/OpenCascade. But it was **one-shot and
+headless** — type a sentence, get a STEP. That design hit a wall exactly
+where CAD gets interesting: **ambiguity and position.** "Chamfer the top
+edge", "a hole in *this* face" — a single text prompt has no way to point
+at geometry, and no way to ask a clarifying question. Maquette's own v0
+references broke on precisely those cases.
 
-For first-draft geometry — early concept work, parametric variants, jigs and
-fixtures, brackets, mounts, enclosures — most of that authoring is mechanical
-translation of a sentence ("a 50 mm cube with a 20 mm hole through the centre")
-into a feature tree. The shape is trivially describable; the act of typing it
-into a CAD GUI is not.
-
-LLMs are good at constrained code generation. CAD has scriptable backends.
-Bridging the two should be a small, focused tool — not a re-invention of CAD.
+The missing piece isn't a better prompt. It's a place to **point and
+talk**: interactive, positional, conversational.
 
 ## The dream
 
-Describe a part in natural language. Get back:
+**Touch** is an open-source, AI-native 3D CAD editor. The interface is a
+3D workplane (orbit/pan/zoom with classic Siemens-NX mouse controls) and
+a VS-Code-style shell — a file/project tree on the left, the viewport in
+the centre. The only verb is **touch**:
 
-1. **An editable parametric solid** in a free, open backend (build123d).
-2. **A STEP file** for handoff to any other CAD tool.
-3. **An optional NX Open journal** — replay the construction in Siemens NX
-   and the features land in the Part Navigator, fully parametric.
-4. **Three rendered views + an evaluator critique** so the user can decide
-   whether to ship, refine, or rewrite the prompt.
+1. **Click** a face, edge, point, or construction plane.
+2. A **prompt box** appears, anchored to what you clicked.
+3. You say what you want. Clear instructions execute immediately; unclear
+   ones become a short **conversation** until the system has enough to
+   act.
+4. The model **evolves one operation at a time** — you see each result in
+   3D and drive the next step.
 
-Then open the result in a real CAD tool and finish the engineering by hand.
-The system never claims to be the CAD tool. It hands the user a maquette and
-gets out of the way.
+Where you click *is* the spatial argument ("hollow *this* from the top",
+"a hole *here*"), which is exactly what a one-shot prompt could never
+express. Under the hood it's Maquette's engine — build123d/OCP + the
+Claude planner — now driven interactively instead of fired once.
+
+You install it as a desktop app, paste in your own Claude API key, and
+model. It's built for engineers who live in CAD but shouldn't have to
+fight the GUI to rough something out.
 
 ## Scope
 
-### In scope — v0
-- A Python package + CLI: `maquette design "..."`.
-- An LLM **Planner** that converts a prompt to a strict `Intent` (pydantic).
-- An LLM **Worker** that converts `Intent` to build123d code.
-- A subprocess **Executor** that runs the code headless, exports STEP, and
-  renders three orthographic PNGs via PyVista.
-- A **build123d adapter** (default, in-repo, free).
-- Filesystem-as-state: every generation is a folder under `output/` with
-  `intent.json`, `code.py`, `renders/`, and the STEP file.
+Milestones are re-baselined for Touch. The shipped Maquette pipeline
+(`intent` schema, planner, build123d adapter, executor) is **retained as
+Touch's headless engine** — not rebuilt.
 
-### In scope — v0.1 (next)
-- An **NX Open adapter** that *emits* a `.py` journal — zero NX imports in
-  repo. (Moved from v0 per push-back B1: keeps v0 on the build123d
-  critical path; the strategic-fit benefit is preserved either way since
-  the adapter still gets built, just later.)
-- Vision-based **Evaluator** + refinement loop (worker / evaluator / refiner).
-- Isometric render in addition to the three orthographic views.
-- An `examples/` regression corpus (hand-curated good sessions).
+### In scope — Touch v0 (POC: "model the mini-PC enclosure by touching")
+- A desktop application: 3D viewport (three.js) + NX-style camera + a
+  VS-Code-like file/project tree + a settings panel (Claude API key).
+- **Click-to-prompt** with positional context: clicking a face/edge/
+  point/plane feeds that selection + coordinates to the planner.
+- **Conversational clarification:** an ambiguous prompt turns into a
+  short back-and-forth instead of a guess.
+- **Incremental modelling:** operations accumulate (append-only history);
+  each step re-tessellates and updates the live 3D view.
+- The architecture from the 2026-05-29 research: a **Python kernel
+  server** (build123d/OCP) streaming meshes-with-face-IDs over a
+  **WebSocket** to the **three.js** frontend; the *same* frontend runs as
+  a **browser tab in headless dev** and **wrapped in a desktop shell for
+  the `.exe`** distribution.
+- Reuse of the Maquette engine (planner, adapter, executor, pricing,
+  config) behind that server.
 
-### In scope — v0.2 (later)
-- Conversational mode (multi-turn refinement before commit).
-- Parameter sliders post-generation (regenerate with tweaked dims, no LLM
-  round-trip).
-- Expansion of the `Intent` schema based on what `extras` is being used for
-  most often in practice.
+### In scope — Touch v0.1+ (next)
+- A richer operation set; robust face/edge reference that survives edits
+  (replicad-style geometric "finders" + server-side ID resolution).
+- Undo/redo; a project/document save format (the operation history).
+- An automatic correctness check (the Maquette v0.1 vision-Evaluator
+  idea, now catching "looks wrong" in the live editor).
+
+### In scope — later milestones (sequencing in `03-roadmap.md`)
+- **Assemblies** — multiple parts + mates/constraints (the reason the
+  file-tree structure matters from day one).
+- **Simulation** — FEA / multibody / dynamics, as a separate Python
+  compute service exchanging STEP/mesh (does not change the editor↔engine
+  coupling).
+- **Control / optimization / heavy numeric**, possibly ML inference —
+  the versatility a Python engine keeps open.
+- A **hosted / browser** version (the web frontend already runs in a
+  browser; this is mostly deployment).
 
 ### Out of scope (for now, possibly forever)
-- Replacing CAD. The system is a first-draft generator. Engineering judgment
-  stays human.
-- **Assemblies.** Single parts only in v0.
-- **Mesh-only output** (STL/3MF as primary). STEP / B-rep only — meshes are
-  a dead end for editable CAD.
-- **Web UI.** CLI first. A web frontend can come later if there's a reason.
-- **Recorded NX journals from licensed sessions.** The NX adapter is written
-  against the public NX Open API only; no licensed-session artefacts in the
-  repo, ever.
+- **Feature-parity with commercial CAD** (SolidWorks/NX). Touch is
+  AI-native first-draft + edit, not a clone of a 30-year GUI.
+- **Rebuilding manual GUI modelling** (sketch-by-sketch toolbars). The
+  point is touch+prompt; manual tools come only if they earn their place.
+- **Its own geometry kernel.** Touch stands on OpenCascade (via build123d/
+  OCP), not a from-scratch B-rep kernel.
+- **Multi-user / real-time collaboration / cloud** in v0. Single user,
+  local app.
+- **Mesh-only output** (STL/3MF as primary). B-rep / STEP is the model of
+  record; meshes are for display.
+- **Parametric editing of earlier history** in v0 (the topological-naming
+  problem). v0 history is append-only.
 
 ## Non-goals — explicit
 
-- **Not a constraint solver.** No mate inference, no assembly-level
-  constraints in v0. Single parts only.
-- **Not a feature recogniser.** The system generates from intent, it does
-  not reverse-engineer geometry into intent.
-- **Not multi-provider abstracted on day one.** Default to Claude; abstract
-  the client so swapping is cheap, but don't build a provider-agnostic
-  layer upfront. Premature abstraction.
-- **Not a chatbot.** v0 is one-shot. Conversational refinement is v0.2.
+- **Not "an assistant that hands you a draft and leaves"** — that was
+  Maquette. Touch *is* the editor; you model inside it. (This is the
+  deliberate positioning flip from the predecessor.)
+- **Not a constraint solver / assembly mate engine** in v0. Single parts.
+- **Not a feature recogniser.** It generates from intent + selection; it
+  does not reverse-engineer imported geometry into editable features.
+- **Not multi-provider on day one.** Claude is the model; the client is
+  abstracted so a swap is cheap, but no provider-agnostic layer upfront.
+- **Not a from-scratch UI toolkit.** Lean on web tech (three.js + a
+  web-app shell) and a desktop wrapper, not a bespoke native GUI.
 
 ## Audience
 
-- **Primary:** the author. Personal tooling for fast first-draft geometry,
-  especially for parts where the description-to-feature-tree translation is
-  the bottleneck (brackets, mounts, enclosures, fixtures).
-- **Secondary:** other engineers who already use free CAD (FreeCAD,
-  build123d users) and want a prompt-to-part on-ramp.
-- **Tertiary:** NX seat owners who want a fast scratchpad outside the NX
-  GUI, with output that lands cleanly back in NX as a real feature tree.
+- **Primary:** the author + a handful of **engineer friends** — working
+  engineers who do a lot of CAD, are comfortable with the domain but not
+  especially tech-savvy, and would adopt a desktop tool that lets them
+  rough out parts by pointing and describing. They install the `.exe` and
+  use their own Claude key.
+- **Secondary:** the broader **engineer/maker + open-source CAD** crowd
+  (FreeCAD / build123d / CadQuery users) wanting an AI-native, positional
+  modelling on-ramp.
+- **Tertiary:** people exploring **agentic / LLM-driven design tooling**
+  as a pattern — Touch as a reference for "click + converse" CAD.
 
 ## Success criteria
 
-v0 ships on a clean clone of the repo (installed per the README —
-including the headless render backend — with only `ANTHROPIC_API_KEY`
-set) when:
+Touch v0 (the POC) succeeds when **the mini-PC enclosure is modelled
+entirely by touching, inside the app, on a clean install:**
 
-**Hard ship gate — both schema-native references must pass:**
+1. Open Touch (empty editor). Click an orthogonal plane → prompt
+   "a 40 × 40 × 25 box" → the box appears.
+2. Click the top face → "hollow it out with a 30 × 30 × 15 box" → it
+   becomes a ~5 mm shell.
+3. Click a wall face/edge → "cut a USB-sized slot here" → the cutout
+   lands at the clicked location.
+4. The result exports a STEP that opens in FreeCAD and visually matches
+   the intended enclosure.
+5. At least one ambiguous prompt triggers a **clarifying conversation**
+   rather than a wrong guess.
 
-1. **Cube with through-hole** — `"a 50 mm cube with a 20 mm hole through the centre"`
-2. **Cylinder with chamfer** — `"a 30 mm diameter, 40 mm tall cylinder with a 2 mm chamfer"` *(v0 chamfers all edges — see the capability bound below)*
+And **it ships as software a friend can actually run:** a packaged
+**Windows `.exe`** that launches, takes a Claude API key in Settings, and
+runs the flow above — while the identical frontend also runs as a browser
+tab in the author's headless Linux dev environment. (macOS/Linux desktop
+builds are a later milestone; Windows is the POC distribution target.)
 
-Each must produce a STEP that opens in FreeCAD and shows the described
-part, within **20 s** wall-clock and < $0.10 in API cost.
-
-**Best-effort showcase — demonstrated, not gating:**
-
-3. **L-bracket** (compound shape via the `extras` relief valve) —
-   `"a 60 × 40 × 5 mm L-bracket"`. This exercises the `extras` escape
-   hatch end-to-end: the v0 schema has no L-primary or `union`, so the
-   compound shape is produced as raw build123d in `extras`. Because
-   `extras` is un-guarded LLM-written code until the v0.1 Evaluator
-   lands, it is **not** a hard ship gate — a bad generation does not
-   block v0; v0 ships with a known-good L-bracket run captured as an
-   example.
-   *(Verification 2026-05-28 found that adding a hole via `extras` is
-   reliably broken — the LLM mishandles the build123d hole workplane and
-   it silently no-ops — so the showcase is the bare L-shape, which
-   `extras` produces reliably. Precise hole positioning is deferred to
-   v0.1 phase-4.5. See blocker `2026-05-28-l-bracket-showcase-hole-unreliable`.)*
-
-NX-journal output is verified separately under v0.1.
-
-### v0 capability bound — what "matches the prompt" means
-
-v0 commits to geometry expressible in the `Intent` schema (6 primaries +
-5 modifiers) **plus the `extras` relief valve** for compound shapes the
-schema can't name (the L-bracket above). Within that bound the result
-must match the prompt. v0 deliberately does **not** support:
-
-- **Edge-specific selection** — chamfer/fillet apply to *all* edges of
-  the target, not a named one ("…on the top edge" is beyond v0).
-- **Multi-face / oriented hole placement** — `hole` is centred on the
-  target along one axis; "a hole in *each flange*" of an L (one of which
-  needs a sideways axis) is beyond v0.
-
-These are the first v0.1 work (schema-v2 first-class edge selection +
-hole positioning, and the vision-LLM Evaluator that catches geometry
-that silently doesn't match). v0's reference prompts are phrased to stay
-inside the bound; `extras` remains best-effort (no correctness guard
-until the Evaluator lands — see risk R7 in requirements).
+Precise non-functional bars (per-step latency, LLM cost per modelling
+session) are interactive and per-operation rather than one-shot, so they
+are set in `01-requirements.md` / phase planning rather than fixed here —
+the qualitative bar is "feels responsive enough that touching beats
+opening real CAD."
 
 ## Strategic-fit map
 
-**Personal tooling first, portfolio second.** Maquette is built because
-the author wants the tool, not as interview cosplay. That said, the
-design deliberately exercises three skills relevant to the ABB Robotics
-Senior .NET role and to applied-AI systems work in general:
+Touch deliberately exercises skills relevant to applied-AI systems and
+engineering-tooling work:
 
-| Skill / theme | How Maquette exercises it |
+| Skill / theme | How Touch exercises it |
 |---|---|
-| Agentic systems with bounded autonomy | Planner / Worker / Executor / Evaluator loop with a strict structured intermediate |
-| Structured outputs / schema-driven LLM use | `Intent` (pydantic) as the pivot; no free-form CAD code from the LLM |
-| Code generation for licensed / closed APIs | NX Open adapter emits a `.py` journal against the public API, with zero in-repo coupling to the licensed tool |
-
-Looser parallels (digital-twin analogies, multi-target deployment,
-licensed-tool hygiene discipline) follow naturally from these three;
-they don't need their own rows.
+| Agentic systems with bounded autonomy | A click+converse loop where an LLM proposes structured CAD operations against a live model, with human confirmation each step |
+| Structured outputs / schema-driven LLM use | The `Intent`/operation schema as the pivot; the LLM never emits free-form CAD code |
+| Real-time interactive systems | A kernel-server ↔ web-frontend coupling streaming geometry, with positional picking and incremental updates |
+| Desktop + web dual delivery | One web frontend that runs in a browser (dev) and as a packaged desktop app (distribution) over a local service |

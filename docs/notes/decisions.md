@@ -492,3 +492,30 @@ either a note section or a decision here.
   cylinder) unaffected.
 - → docs/00-vision.md § Success criteria + capability bound; docs/00-pr-faq.md;
   mirrors to sync in docs/03-roadmap.md (phase-3.5) + docs/phases/phase-3.5.md
+
+## 2026-05-29 — /pm-vision (Maquette → Touch pivot)
+
+- Q: OS target for the Touch v0 POC .exe?
+- A: Windows .exe primary (friends on Windows); same frontend runs as a
+  browser tab on the headless Linux dev box. macOS/Linux desktop = later.
+- → docs/00-vision.md § Success criteria + Scope
+
+- Q: How to treat the existing Maquette roadmap (v0.1 phases 4–10)?
+- A: FULL re-baseline for Touch — re-run /pm-requirements → /pm-architecture
+  → /pm-roadmap fresh; Maquette's roadmap is superseded. Salvage what
+  fits: evaluator → v0.1 correctness check; schema-v2/finders → face
+  reference; conversational → now CORE (was v0.2); NX adapter + supporting
+  CLI commands → reassess (CLI is now an engine entry-point, not the
+  product).
+- → drives the formalization sequence after this vision locks
+
+- Positioning flip recorded: Maquette was "assistant hands you a draft and
+  leaves"; Touch IS the editor (model inside it). Inverts a Maquette
+  non-goal. Engine (intent/planner/adapter/executor) retained as Touch's
+  headless core.
+
+- Follow-up (downstream, not vision): the literal rename Maquette → Touch
+  cascades to the repo dir, the `maquette` package, the `maquette design`
+  CLI, CLAUDE.md, README. That's an implementation chore for later, not a
+  design-doc edit. Docs now call the product "Touch"; code stays
+  `maquette`-named until a rename pass.

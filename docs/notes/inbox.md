@@ -1532,3 +1532,108 @@ outcomes as ADRs.
   with no timing / cost artefacts.
 - CI guard: no `NXOpen` import in `src/`.
 
+
+---
+
+## 2026-05-29 — Major pivot: "Touch" (interactive CAD app)
+
+> absorbed into docs/00-vision.md + docs/00-pr-faq.md @ 2026-05-29
+
+> Captured verbatim-in-substance from the user mid-chat. This reshapes
+> the vision; formalize via /pm-vision after alignment.
+
+**Rename:** Maquette → **Touch**.
+
+**What it is:** an open-source 3D CAD modeling app. Initially a POC
+distributed as an `.exe` to give to engineer friends to use at work;
+expand later.
+
+**MVP / main UI:**
+- A 3D editor workplane like other CAD software (center).
+- To the LEFT, a file tree like VS Code's explorer — the user wants a
+  clear file/project structure (matters more later for assemblies). The
+  UI is broadly "VS Code, but for CAD instead of code."
+- Camera/navigation: classic Siemens NX mouse controls in the 3D plane.
+
+**Core interaction — "Touch":** the only thing you do is *touch*. Move
+around the 3D plane (NX controls); **left-click any point/face/plane →
+a prompt box appears → you prompt.** Clear instructions process directly
+(no extra questions); unclear ones turn into a **conversation** asking
+for details until clear.
+
+**Why click-to-prompt (vs one-shot):**
+- Gives **positional context** — where you clicked tells the system
+  where the feature goes (e.g. place a hole based on the clicked face +
+  the prompt).
+- Lets the prompt become a **conversation** when something's unclear.
+- Incremental, not a single fire-and-forget prompt.
+
+**End-goal walkthrough (the concrete MVP target — a case for a
+30×30×15 mini-PC):**
+1. Empty editor. Left-click an orthogonal plane → prompt: "make a
+   40×40×25 rectangle" → processes (clear) → creates the box.
+2. Click the top of the box → "cut out the inside with a 30×30×15 box"
+   → cuts it, leaving a shell.
+3. Click the edges → make cutouts for the USBs etc.
+
+**Other:** still Claude API; add a Settings field for the API key so
+non-tech-savvy (but CAD-heavy) engineers can add their own key easily.
+
+**User's conviction:** "I'm convinced this is the way." Acknowledges it
+means building a bunch of standard-CAD-software machinery, but believes
+the click-to-prompt + conversational + positional approach is right.
+
+### 2026-05-29 — Architecture research conclusions (Touch FE/BE coupling)
+
+> absorbed into docs/00-vision.md @ 2026-05-29 (architecture detail feeds /pm-architecture)
+
+> From a deep-research pass (105 agents, 24/25 claims verified). Full
+> report archived in the session task output. Feeds /pm-architecture.
+
+**Verdict — Python is NOT the bottleneck.** The cited "20× slower" datum
+(CadQuery, 2021) was a pure-Python tessellation loop copying mesh data
+value-by-value across the C++→Python binding — not the OCCT mesher. Fixed
+by native bulk-copy tessellation (`ocp_tessellate`/pythonocc), callable
+from Python. Real bottlenecks: geometry transport volume, face-picking /
+persistent-naming, LLM latency.
+
+**Recommended architecture (settles A-vs-B):** local client-server.
+Python build123d/OCP kernel server-side → native tessellate → stream
+meshes-with-per-face-IDs over a binary **WebSocket** → **three.js** web
+frontend. The SAME frontend runs as a browser tab in dev and wrapped in a
+desktop shell + Python sidecar for the `.exe`. The "smart coupling" is a
+network client-server, NOT in-process IPC — that's what gives browser-dev
++ .exe-dist from one frontend. This is "Path A" (Python kernel, full
+build123d reuse) as a local service.
+
+**Proven by:** ocp-vscode (Python OCP + ocp_tessellate + WebSocket →
+three.js; runs as VS Code webview OR plain browser tab at 127.0.0.1:3939)
+and Onshape (server kernel + streamed triangles over REST+WebSocket,
+progressive refinement).
+
+**Rejected:** Zoo/KittyCAD's server-GPU + H.264-video-over-WebRTC
+(needs cloud GPUs, custom Rust engine, geometry never reaches client →
+kills client-side picking; over-engineered for local single-user). Full
+in-browser WASM kernel (~9 MB brotli cold start + forecloses Python-FEA).
+
+**Picking (the hard part):** combine Onshape-style (kernel owns face
+identity; carry per-face IDs in the streamed mesh; resolve/translate
+server-side; no persistent client IDs) with replicad-style **finders**
+(reference a face by re-derivable geometry — plane/normal/centroid/
+surface-type — so selections survive edits without a persistent-naming
+engine). MVP append-only history sidesteps the worst of it.
+
+**Future FEA/multibody/control/numeric:** a separate Python compute
+service exchanging STEP/mesh — does NOT change the near-term coupling.
+
+**Open (architecture spikes, NOT verified by the research):**
+- Desktop shell: Electron+Python-sidecar vs **Tauri+sidecar** (working
+  reference example exists) vs Wails vs pywebview — bundle size /
+  Python+OCCT native-dep bundling / startup not benchmarked.
+- Geometry streaming format: glTF/GLB vs Draco vs meshopt vs raw
+  typed-array binary WS frames — not benchmarked. + how to encode
+  per-face IDs (per-vertex attr vs primitive groups vs separate map).
+- End-to-end face-identity scheme (server stable-ID/translation vs
+  geometric finders vs hybrid).
+- First spike to de-risk: Electron/Tauri ⇄ Python round-trip + a
+  face-id'd mesh rendered & picked in three.js, packaged to an .exe.
