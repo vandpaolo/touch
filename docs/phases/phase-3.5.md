@@ -1,12 +1,12 @@
 ---
 id: phase-3.5
 title: Smoke + reference examples (v0 ships)
-status: blocked           # flipped 2026-05-28 via /pm-blocker (showcase hole)
+status: in_progress       # unblocked 2026-05-28 via /pm-blocker resolve
 started: 2026-05-28        # ISO date when flipped to in_progress
 finished: null            # ISO date when flipped to done
 min_goal_met: null        # true | false | null
 max_goal_met: null        # true | false | null
-blocker: blockers/2026-05-28-l-bracket-showcase-hole-unreliable.md
+blocker: null             # resolved: blockers/2026-05-28-l-bracket-showcase-hole-unreliable.md
 depends_on: [phase-3]
 audit: audits/2026-05-28-pre-phase-3.5.md
 ---
@@ -41,10 +41,11 @@ audit: audits/2026-05-28-pre-phase-3.5.md
   Each must open in FreeCAD, visually match, run **< 20 s** (N1) and
   **< $0.10** (N2). These are reliable (no `extras`).
 - **L-bracket is a best-effort showcase, NOT a gate.** `a 60 × 40 × 5 mm
-  L-bracket with a 6 mm mounting hole` (single hole) exercises the
-  `extras` relief valve. Because `extras` is un-guarded until the v0.1
-  Evaluator, a single bad generation does **not** block v0 — it may need
-  a reroll; v0 ships with one known-good L-bracket run captured.
+  L-bracket` (bare L-shape — the hole was dropped per blocker
+  `2026-05-28-l-bracket-showcase-hole-unreliable`; hole positioning is
+  v0.1 phase-4.5) exercises the `extras` relief valve. Because `extras`
+  is un-guarded until the v0.1 Evaluator, a bad generation does **not**
+  block v0 — v0 ships with one known-good L-shape run captured.
 - **Clean-clone install includes the vtk-osmesa swap** (README): a bare
   `pip install -e .` pulls X11-only `vtk` and segfaults on render.
 - **Visual correctness is human-judged (the user).** STEP-opens +

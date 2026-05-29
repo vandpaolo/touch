@@ -2,9 +2,9 @@
 id: 2026-05-28-l-bracket-showcase-hole-unreliable
 phase: phase-3.5
 severity: soft
-status: open
+status: resolved
 discovered: 2026-05-28
-resolved: null
+resolved: 2026-05-28
 re_entry: vision
 ---
 
@@ -72,4 +72,25 @@ deferral to phase-4.5 are already recorded from the first blocker).
 
 ## Resolution
 
-<!-- left empty; filled when the vision narrowing locks -->
+Resolved 2026-05-28 via **option 1 (narrow the showcase to the bare
+L-shape)** — user decision.
+
+- **Vision** ([`00-vision.md`](../00-vision.md) § Success criteria +
+  capability bound, commit `6d3ab8b`): showcase reference dropped the
+  hole → `"a 60 × 40 × 5 mm L-bracket"`; added the verification finding
+  (hole-via-extras silently no-ops; hole positioning deferred to v0.1
+  phase-4.5). [`00-pr-faq.md`](../00-pr-faq.md) "how we'll know" updated
+  to match.
+- **Mirrors synced** in the resolution commit: `03-roadmap.md` phase-3.5
+  min (showcase = bare L-shape) and `docs/phases/phase-3.5.md` policy +
+  references.
+
+No requirements/architecture change (the capability bound + the
+phase-4.5/phase-4 deferral were already recorded by the first blocker,
+`2026-05-28-v0-references-exceed-schema`). Hole positioning lands in v0.1
+**phase-4.5** (first-class schema hole-positioning); the v0.1 **phase-4**
+Evaluator would have auto-caught this silent no-op.
+
+The hard ship gate (cube + cylinder, both schema-native + verified
+correct) was never affected; v0 ships on the gate. The showcase will be
+re-run as the bare L-shape and captured on resume.
