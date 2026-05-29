@@ -1,6 +1,6 @@
 ---
-project_status: building   # planning | building | shipped — flipped 2026-05-16 (phase-0 in_progress)
-active_phase: phase-3.5    # set 2026-05-28 via /pm-phase-start
+project_status: building   # planning | building | shipped — v0 MILESTONE shipped 2026-05-29 (phase-3.5 done); v0.1/v0.2 phases remain, so project stays "building"
+active_phase: null         # cleared 2026-05-29 via /pm-phase-report (phase-3.5 done — v0 shipped)
 ---
 
 # 03 — Roadmap

@@ -1,94 +1,90 @@
-# Handover — Maquette, between phase-3 (done) and phase-3.5 (not yet planned)
+# Handover — Maquette, v0 SHIPPED (between phase-3.5 done and phase-4 / v0.1)
 
 > *Start here in any fresh chat session that opens this project. Once
-> phase-3.5 is planned + started, rewrite the "You are here" + task
-> sections for it. Always keep this short enough to read in 60 seconds.*
+> phase-4 is planned + started, rewrite the "You are here" + task
+> sections for it. Keep this short enough to read in 60 seconds.*
 
 ## You are here
 
 - **Project:** Maquette — natural-language CAD prompt → editable parametric solid + STEP.
-- **Phase-3 is `done`** (closed 2026-05-28 via `/pm-phase-report`, min + max both met). See [`docs/phases/phase-3-report.md`](docs/phases/phase-3-report.md).
-- **v0 is feature-complete.** The public CLI works end-to-end: `maquette design "a 50 mm cube with a 20 mm hole through the centre"` produces a complete `output/<run-id>/` and exits 0.
-- **No phase is active.** `docs/03-roadmap.md` frontmatter has `active_phase: null`. Scope freeze is **lifted**.
-- **Next move:** `/pm-phase-plan phase-3.5`, then `/pm-phase-start phase-3.5`. **Phase-3.5 is the last v0 phase — v0 ships at the end of it.** It is mostly *manual verification* (run the 3 reference prompts, open the STEPs in FreeCAD, confirm they match), plus latency/cost measurement.
-- **Last commit:** see `git log -1` on `main` (pushed). CI green ([latest run](https://github.com/vandpaolo/maquette/actions)).
-- **Doc-only changes pending commit:** the `/pm-phase-report` frontmatter flips + this handover + the report (see `git status`).
+- **🎉 v0 is SHIPPED** (phase-3.5 closed 2026-05-29 via `/pm-phase-report`, min met / max deferred). See [`docs/phases/phase-3.5-report.md`](docs/phases/phase-3.5-report.md).
+- **The v0 success criterion holds:** the two hard-gate references run end-to-end via `maquette design`, open in FreeCAD, and visually match, within 20 s / $0.10 — human-verified. The L-bracket (bare L-shape) showcases the `extras` relief valve.
+- **No phase is active.** `docs/03-roadmap.md`: `active_phase: null`, `project_status: building` (v0 milestone shipped; v0.1/v0.2 remain).
+- **Next move:** v0.1 begins at **phase-4 (Evaluator + refinement loop)** — `/pm-phase-plan phase-4`, then `/pm-phase-start phase-4`. **Read carry-forward below first.**
+- **Last commit:** `350ee81` (blocker resolution) pushed; the phase-3.5 close-out commit is local until pushed. CI green.
 
-## Phases done so far
+## Phases done so far (v0 complete)
 
 | Phase | Closed | min/max | Highlights |
 |---|---|---|---|
-| `phase-0` Foundations | 2026-05-17 | true/true | Intent schema + intent_validation + pricing + config; CI green |
-| `phase-1` Adapter | 2026-05-18 | true/true | build123d adapter for all 11 v0 kinds; cube-with-hole STEP verified in NX |
-| `phase-2a` Pipeline (LLM-facing) | 2026-05-28 | true/true | `agent.sanity` + `agent.planner` + `agent.worker`; planner prompt + few-shots |
-| `phase-2b` Pipeline (runtime) | 2026-05-28 | true/true | `agent.executor` + `render.orthographic` + `agent.loop`; ADR-0004; trace/status; live E2E |
-| `phase-3` CLI | 2026-05-28 | true/true | `maquette design` (Typer); loop API-error hardening; README; live E2E |
+| `phase-0` Foundations | 2026-05-17 | true/true | Intent schema + intent_validation + pricing + config |
+| `phase-1` Adapter | 2026-05-18 | true/true | build123d adapter for all 11 v0 kinds |
+| `phase-2a` Pipeline (LLM-facing) | 2026-05-28 | true/true | planner + sanity + worker; prompt + few-shots |
+| `phase-2b` Pipeline (runtime) | 2026-05-28 | true/true | executor + render + loop; ADR-0004; trace/status |
+| `phase-3` CLI | 2026-05-28 | true/true | `maquette design`; loop API-error hardening |
+| `phase-3.5` Smoke + examples | 2026-05-29 | true/false | **v0 shipped** — gate refs FreeCAD-verified; 2 blockers + 3 bugs caught & fixed |
 
-162 tests passing (+ 4 live, skipped by default). 10 import-linter contracts. CI green on every push to `main`.
+~165 tests passing (+ 4 live, skipped by default). 10 import-linter contracts. CI green on every push to `main`.
 
-## What phase-3 shipped (the CLI)
+## Carry-forward — READ BEFORE PLANNING PHASE-4 / v0.1
 
-- [`src/maquette/cli.py`](src/maquette/cli.py) — `maquette design "<prompt>"`. Thin Typer shell over `Loop.run`: loads `.env`, maps flags (`--out`, `--max-iter`, `--exec-timeout`, `--model`, `-q`, `-v`) → `Config.load` → `RunConfig`, runs the loop, prints the run dir (F12), exits with the F13 code. `-v` logs per-LLM-call tokens to stderr; `-q` prints only the run dir.
-- [`src/maquette/agent/loop.py`](src/maquette/agent/loop.py) `_plan` — now also catches `anthropic.AnthropicError` → exit 10 + complete run folder (P3-Q1).
-- [`README.md`](README.md) — install (incl. the vtk-osmesa swap), `.env`, usage + flag table, exit-code table.
-- `[project.scripts] maquette = "maquette.cli:app"`.
+**1. v0.1 ordering was re-sequenced (phase-3.5 blocker re-design).** v0.1
+now leads with **phase-4 (Evaluator + refine loop)** — the correctness
+guard that auto-catches silent-wrong geometry (R7) — then **phase-4.5
+(Schema v2a: edge selection + hole positioning)**, pulled forward from
+phase-10 to make "chamfer the top edge" / "hole in each flange" work
+natively instead of via fragile `extras`. See `docs/03-roadmap.md`.
 
-## Carry-forward — READ BEFORE PLANNING PHASE-3.5
+**2. Deferred MAX work from phase-3.5** (cheap, fold into v0.1): a live
+smoke test (`pytest -m live`, 2 gate refs), a p95 latency script, and the
+curated `examples/` corpus (cube/cylinder/L-shape runs captured under
+`output/v0ship/` seed it — the corpus is the phase-4 / phase-7b deliverable).
 
-**1. (verify) Run all 3 reference prompts via the CLI + open in FreeCAD.**
-The v0 ship bar is *visual* correctness, not just a non-empty STEP. The
-**L-bracket** is the one to watch — it exercises the extras path
-(ADR-0004 export fix + the phase-2b few-shot fix). Confirm geometry
-matches the description.
+**3. `extras` is best-effort and un-guarded in v0** — it reliably makes
+compound *shapes* (the L) but not precise *features* (holes, edge-specific
+chamfers). The Evaluator (phase-4) + schema (phase-4.5) are the fixes.
 
-**2. (measure) N1 latency p95 + N2 cost/run.** Phase-2b's single live run
-was 10.1 s / $0.0267 — indicative, not a p95. Phase-3.5 should record
-latency + cost per prompt (roadmap MAX suggests ~10 runs/prompt).
+**4. Fresh-clone verification** — phase-3.5 used the dev venv; before any
+public release, exercise the README install from scratch (incl. the
+`vtk-osmesa` swap).
 
-**3. (env) Headless render still needs the `vtk-osmesa` swap** (carry from
-phase-2b): a fresh `pip install -e .` pulls X11-only `vtk` and segfaults
-on render. Documented in the README + CI; do the swap in any fresh env:
-`pip uninstall -y vtk && pip install --extra-index-url https://wheels.vtk.org vtk-osmesa==9.3.1`.
+## v0 architecture in one breath
 
-**4. (low) prompts/ packaging.** The CLI loads `prompts/planner.system.md`
-via a repo-relative path (`parents[2]`) — fine for an editable clone (the
-v0 distribution), not for a packaged install. Out of v0 scope.
+`maquette design "<prompt>"` → `cli` → `agent.loop` (state machine, the
+only writer of `output/<run-id>/`) → `planner` (LLM→Intent) → `sanity`
+(F6) → `worker`→`adapters.build123d_target` (Intent→code) → `executor`
+(subprocess + timeout + STEP) → `render` (vtk-osmesa, 3 PNGs). Outputs:
+`prompt.txt, intent.json, code.py, part.step, renders/, trace.jsonl,
+status.json` (+ `error.json` on failure). Exit codes per F13.
 
-## Read in this order (under 10 minutes total)
+## Read in this order (under 10 minutes)
 
-1. `./CLAUDE.md` — project guide, framework reference, scope-freeze rule.
-2. [`docs/phases/phase-3-report.md`](docs/phases/phase-3-report.md) — what shipped, 5 surprises, 5 recommendations.
-3. [`docs/03-roadmap.md`](docs/03-roadmap.md) § Phase 3.5 — the goal/min/max/exit stub to expand with `/pm-phase-plan`.
-4. [`docs/00-vision.md`](docs/00-vision.md) § Success criteria — the v0 ship bar phase-3.5 verifies.
+1. `./CLAUDE.md` — project guide, framework, scope-freeze rule.
+2. [`docs/phases/phase-3.5-report.md`](docs/phases/phase-3.5-report.md) — v0 ship report, the 5 surprises, v0.1 recommendations.
+3. [`docs/03-roadmap.md`](docs/03-roadmap.md) § Phase 4 + 4.5 — the v0.1 stubs to expand with `/pm-phase-plan`.
+4. [`docs/blockers/`](docs/blockers/) — the two phase-3.5 blockers (both resolved) explain the v0 scope as it stands.
 
 ## Useful commands
 
 ```bash
-# Current project state
-~/.claude/skills/pm-status/status.sh .
+~/.claude/skills/pm-status/status.sh .                 # project state
 
-# Run the CLI (needs the vtk-osmesa swap + a key; .env at repo root)
+# Run v0 (needs the vtk-osmesa swap + a key; .env at repo root)
 set -a; . ./.env; set +a
 maquette design "a 50 mm cube with a 20 mm hole through the centre" --out /tmp/m
 
-# FULL local CI sequence — READ ruff's real output (don't mask it);
-# run CLI tests under COLUMNS=80 to mimic CI before pushing
-.venv/bin/ruff check src/ tests/
-.venv/bin/ruff format --check src/ tests/
-.venv/bin/pyright src/
-.venv/bin/lint-imports
-grep -rE "^(import NXOpen|from NXOpen)" src/   # must print nothing
-COLUMNS=80 .venv/bin/pytest -q                 # 162 passed, 4 deselected
-.venv/bin/coverage run -m pytest -q && .venv/bin/coverage report
-
-# Live tests (gated)
-set -a; . ./.env; set +a; .venv/bin/pytest -m live
-
+# FULL local CI — READ ruff's real output; run CLI tests under COLUMNS=80
+.venv/bin/ruff check src/ tests/ && .venv/bin/ruff format --check src/ tests/
+.venv/bin/pyright src/ && .venv/bin/lint-imports
+grep -rE "^(import NXOpen|from NXOpen)" src/          # must print nothing
+COLUMNS=80 .venv/bin/pytest -q
+set -a; . ./.env; set +a; .venv/bin/pytest -m live    # gated live tests
 gh run list --limit 1
 ```
 
-## When phase-3.5 is done
+## When phase-4 / v0.1 work continues
 
-**v0 ships.** Run `/pm-phase-report`, then consider a v0 retrospective
-(read all phase reports together). v0.1 begins at phase-4 (evaluator +
-refinement loop).
+v0.1 = phase-4 (Evaluator) → phase-4.5 (schema edge/hole) → phase-5 (NX
+adapter) → phase-6 (supporting commands) → phase-7a/b/c (sandboxing,
+regression CI, cost caps). v0.2 = phase-8/9/10. Consider a short v0
+retrospective (read phase-0…3.5 reports together) before diving into v0.1.

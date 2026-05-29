@@ -1,11 +1,11 @@
 ---
 id: phase-3.5
 title: Smoke + reference examples (v0 ships)
-status: in_progress       # unblocked 2026-05-28 via /pm-blocker resolve
+status: done              # flipped 2026-05-29 via /pm-phase-report — v0 SHIPPED
 started: 2026-05-28        # ISO date when flipped to in_progress
-finished: null            # ISO date when flipped to done
-min_goal_met: null        # true | false | null
-max_goal_met: null        # true | false | null
+finished: 2026-05-29       # ISO date when flipped to done
+min_goal_met: true        # true | false | null
+max_goal_met: false       # true | false | null
 blocker: null             # resolved: blockers/2026-05-28-l-bracket-showcase-hole-unreliable.md
 depends_on: [phase-3]
 audit: audits/2026-05-28-pre-phase-3.5.md
