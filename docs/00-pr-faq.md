@@ -65,9 +65,9 @@ v0 success: the two schema-native references (cube with hole, cylinder
 with an all-edges chamfer) generate a STEP that opens cleanly in FreeCAD,
 within 20 s and < $0.10 per generation, *within the v0 capability bound*
 (no edge-specific selection or oriented multi-face holes — those are
-v0.1). The L-bracket-with-hole (compound shape via the `extras` relief
-valve) is a demonstrated best-effort showcase, not a hard gate, since
-`extras` is un-guarded until the v0.1 Evaluator. v0.1 adds the NX journal
+v0.1). The L-bracket (compound shape via the `extras` relief valve) is a
+demonstrated best-effort showcase, not a hard gate, since `extras` is
+un-guarded until the v0.1 Evaluator. v0.1 adds the NX journal
 landing as a real feature tree in the NX Part Navigator for the same
 prompts.
 

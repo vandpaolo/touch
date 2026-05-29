@@ -116,13 +116,19 @@ part, within **20 s** wall-clock and < $0.10 in API cost.
 
 **Best-effort showcase — demonstrated, not gating:**
 
-3. **L-bracket with a mounting hole** (compound shape via the `extras`
-   relief valve) — `"a 60 × 40 × 5 mm L-bracket with a 6 mm mounting hole"`.
-   This exercises the `extras` escape hatch end-to-end. Because `extras`
-   is un-guarded LLM-written code until the v0.1 Evaluator lands, it is
-   **not** a hard ship gate — a single bad generation does not block v0;
-   it may need a reroll. v0 ships with a known-good L-bracket run captured
-   as an example.
+3. **L-bracket** (compound shape via the `extras` relief valve) —
+   `"a 60 × 40 × 5 mm L-bracket"`. This exercises the `extras` escape
+   hatch end-to-end: the v0 schema has no L-primary or `union`, so the
+   compound shape is produced as raw build123d in `extras`. Because
+   `extras` is un-guarded LLM-written code until the v0.1 Evaluator
+   lands, it is **not** a hard ship gate — a bad generation does not
+   block v0; v0 ships with a known-good L-bracket run captured as an
+   example.
+   *(Verification 2026-05-28 found that adding a hole via `extras` is
+   reliably broken — the LLM mishandles the build123d hole workplane and
+   it silently no-ops — so the showcase is the bare L-shape, which
+   `extras` produces reliably. Precise hole positioning is deferred to
+   v0.1 phase-4.5. See blocker `2026-05-28-l-bracket-showcase-hole-unreliable`.)*
 
 NX-journal output is verified separately under v0.1.
 

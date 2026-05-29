@@ -479,3 +479,16 @@ either a note section or a decision here.
   extras, restate N1/N2 "3 prompts" → 2 gate + 1 showcase, add v0 scope
   boundary); /pm-roadmap (phase-3.5 references; front-load opt-2 + opt-4
   into early v0.1).
+
+## 2026-05-28 — /pm-vision (blocker 2026-05-28-l-bracket-showcase-hole-unreliable)
+
+- Q: Phase-3.5 verification found the L-bracket showcase ships holeless —
+  the extras Hole() drills on a workplane that misses the flange (volume
+  identical with/without). How to handle the showcase?
+- A: Narrow the showcase to the bare L-shape — `"a 60 × 40 × 5 mm
+  L-bracket"` (no hole). Extras reliably produces the compound L-shape
+  (the thing the schema can't name); precise hole positioning is v0.1
+  phase-4.5 (first-class schema hole-positioning). Hard gate (cube +
+  cylinder) unaffected.
+- → docs/00-vision.md § Success criteria + capability bound; docs/00-pr-faq.md;
+  mirrors to sync in docs/03-roadmap.md (phase-3.5) + docs/phases/phase-3.5.md
