@@ -1,6 +1,6 @@
 ---
-project_status: planning   # planning | building | shipped — Touch hasn't started building yet (rewritten 2026-05-29 for the Touch pivot; Maquette v0 already shipped under the prior product)
-active_phase: null
+project_status: building   # planning | building | shipped — Touch v0 in progress; T0 packaging spike kicked off 2026-05-30
+active_phase: T0
 ---
 
 # 03 — Roadmap
