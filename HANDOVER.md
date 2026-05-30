@@ -1,90 +1,78 @@
-# Handover — Maquette, v0 SHIPPED (between phase-3.5 done and phase-4 / v0.1)
+# Handover — Touch v0, phase T0 in_progress, Day 1 ready
 
 > *Start here in any fresh chat session that opens this project. Once
-> phase-4 is planned + started, rewrite the "You are here" + task
-> sections for it. Keep this short enough to read in 60 seconds.*
+> T0 closes (`/pm-phase-report T0`), rewrite "You are here" + the
+> "What to do next" task for T1a. Keep this short enough to read in
+> 60 seconds.*
 
 ## You are here
 
-- **Project:** Maquette — natural-language CAD prompt → editable parametric solid + STEP.
-- **🎉 v0 is SHIPPED** (phase-3.5 closed 2026-05-29 via `/pm-phase-report`, min met / max deferred). See [`docs/phases/phase-3.5-report.md`](docs/phases/phase-3.5-report.md).
-- **The v0 success criterion holds:** the two hard-gate references run end-to-end via `maquette design`, open in FreeCAD, and visually match, within 20 s / $0.10 — human-verified. The L-bracket (bare L-shape) showcases the `extras` relief valve.
-- **No phase is active.** `docs/03-roadmap.md`: `active_phase: null`, `project_status: building` (v0 milestone shipped; v0.1/v0.2 remain).
-- **Next move:** v0.1 begins at **phase-4 (Evaluator + refinement loop)** — `/pm-phase-plan phase-4`, then `/pm-phase-start phase-4`. **Read carry-forward below first.**
-- **Last commit:** `350ee81` (blocker resolution) pushed; the phase-3.5 close-out commit is local until pushed. CI green.
+- **Project:** **Touch** — AI-native interactive 3D CAD editor (click→prompt→evolve), VS-Code-like shell, distributed as a Windows `.exe` for engineer friends. **Pivoted from Maquette** on 2026-05-29 via a full re-baseline cascade (`/pm-vision` → `/pm-requirements` → `/pm-architecture` → `/pm-roadmap`).
+- **Repo dir is still `maquette/`** and `src/` is still `src/maquette/` — the rename to `touch_backend/` is a T1a chore.
+- **Active phase:** **T0 — Packaging spike** (Electron + PyInstaller'd Python sidecar + OCP → Windows `.exe`). Started 2026-05-30. Status `in_progress`. **Scope is now frozen** on Touch design docs.
+- **Day 1 of T0 is the next thing to build.** No code exists yet under `spike/`. Plan: [`docs/phases/phase-T0.md`](docs/phases/phase-T0.md).
+- **Last commit:** `84e0f5d` (T0 phase-start). Pushed: through `7960ce7` (architecture); commits `bf3633f`, `ce1726e`, `84e0f5d` are local until `git push`.
 
-## Phases done so far (v0 complete)
+## What changed (Maquette → Touch)
 
-| Phase | Closed | min/max | Highlights |
-|---|---|---|---|
-| `phase-0` Foundations | 2026-05-17 | true/true | Intent schema + intent_validation + pricing + config |
-| `phase-1` Adapter | 2026-05-18 | true/true | build123d adapter for all 11 v0 kinds |
-| `phase-2a` Pipeline (LLM-facing) | 2026-05-28 | true/true | planner + sanity + worker; prompt + few-shots |
-| `phase-2b` Pipeline (runtime) | 2026-05-28 | true/true | executor + render + loop; ADR-0004; trace/status |
-| `phase-3` CLI | 2026-05-28 | true/true | `maquette design`; loop API-error hardening |
-| `phase-3.5` Smoke + examples | 2026-05-29 | true/false | **v0 shipped** — gate refs FreeCAD-verified; 2 blockers + 3 bugs caught & fixed |
+- Maquette v0 **shipped** under the prior product. Its docs+phases stay in git as historical record (`docs/phases/phase-0.md … phase-3.5-report.md`, ADRs 0001–0004).
+- Touch design is fresh: [`docs/00-vision.md`](docs/00-vision.md), [`docs/00-pr-faq.md`](docs/00-pr-faq.md), [`docs/01-requirements.md`](docs/01-requirements.md) (F1–F31 / N1–N12), [`docs/02-architecture.md`](docs/02-architecture.md), [`docs/02-data-model.md`](docs/02-data-model.md), [`docs/02-classes.md`](docs/02-classes.md), ADRs [0005](docs/adr/0005-localhost-websocket-coupling.md)–[0009](docs/adr/0009-desktop-shell-electron-sidecar.md), [`docs/03-roadmap.md`](docs/03-roadmap.md) (Touch phases T0–T15).
+- The Maquette engine (planner / intent / adapter / pricing / config) gets renamed + carried over in **T1a**; not relevant to T0.
 
-~165 tests passing (+ 4 live, skipped by default). 10 import-linter contracts. CI green on every push to `main`.
+## Active phase: T0 — Packaging spike
 
-## Carry-forward — READ BEFORE PLANNING PHASE-4 / v0.1
+- **Why first:** [ADR-0009](docs/adr/0009-desktop-shell-electron-sidecar.md) — the load-bearing v0 risk is whether Electron + PyInstaller + OCP's native libs actually package into a working Windows `.exe`. Prove it before any feature work. Tauri is the documented fallback if the spike fails.
+- **Min:** `.exe` installs on a clean Windows VM (no Python, no Node, no admin), opens an Electron window, spawns the Python sidecar, three.js renders a hardcoded cube with per-face IDs, hovering a face highlights it locally (no LLM, no `.touch`, no exports).
+- **Max:** GitHub Actions Windows-runner build on tag push + headless CI smoke check + the same FE in a browser tab against the Linux-running sidecar (proves N5/N6 from day one).
+- **All code under `spike/`** (NOT `src/`) — throwaway, deleted in T1a/T1b.
+- **6 days, R1–R14** in the plan. Pre-phase audit: [`docs/audits/2026-05-30-pre-T0.md`](docs/audits/2026-05-30-pre-T0.md) (12/12 PASS after addendum).
 
-**1. v0.1 ordering was re-sequenced (phase-3.5 blocker re-design).** v0.1
-now leads with **phase-4 (Evaluator + refine loop)** — the correctness
-guard that auto-catches silent-wrong geometry (R7) — then **phase-4.5
-(Schema v2a: edge selection + hole positioning)**, pulled forward from
-phase-10 to make "chamfer the top edge" / "hole in each flange" work
-natively instead of via fragile `extras`. See `docs/03-roadmap.md`.
+## What to do next (Day 1)
 
-**2. Deferred MAX work from phase-3.5** (cheap, fold into v0.1): a live
-smoke test (`pytest -m live`, 2 gate refs), a p95 latency script, and the
-curated `examples/` corpus (cube/cylinder/L-shape runs captured under
-`output/v0ship/` seed it — the corpus is the phase-4 / phase-7b deliverable).
+**Sidecar skeleton on Linux** — see [`docs/phases/phase-T0.md`](docs/phases/phase-T0.md) Day 1 row.
 
-**3. `extras` is best-effort and un-guarded in v0** — it reliably makes
-compound *shapes* (the L) but not precise *features* (holes, edge-specific
-chamfers). The Evaluator (phase-4) + schema (phase-4.5) are the fixes.
+- New tree under `spike/sidecar/` (Python project, separate `venv`, separate `pyproject.toml` — do NOT touch `src/`).
+- Module `touch_sidecar/server.py`: `websockets` server on `127.0.0.1:<random ephemeral port>`, prints `TOUCH_READY <port>` on stdout, emits one binary message on client connect — a hand-authored cube mesh (8 vertices, 12 triangles, 6 face tags in `face_tag_per_triangle`).
+- Done when: a `wscat` (or scripted Python) client connects and parses out 6 distinct face tags across 12 triangles.
 
-**4. Fresh-clone verification** — phase-3.5 used the dev venv; before any
-public release, exercise the README install from scratch (incl. the
-`vtk-osmesa` swap).
+Mesh payload shape is specified in [`docs/02-data-model.md`](docs/02-data-model.md) §Mesh. Don't invent a new shape — match the spec so Day 2's FE wiring is reusable as the reference pattern for T1b.
 
-## v0 architecture in one breath
+## Stack (locked)
 
-`maquette design "<prompt>"` → `cli` → `agent.loop` (state machine, the
-only writer of `output/<run-id>/`) → `planner` (LLM→Intent) → `sanity`
-(F6) → `worker`→`adapters.build123d_target` (Intent→code) → `executor`
-(subprocess + timeout + STEP) → `render` (vtk-osmesa, 3 PNGs). Outputs:
-`prompt.txt, intent.json, code.py, part.step, renders/, trace.jsonl,
-status.json` (+ `error.json` on failure). Exit codes per F13.
+- Python 3.12.x (pin in `spike/sidecar/pyproject.toml`); `websockets`; `OCP` (only loaded later — Day 1 doesn't need build123d, the cube is hand-authored).
+- Node + Vite + React + TypeScript + three.js (Day 2).
+- Electron + electron-builder (Day 3 + 5).
+- PyInstaller `--onedir` (Day 4).
+- GitHub Actions Windows runner (Day 5).
 
-## Read in this order (under 10 minutes)
+## Where things live
 
-1. `./CLAUDE.md` — project guide, framework, scope-freeze rule.
-2. [`docs/phases/phase-3.5-report.md`](docs/phases/phase-3.5-report.md) — v0 ship report, the 5 surprises, v0.1 recommendations.
-3. [`docs/03-roadmap.md`](docs/03-roadmap.md) § Phase 4 + 4.5 — the v0.1 stubs to expand with `/pm-phase-plan`.
-4. [`docs/blockers/`](docs/blockers/) — the two phase-3.5 blockers (both resolved) explain the v0 scope as it stands.
+- Long-form thinking: `docs/notes/*.md` (decisions, constraints, inbox, questions, wishes).
+- Design (frozen): `docs/00-*`, `docs/01-*`, `docs/02-*`, `docs/adr/`, `docs/03-roadmap.md`.
+- This phase: `docs/phases/phase-T0.md`. Touch future phases: `phase-T1a.md` … `phase-T15.md` (stubs only).
+- Maquette historical: `docs/phases/phase-0.md … phase-3.5-report.md` (DO NOT modify).
+- Audits / blockers: `docs/audits/`, `docs/blockers/`.
+- This file (always reread): `HANDOVER.md`.
 
-## Useful commands
+## Rules in effect
 
-```bash
-~/.claude/skills/pm-status/status.sh .                 # project state
+- **Scope freeze.** No edits to `docs/00-*`, `docs/01-*`, `docs/02-*`, `docs/adr/`, `docs/03-roadmap.md` while T0 is `in_progress`. If something in design needs to change, run `/pm-blocker` first.
+- **Phase report** when Day-6 exit criteria are met: `/pm-phase-report T0`.
+- **Notes capture mid-chat:** when the user says something note-worthy (a new constraint, decision, reference), append it to the right `docs/notes/*.md` and confirm in one line.
+- **Auto-memory** at `~/.claude/projects/-home-vandpaolo-projects-maquette/memory/MEMORY.md` is loaded into every conversation. Update on new user preferences / feedback.
 
-# Run v0 (needs the vtk-osmesa swap + a key; .env at repo root)
-set -a; . ./.env; set +a
-maquette design "a 50 mm cube with a 20 mm hole through the centre" --out /tmp/m
+## Open carry-overs (none blocking T0)
 
-# FULL local CI — READ ruff's real output; run CLI tests under COLUMNS=80
-.venv/bin/ruff check src/ tests/ && .venv/bin/ruff format --check src/ tests/
-.venv/bin/pyright src/ && .venv/bin/lint-imports
-grep -rE "^(import NXOpen|from NXOpen)" src/          # must print nothing
-COLUMNS=80 .venv/bin/pytest -q
-set -a; . ./.env; set +a; .venv/bin/pytest -m live    # gated live tests
-gh run list --limit 1
-```
+- Repo dir rename (`maquette/` → `touch/`) and CLAUDE.md/README rewrite is a downstream T1a chore tracked in `docs/notes/inbox.md` + `docs/notes/decisions.md`.
+- F27 (auto-update + signed CI) officially v0.1 (T13). T0 may validate the unsigned CI-build path early as a Max stretch.
+- SOPS dev-`.env` adoption lands in T1a, not T0.
 
-## When phase-4 / v0.1 work continues
+## Last commits (newest first)
 
-v0.1 = phase-4 (Evaluator) → phase-4.5 (schema edge/hole) → phase-5 (NX
-adapter) → phase-6 (supporting commands) → phase-7a/b/c (sandboxing,
-regression CI, cost caps). v0.2 = phase-8/9/10. Consider a short v0
-retrospective (read phase-0…3.5 reports together) before diving into v0.1.
+- `84e0f5d` — start phase T0 (frontmatter flip + audit addendum) [LOCAL]
+- `ce1726e` — plan phase T0 (R1–R9 risk register) [LOCAL]
+- `bf3633f` — re-baseline roadmap for Touch (T0–T15) [LOCAL]
+- `7960ce7` — re-baseline architecture for Touch [pushed]
+- `ae9d146` — pivot vision Maquette → Touch [pushed]
+
+Push when ready: `git push`.
