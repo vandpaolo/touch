@@ -1,0 +1,5 @@
+# T0 spike frontend — build/dep artifacts (throwaway tree)
+node_modules/
+dist/
+*.tsbuildinfo
+.vite/
