@@ -41,3 +41,16 @@ See `docs/03-roadmap.md` frontmatter (`active_phase: ...`) or run
 
 When a phase has `status: in_progress`, **no design edits** until the
 phase is either `done` (`/pm-phase-report`) or `blocked` (`/pm-blocker`).
+
+## Tool-call batching (VSCode extension reliability)
+
+The VSCode extension misdelivers results when many tool calls run in one
+turn (empty results, stale results re-delivered later, occasional
+mismatched results). Keep parallel batches **small — at most ~3 tool
+calls per message**; for anything order-sensitive (git stage → commit →
+verify), go strictly sequential and wait for each result. For long or
+background commands use `run_in_background: true` — never a trailing `&`
+attached to the shell. Avoid `pkill -f <pattern>` (it can match the
+agent's own shell and cancel the batch). The reliable env-level fix is
+`export CLAUDE_CODE_MAX_TOOL_USE_CONCURRENCY=3` in the shell that
+launches VSCode.
