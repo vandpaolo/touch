@@ -49,6 +49,13 @@ jobs:
             exit 1
           fi
 
+      - name: Secrets guard (no plaintext .env tracked; F29)
+        run: |
+          if git ls-files --error-unmatch '.env' >/dev/null 2>&1; then
+            echo "::error::plaintext .env is tracked; secrets belong in secrets.env.sops.yaml (F29)"
+            exit 1
+          fi
+
       - name: Pytest
         run: pytest -q
 

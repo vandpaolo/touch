@@ -1,0 +1,8 @@
+# SOPS config — dev secrets for touch_backend (F29).
+# Secrets are encrypted to the dev host's age key; the public recipient
+# below is safe to commit. Decrypt with `make secrets-decrypt`.
+# The rule matches the *input* (.env) at encrypt time; decryption reads
+# the recipient from the encrypted file's own sops metadata.
+creation_rules:
+  - path_regex: (^|/)\.env$
+    age: age14z9kvgwscwvvpnutgfds0pws8ueyyrg06ze9v63wju0s6jk3x32szv58x4

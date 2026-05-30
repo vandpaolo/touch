@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# F29 guard: refuse to commit a plaintext .env (secrets belong in
+# secrets.env.sops.yaml, SOPS-encrypted). Install with `make hooks`.
+set -euo pipefail
+
+staged="$(git diff --cached --name-only --diff-filter=ACM)"
+
+if printf '%s\n' "$staged" | grep -qxE '(.*/)?\.env'; then
+    echo "error: refusing to commit a plaintext .env file." >&2
+    echo "       store secrets in secrets.env.sops.yaml (make secrets-encrypt)." >&2
+    exit 1
+fi
