@@ -561,3 +561,14 @@ either a note section or a decision here.
   as the new package name (Maquette `maquette` retained until then).
 - "Decisions deferred" list flags FE UI framework (defaulted React) +
   custom binary mesh format + WS auth (v0 binds 127.0.0.1 only).
+
+## 2026-05-30 — /pm-phase-plan (T1a)
+- Q (probe): F30 out_root — change the global default to /srv/touch/, or keep portable + dev-host override?
+- A: Claude's call — keep the portable dataclass default (Path("output")); set /srv/touch/ as a dev-host-only override via pyproject [tool.touch_backend] or env. Shipped app needs a per-user dir.
+- → docs/phases/phase-T1a.md § day 5 + risk R-T1a-1
+- Q (probe): CLI binary name after rename (touch / touch-backend / keep maquette)?
+- A: Claude's call — rename console script to `touch` (touch = "touch_backend.cli:app"). Matches the product name.
+- → docs/phases/phase-T1a.md § day 1 + risk R-T1a-3
+- Q (push-back): 3-day gantt vs 5 work-units?
+- A: Keep split (units ≠ calendar days; safer pause/resume). Gantt ordering unchanged.
+- → docs/phases/phase-T1a.md § sprint breakdown
