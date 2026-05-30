@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from maquette.intent import Intent
+from touch_backend.intent import Intent
 
 
 class Adapter(Protocol):

@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Final
 
-from maquette.intent import Intent, Modifier, ModifierKind, PrimaryFeature, PrimaryKind
+from touch_backend.intent import Intent, Modifier, ModifierKind, PrimaryFeature, PrimaryKind
 
 
 @dataclass(frozen=True)

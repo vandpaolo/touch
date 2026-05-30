@@ -71,7 +71,7 @@ class Config:
         """Build a Config by merging defaults <- pyproject <- env <- CLI.
 
         Later sources override earlier ones. Unknown keys at any layer
-        are ignored (so a stray [tool.maquette] entry won't blow up).
+        are ignored (so a stray [tool.touch_backend] entry won't blow up).
         """
         merged: dict[str, Any] = dict(_DEFAULTS)
         merged.update(_from_pyproject(pyproject_path))
@@ -106,7 +106,7 @@ def _from_pyproject(path: Path | None) -> dict[str, Any]:
         return {}
     with p.open("rb") as fh:
         data = tomllib.load(fh)
-    section = data.get("tool", {}).get("maquette", {})
+    section = data.get("tool", {}).get("touch_backend", {})
     if not isinstance(section, dict):
         return {}
     return _filter_known(section)

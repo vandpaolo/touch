@@ -8,7 +8,7 @@ STEP, and on failure writes a structured ``error.json`` (N6) — never a
 raw traceback to the caller.
 
 This module is a pure subprocess manager: it does **not** render (the
-Loop owns rendering) and does not import any other maquette module.
+Loop owns rendering) and does not import any other touch_backend module.
 
 Exit codes follow F13: 0 success, 12 execution failure (crash or no
 STEP), 13 timeout.

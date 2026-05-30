@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "maquette"
+name = "touch-backend"
 version = "0.0.0"
 description = "Natural-language CAD prompt to editable parametric solid and STEP."
 readme = "README.md"
@@ -44,13 +44,14 @@ dev = [
 ]
 
 [project.scripts]
-maquette = "maquette.cli:app"
+# NB: not `touch` — that shadows GNU /usr/bin/touch inside an active venv.
+touch-backend = "touch_backend.cli:app"
 
 [project.urls]
 Documentation = "https://github.com/vandpaolo/maquette/tree/main/docs"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/maquette"]
+packages = ["src/touch_backend"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

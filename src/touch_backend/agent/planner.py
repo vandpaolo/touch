@@ -20,8 +20,8 @@ from typing import Any
 from anthropic import Anthropic
 from pydantic import ValidationError
 
-from maquette.intent import Intent
-from maquette.pricing import Tokens
+from touch_backend.intent import Intent
+from touch_backend.pricing import Tokens
 
 
 class PlannerExhausted(Exception):

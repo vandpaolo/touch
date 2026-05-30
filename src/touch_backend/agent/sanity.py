@@ -14,7 +14,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
-from maquette.intent import Intent, Unit
+from touch_backend.intent import Intent, Unit
 
 _UNIT_TO_MM: dict[str, float] = {
     "mm": 1.0,

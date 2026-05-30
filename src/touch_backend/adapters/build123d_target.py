@@ -3,8 +3,8 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Final
 
-from maquette.adapters import Adapter, AdapterRefusal
-from maquette.intent import Intent, Modifier, ModifierKind, PrimaryFeature, PrimaryKind
+from touch_backend.adapters import Adapter, AdapterRefusal
+from touch_backend.intent import Intent, Modifier, ModifierKind, PrimaryFeature, PrimaryKind
 
 
 def emit(intent: Intent) -> str:

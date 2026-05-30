@@ -572,3 +572,8 @@ either a note section or a decision here.
 - Q (push-back): 3-day gantt vs 5 work-units?
 - A: Keep split (units ≠ calendar days; safer pause/resume). Gantt ordering unchanged.
 - → docs/phases/phase-T1a.md § sprint breakdown
+
+## 2026-05-30 — T1a Day 1 correction (CLI binary name)
+- Q: console script name after rename — `touch`?
+- A: NO. `touch` shadows GNU `/usr/bin/touch` inside an active venv (the venv bin precedes /usr/bin on PATH), so `touch newfile` would invoke the CLI instead of creating a file. Renamed the console script to `touch-backend` (matches dist name `touch-backend` + import pkg `touch_backend`). Caught by testing during Day 1.
+- → pyproject.toml [project.scripts]; docs/phases/phase-T1a.md § day 1 + R-T1a-3

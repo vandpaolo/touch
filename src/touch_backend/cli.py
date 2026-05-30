@@ -1,4 +1,4 @@
-"""Command-line entry point: ``maquette design "<prompt>"``.
+"""Command-line entry point: ``touch_backend design "<prompt>"``.
 
 A thin Typer shell over `agent.loop.Loop` — it loads `.env`, merges
 flags into a `Config` (CLI > env > pyproject > defaults), derives a
@@ -16,9 +16,9 @@ from pathlib import Path
 import typer
 from dotenv import load_dotenv
 
-from maquette.agent.loop import Loop, RunConfig
-from maquette.agent.planner import PromptsBundle
-from maquette.config import Config
+from touch_backend.agent.loop import Loop, RunConfig
+from touch_backend.agent.planner import PromptsBundle
+from touch_backend.config import Config
 
 _PROMPTS_FILE = Path(__file__).resolve().parents[2] / "prompts" / "planner.system.md"
 

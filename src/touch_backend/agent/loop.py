@@ -29,15 +29,15 @@ from typing import Any
 
 from anthropic import AnthropicError
 
-from maquette.adapters import AdapterRefusal
-from maquette.agent import worker
-from maquette.agent.executor import Executor
-from maquette.agent.planner import PlannerExhausted, PromptsBundle, plan
-from maquette.agent.sanity import check
-from maquette.intent import Intent
-from maquette.intent_validation import validate_kind_contracts
-from maquette.pricing import Tokens, known_models, price
-from maquette.render import orthographic
+from touch_backend.adapters import AdapterRefusal
+from touch_backend.agent import worker
+from touch_backend.agent.executor import Executor
+from touch_backend.agent.planner import PlannerExhausted, PromptsBundle, plan
+from touch_backend.agent.sanity import check
+from touch_backend.intent import Intent
+from touch_backend.intent_validation import validate_kind_contracts
+from touch_backend.pricing import Tokens, known_models, price
+from touch_backend.render import orthographic
 
 _EXIT_OK = 0
 _EXIT_GENERIC = 1
