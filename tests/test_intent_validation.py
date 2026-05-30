@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from maquette.intent import Intent, Modifier, PrimaryFeature
-from maquette.intent_validation import ContractViolation, validate_kind_contracts
+from touch_backend.intent import Intent, Modifier, PrimaryFeature
+from touch_backend.intent_validation import ContractViolation, validate_kind_contracts
 
 
 def _intent(

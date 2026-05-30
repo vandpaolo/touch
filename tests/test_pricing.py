@@ -5,7 +5,7 @@ from dataclasses import FrozenInstanceError
 
 import pytest
 
-from maquette.pricing import ModelPrice, Tokens, known_models, price
+from touch_backend.pricing import ModelPrice, Tokens, known_models, price
 
 
 def test_opus_phase0_reference_value():

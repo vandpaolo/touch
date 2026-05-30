@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import pytest
 
-from maquette.adapters import Adapter, AdapterRefusal, build123d_target
-from maquette.intent import Intent, Modifier, PrimaryFeature
+from touch_backend.adapters import Adapter, AdapterRefusal, build123d_target
+from touch_backend.intent import Intent, Modifier, PrimaryFeature
 
 
 def test_emit_conforms_to_adapter_protocol_at_runtime():

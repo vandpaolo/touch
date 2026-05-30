@@ -7,13 +7,13 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from maquette.agent.planner import (
+from touch_backend.agent.planner import (
     PlannerExhausted,
     PlanResult,
     PromptsBundle,
     plan,
 )
-from maquette.pricing import Tokens
+from touch_backend.pricing import Tokens
 
 _CUBE_WITH_HOLE_JSON: dict[str, Any] = {
     "name": "cube_with_hole",

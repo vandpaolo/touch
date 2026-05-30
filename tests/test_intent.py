@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from maquette.intent import Intent, Modifier, Parameter, PrimaryFeature
+from touch_backend.intent import Intent, Modifier, Parameter, PrimaryFeature
 
 
 def _box_feature(fid: str = "body") -> PrimaryFeature:

@@ -4,7 +4,13 @@ from collections.abc import Callable
 from typing import Final
 
 from touch_backend.adapters import Adapter, AdapterRefusal
-from touch_backend.intent import Intent, Modifier, ModifierKind, PrimaryFeature, PrimaryKind
+from touch_backend.intent import (
+    Intent,
+    Modifier,
+    ModifierKind,
+    PrimaryFeature,
+    PrimaryKind,
+)
 
 
 def emit(intent: Intent) -> str:

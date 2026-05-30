@@ -4,8 +4,8 @@ from pathlib import Path
 
 import pytest
 
-from maquette.adapters import build123d_target
-from maquette.intent import Intent
+from touch_backend.adapters import build123d_target
+from touch_backend.intent import Intent
 
 _FIXTURE_ROOT = Path(__file__).parent / "fixtures" / "adapters" / "build123d"
 _PRIMARY_KINDS = ("box", "cylinder", "sphere", "extrude", "revolve", "loft")
@@ -38,7 +38,7 @@ def test_emit_matches_snapshot(kind: str):
 
 def test_extras_appended_verbatim():
     """Intent.extras content is appended to emit output unchanged."""
-    from maquette.intent import Intent, PrimaryFeature
+    from touch_backend.intent import Intent, PrimaryFeature
 
     extras_text = "# raw build123d snippet\nbody = body.translate((5, 0, 0))\n"
     intent = Intent(

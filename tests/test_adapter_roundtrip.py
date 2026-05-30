@@ -16,8 +16,8 @@ import subprocess
 import sys
 from pathlib import Path
 
-from maquette.adapters import build123d_target
-from maquette.intent import Intent, Modifier, Parameter, PrimaryFeature
+from touch_backend.adapters import build123d_target
+from touch_backend.intent import Intent, Modifier, Parameter, PrimaryFeature
 
 _FIXTURE_ROOT = Path(__file__).parent / "fixtures" / "adapters" / "build123d"
 

@@ -61,23 +61,23 @@ markers = [
 ]
 
 [tool.coverage.run]
-source = ["maquette"]
+source = ["touch_backend"]
 branch = false
 
 [tool.coverage.report]
 include = [
-    "src/maquette/intent.py",
-    "src/maquette/intent_validation.py",
-    "src/maquette/pricing.py",
-    "src/maquette/config.py",
-    "src/maquette/adapters/*",
-    "src/maquette/agent/sanity.py",
-    "src/maquette/agent/planner.py",
-    "src/maquette/agent/worker.py",
-    "src/maquette/agent/executor.py",
-    "src/maquette/agent/loop.py",
-    "src/maquette/cli.py",
-    "src/maquette/render/*",
+    "src/touch_backend/intent.py",
+    "src/touch_backend/intent_validation.py",
+    "src/touch_backend/pricing.py",
+    "src/touch_backend/config.py",
+    "src/touch_backend/adapters/*",
+    "src/touch_backend/agent/sanity.py",
+    "src/touch_backend/agent/planner.py",
+    "src/touch_backend/agent/worker.py",
+    "src/touch_backend/agent/executor.py",
+    "src/touch_backend/agent/loop.py",
+    "src/touch_backend/cli.py",
+    "src/touch_backend/render/*",
 ]
 show_missing = true
 
@@ -105,74 +105,74 @@ select = [
 extend-immutable-calls = ["typer.Option", "typer.Argument"]
 
 [tool.importlinter]
-root_package = "maquette"
+root_package = "touch_backend"
 include_external_packages = true
 
 [[tool.importlinter.contracts]]
 name = "intent has no project dependencies"
 type = "forbidden"
-source_modules = ["maquette.intent"]
+source_modules = ["touch_backend.intent"]
 forbidden_modules = [
-    "maquette.intent_validation",
-    "maquette.pricing",
-    "maquette.config",
-    "maquette.agent",
-    "maquette.adapters",
-    "maquette.render",
-    "maquette.cli",
+    "touch_backend.intent_validation",
+    "touch_backend.pricing",
+    "touch_backend.config",
+    "touch_backend.agent",
+    "touch_backend.adapters",
+    "touch_backend.render",
+    "touch_backend.cli",
 ]
 
 [[tool.importlinter.contracts]]
-name = "intent_validation depends only on maquette.intent"
+name = "intent_validation depends only on touch_backend.intent"
 type = "forbidden"
-source_modules = ["maquette.intent_validation"]
+source_modules = ["touch_backend.intent_validation"]
 forbidden_modules = [
-    "maquette.pricing",
-    "maquette.config",
-    "maquette.agent",
-    "maquette.adapters",
-    "maquette.render",
-    "maquette.cli",
+    "touch_backend.pricing",
+    "touch_backend.config",
+    "touch_backend.agent",
+    "touch_backend.adapters",
+    "touch_backend.render",
+    "touch_backend.cli",
 ]
 
 [[tool.importlinter.contracts]]
 name = "agent.planner depends only on intent + intent_validation + pricing + anthropic + stdlib"
 type = "forbidden"
-source_modules = ["maquette.agent.planner"]
+source_modules = ["touch_backend.agent.planner"]
 forbidden_modules = [
-    "maquette.config",
-    "maquette.adapters",
-    "maquette.render",
-    "maquette.cli",
-    "maquette.agent.sanity",
+    "touch_backend.config",
+    "touch_backend.adapters",
+    "touch_backend.render",
+    "touch_backend.cli",
+    "touch_backend.agent.sanity",
 ]
 
 [[tool.importlinter.contracts]]
-name = "agent.worker depends only on maquette.intent + adapters + stdlib"
+name = "agent.worker depends only on touch_backend.intent + adapters + stdlib"
 type = "forbidden"
-source_modules = ["maquette.agent.worker"]
+source_modules = ["touch_backend.agent.worker"]
 forbidden_modules = [
-    "maquette.intent_validation",
-    "maquette.pricing",
-    "maquette.config",
-    "maquette.render",
-    "maquette.cli",
-    "maquette.agent.sanity",
-    "maquette.agent.planner",
+    "touch_backend.intent_validation",
+    "touch_backend.pricing",
+    "touch_backend.config",
+    "touch_backend.render",
+    "touch_backend.cli",
+    "touch_backend.agent.sanity",
+    "touch_backend.agent.planner",
     "anthropic",
 ]
 
 [[tool.importlinter.contracts]]
-name = "agent.sanity depends only on maquette.intent (plus stdlib, no I/O modules)"
+name = "agent.sanity depends only on touch_backend.intent (plus stdlib, no I/O modules)"
 type = "forbidden"
-source_modules = ["maquette.agent.sanity"]
+source_modules = ["touch_backend.agent.sanity"]
 forbidden_modules = [
-    "maquette.intent_validation",
-    "maquette.pricing",
-    "maquette.config",
-    "maquette.adapters",
-    "maquette.render",
-    "maquette.cli",
+    "touch_backend.intent_validation",
+    "touch_backend.pricing",
+    "touch_backend.config",
+    "touch_backend.adapters",
+    "touch_backend.render",
+    "touch_backend.cli",
     "os",
     "pathlib",
     "subprocess",
@@ -182,16 +182,16 @@ forbidden_modules = [
 ]
 
 [[tool.importlinter.contracts]]
-name = "adapters depend only on maquette.intent (plus stdlib, no I/O modules)"
+name = "adapters depend only on touch_backend.intent (plus stdlib, no I/O modules)"
 type = "forbidden"
-source_modules = ["maquette.adapters"]
+source_modules = ["touch_backend.adapters"]
 forbidden_modules = [
-    "maquette.intent_validation",
-    "maquette.pricing",
-    "maquette.config",
-    "maquette.agent",
-    "maquette.render",
-    "maquette.cli",
+    "touch_backend.intent_validation",
+    "touch_backend.pricing",
+    "touch_backend.config",
+    "touch_backend.agent",
+    "touch_backend.render",
+    "touch_backend.cli",
     "os",
     "pathlib",
     "subprocess",
@@ -200,60 +200,60 @@ forbidden_modules = [
 ]
 
 [[tool.importlinter.contracts]]
-name = "render depends on no other maquette module (pyvista + build123d + stdlib only)"
+name = "render depends on no other touch_backend module (pyvista + build123d + stdlib only)"
 type = "forbidden"
-source_modules = ["maquette.render"]
+source_modules = ["touch_backend.render"]
 forbidden_modules = [
-    "maquette.intent",
-    "maquette.intent_validation",
-    "maquette.pricing",
-    "maquette.config",
-    "maquette.agent",
-    "maquette.adapters",
-    "maquette.cli",
+    "touch_backend.intent",
+    "touch_backend.intent_validation",
+    "touch_backend.pricing",
+    "touch_backend.config",
+    "touch_backend.agent",
+    "touch_backend.adapters",
+    "touch_backend.cli",
 ]
 
 [[tool.importlinter.contracts]]
 name = "agent.executor is a pure subprocess manager (stdlib only, no render)"
 type = "forbidden"
-source_modules = ["maquette.agent.executor"]
+source_modules = ["touch_backend.agent.executor"]
 forbidden_modules = [
-    "maquette.intent",
-    "maquette.intent_validation",
-    "maquette.pricing",
-    "maquette.config",
-    "maquette.render",
-    "maquette.adapters",
-    "maquette.cli",
-    "maquette.agent.planner",
-    "maquette.agent.sanity",
-    "maquette.agent.worker",
-    "maquette.agent.loop",
+    "touch_backend.intent",
+    "touch_backend.intent_validation",
+    "touch_backend.pricing",
+    "touch_backend.config",
+    "touch_backend.render",
+    "touch_backend.adapters",
+    "touch_backend.cli",
+    "touch_backend.agent.planner",
+    "touch_backend.agent.sanity",
+    "touch_backend.agent.worker",
+    "touch_backend.agent.loop",
     "anthropic",
 ]
 
 [[tool.importlinter.contracts]]
 name = "agent.loop orchestrates but never imports the cli"
 type = "forbidden"
-source_modules = ["maquette.agent.loop"]
+source_modules = ["touch_backend.agent.loop"]
 forbidden_modules = [
-    "maquette.cli",
+    "touch_backend.cli",
 ]
 
 [[tool.importlinter.contracts]]
 name = "cli is a thin shell — goes through the loop, not the mid-pipeline"
 type = "forbidden"
-source_modules = ["maquette.cli"]
+source_modules = ["touch_backend.cli"]
 # Only direct cli imports are forbidden; the cli reaches these transitively
 # through agent.loop (its whole job), which is fine.
 allow_indirect_imports = "true"
 forbidden_modules = [
-    "maquette.intent",
-    "maquette.intent_validation",
-    "maquette.pricing",
-    "maquette.adapters",
-    "maquette.render",
-    "maquette.agent.sanity",
-    "maquette.agent.worker",
-    "maquette.agent.executor",
+    "touch_backend.intent",
+    "touch_backend.intent_validation",
+    "touch_backend.pricing",
+    "touch_backend.adapters",
+    "touch_backend.render",
+    "touch_backend.agent.sanity",
+    "touch_backend.agent.worker",
+    "touch_backend.agent.executor",
 ]

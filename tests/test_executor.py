@@ -1,4 +1,4 @@
-"""Tests for `maquette.agent.executor.Executor`.
+"""Tests for `touch_backend.agent.executor.Executor`.
 
 Uses tiny hand-written build123d snippets (no LLM) executed in real
 subprocesses. Covers the success path, crash -> error.json (N6), the
@@ -11,7 +11,7 @@ import json
 from pathlib import Path
 from time import perf_counter
 
-from maquette.agent.executor import ExecutionResult, Executor
+from touch_backend.agent.executor import ExecutionResult, Executor
 
 _OK_SNIPPET = (
     "from build123d import Box, export_step\n"
@@ -50,7 +50,7 @@ def test_success_produces_step(tmp_path: Path):
 
 def test_relative_out_dir_does_not_double_path(tmp_path: Path, monkeypatch):
     """Regression: a relative out_dir + cwd=out_dir must not double the
-    code path (out_dir/out_dir/code.py). The default `maquette design`
+    code path (out_dir/out_dir/code.py). The default `touch_backend design`
     uses a relative out_root (output/), so this is the common path."""
     monkeypatch.chdir(tmp_path)
     out = Path("run")

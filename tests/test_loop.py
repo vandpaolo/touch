@@ -1,4 +1,4 @@
-"""Tests for `maquette.agent.loop.Loop`.
+"""Tests for `touch_backend.agent.loop.Loop`.
 
 The planner (LLM) is mocked; the worker, executor, and renderer run for
 real, so each happy-path test is a true emit -> subprocess -> STEP ->
@@ -13,12 +13,12 @@ from pathlib import Path
 
 import pytest
 
-from maquette.adapters import AdapterRefusal
-from maquette.agent import loop as loop_mod
-from maquette.agent.loop import Loop, RunConfig
-from maquette.agent.planner import PlannerExhausted, PlanResult, PromptsBundle
-from maquette.intent import Intent
-from maquette.pricing import Tokens
+from touch_backend.adapters import AdapterRefusal
+from touch_backend.agent import loop as loop_mod
+from touch_backend.agent.loop import Loop, RunConfig
+from touch_backend.agent.planner import PlannerExhausted, PlanResult, PromptsBundle
+from touch_backend.intent import Intent
+from touch_backend.pricing import Tokens
 
 _PROMPTS_FILE = Path(__file__).resolve().parents[1] / "prompts" / "planner.system.md"
 

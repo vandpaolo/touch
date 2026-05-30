@@ -1,4 +1,4 @@
-"""Headless render tests for `maquette.render.orthographic`.
+"""Headless render tests for `touch_backend.render.orthographic`.
 
 Runs off-screen (no DISPLAY) against the vtk-osmesa backend. Uses a
 committed fixture STEP so the test does not depend on the adapter or a
@@ -11,7 +11,7 @@ from pathlib import Path
 
 from PIL import Image
 
-from maquette.render import orthographic
+from touch_backend.render import orthographic
 
 _FIXTURE_STEP = Path(__file__).parent / "fixtures" / "render" / "cube.step"
 

@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from maquette.config import Config
+from touch_backend.config import Config
 
 
 @pytest.fixture
@@ -50,14 +50,14 @@ def test_env_override_beats_default(empty_pyproject: Path):
 
 def test_pyproject_override_beats_default(tmp_path: Path):
     pyp = tmp_path / "pyproject.toml"
-    pyp.write_text("[tool.maquette]\nmax_iterations = 7\n", encoding="utf-8")
+    pyp.write_text("[tool.touch_backend]\nmax_iterations = 7\n", encoding="utf-8")
     cfg = Config.load({}, pyproject_path=pyp, env={})
     assert cfg.max_iterations == 7
 
 
 def test_env_beats_pyproject(tmp_path: Path):
     pyp = tmp_path / "pyproject.toml"
-    pyp.write_text("[tool.maquette]\nmax_iterations = 7\n", encoding="utf-8")
+    pyp.write_text("[tool.touch_backend]\nmax_iterations = 7\n", encoding="utf-8")
     cfg = Config.load({}, pyproject_path=pyp, env={"MAQUETTE_MAX_ITERATIONS": "9"})
     assert cfg.max_iterations == 9
 
@@ -73,7 +73,7 @@ def test_cli_beats_env(empty_pyproject: Path):
 
 def test_cli_beats_pyproject_and_env(tmp_path: Path):
     pyp = tmp_path / "pyproject.toml"
-    pyp.write_text("[tool.maquette]\nmax_iterations = 7\n", encoding="utf-8")
+    pyp.write_text("[tool.touch_backend]\nmax_iterations = 7\n", encoding="utf-8")
     cfg = Config.load(
         {"max_iterations": 13},
         pyproject_path=pyp,
@@ -131,7 +131,9 @@ def test_unknown_keys_in_cli_overrides_ignored(empty_pyproject: Path):
 
 def test_unknown_keys_in_pyproject_ignored(tmp_path: Path):
     pyp = tmp_path / "pyproject.toml"
-    pyp.write_text("[tool.maquette]\nflux_capacitor = 'engaged'\n", encoding="utf-8")
+    pyp.write_text(
+        "[tool.touch_backend]\nflux_capacitor = 'engaged'\n", encoding="utf-8"
+    )
     cfg = Config.load({}, pyproject_path=pyp, env={})
     assert cfg == Config()
 

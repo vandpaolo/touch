@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from maquette.agent.sanity import (
+from touch_backend.agent.sanity import (
     Dimension,
     DimensionMismatch,
     SanityResult,
     check,
 )
-from maquette.intent import Intent, Modifier, Parameter, PrimaryFeature
+from touch_backend.intent import Intent, Modifier, Parameter, PrimaryFeature
 
 
 def _cube_with_hole_intent() -> Intent:

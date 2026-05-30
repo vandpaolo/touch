@@ -1,4 +1,4 @@
-"""Tests for `maquette.cli` via Typer's CliRunner.
+"""Tests for `touch_backend.cli` via Typer's CliRunner.
 
 `Loop` is monkeypatched (no real API, no subprocess) and `load_dotenv`
 is neutered so the repo's `.env` does not leak the real key into tests.
@@ -13,8 +13,8 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
-from maquette import cli as cli_mod
-from maquette.cli import app
+from touch_backend import cli as cli_mod
+from touch_backend.cli import app
 
 runner = CliRunner()
 

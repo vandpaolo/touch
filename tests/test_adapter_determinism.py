@@ -17,8 +17,8 @@ from pathlib import Path
 
 import pytest
 
-from maquette.adapters import build123d_target
-from maquette.intent import Intent
+from touch_backend.adapters import build123d_target
+from touch_backend.intent import Intent
 
 _FIXTURE_ROOT = Path(__file__).parent / "fixtures" / "adapters" / "build123d"
 _ALL_KINDS = (

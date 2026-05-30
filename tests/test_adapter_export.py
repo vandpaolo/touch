@@ -18,8 +18,8 @@ from pathlib import Path
 
 import pytest
 
-from maquette.adapters import AdapterRefusal, build123d_target
-from maquette.intent import Intent, Modifier, PrimaryFeature
+from touch_backend.adapters import AdapterRefusal, build123d_target
+from touch_backend.intent import Intent, Modifier, PrimaryFeature
 
 _FIXTURE_ROOT = Path(__file__).parent / "fixtures" / "adapters" / "build123d"
 
@@ -86,7 +86,7 @@ def test_parameter_named_like_build123d_fn_does_not_shadow(tmp_path: Path):
     """A parameter named after a build123d function (e.g. 'chamfer') must
     not be emitted as a top-level assignment that shadows it — else the
     modifier's chamfer(...) call crashes ('float' object is not callable)."""
-    from maquette.intent import Parameter
+    from touch_backend.intent import Parameter
 
     intent = Intent(
         name="cyl_chamfered",

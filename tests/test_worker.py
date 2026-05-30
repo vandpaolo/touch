@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import pytest
 
-from maquette.agent import worker
-from maquette.intent import Intent, Modifier, Parameter, PrimaryFeature
+from touch_backend.agent import worker
+from touch_backend.intent import Intent, Modifier, Parameter, PrimaryFeature
 
 
 def _cube_with_hole() -> Intent:

@@ -17,8 +17,8 @@ from pathlib import Path
 
 import pytest
 
-from maquette.agent.planner import PlannerExhausted, PromptsBundle, plan
-from maquette.intent import Intent
+from touch_backend.agent.planner import PlannerExhausted, PromptsBundle, plan
+from touch_backend.intent import Intent
 
 _HAS_KEY = os.environ.get("ANTHROPIC_API_KEY") is not None
 _MODEL = "claude-opus-4-7"
