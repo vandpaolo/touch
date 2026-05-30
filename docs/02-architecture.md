@@ -1,271 +1,349 @@
 # 02 — Architecture
 
-> *Synthesized from `notes/inbox.md` (migrated vault: 01-architecture.md,
-> 03-agent-loop.md, 04-adapters.md) + `00-vision.md` + `01-requirements.md`
-> on 2026-05-16. Update via `/pm-architecture`.*
+> *Re-baselined 2026-05-29 for **Touch** (the Maquette pivot). Maquette's
+> prior 02-* docs are superseded — kept in git history for reference.
+> Update via `/pm-architecture`.*
 
-Maquette is a single Python package with a CLI entry point. Filesystem-is-
-state: no server, no database, no message broker. Every generation is a
-self-contained folder under `output/`. v0 produces STEP + 3 renders from a
-build123d backend; v0.1 adds the NX Open adapter, vision Evaluator, and
-refinement loop.
+Touch is an interactive AI-native 3D CAD editor. The architecture is
+shaped by three load-bearing constraints from the requirements:
 
-## C4 — Level 1 (System Context)
+- **Dual run modes (N5/N6):** the same web frontend code runs as the
+  Electron renderer in the packaged `.exe` *and* as a plain browser tab
+  during headless-Linux dev.
+- **Single-file install (N4):** a friend gets one `.exe`, no separate
+  Python or Node install.
+- **Instant interactivity (N1):** hover / select / orbit must be 100 %
+  frontend with no backend round-trip — only prompt submission goes over
+  the wire to the engine.
+
+These three force a **local client-server** topology (not in-process IPC),
+with the kernel as a Python sidecar and the frontend as a thin web app
+talking to it over a single localhost WebSocket. The full rationale lives
+in [ADR-0005](./adr/0005-localhost-websocket-coupling.md).
+
+## C4 — Level 1 (System context)
 
 ```mermaid
-flowchart LR
-    User((User<br/>CLI))
-    subgraph Local["Local machine"]
-        Maq[Maquette<br/>Python CLI]
-        FS[(output/<br/>filesystem-as-state)]
-        BC[build123d<br/>+ OCP kernel]
-        PV[PyVista<br/>headless render]
-    end
-    subgraph Cloud["Cloud"]
-        LLM[Anthropic API<br/>Claude Opus 4.7]
-    end
-    subgraph Optional["User-side, optional"]
-        FreeCAD[FreeCAD<br/>opens part.step]
-        NX[Siemens NX<br/>+ NX Open<br/>v0.1+]
-    end
+flowchart TB
+    User((Engineer / Friend))
+    Touch["Touch (desktop app)<br/>3D editor with click-to-prompt"]
+    Anthropic[(Anthropic API<br/>Claude)]
+    ClaudeCode[(Local Claude Code<br/>install + Pro/Max sub)]
+    FreeCAD[(FreeCAD / NX /<br/>slicer of choice)]
+    GH[(GitHub Releases)]
 
-    User -- prompt --> Maq
-    Maq -- structured planner call --> LLM
-    Maq -- writes --> FS
-    Maq -- executes --> BC
-    BC -- STEP --> FS
-    Maq -- renders --> PV
-    PV -- PNGs --> FS
-    FS -- part.step --> FreeCAD
-    FS -. part_nx.py (v0.1) .-> NX
+    User -->|orbits, clicks, prompts| Touch
+    Touch -.->|"LLM (mode A: API key from OS keychain)"| Anthropic
+    Touch -.->|"LLM (mode B: via claude-agent-sdk, subscription)"| ClaudeCode
+    Touch -- exports STEP / STL / 3MF --> FreeCAD
+    GH -- .exe install --> Touch
 ```
 
-The system has one external dependency (Anthropic API), one optional
-external integration (NX, user-side, v0.1), and one consumer-side
-integration (FreeCAD, user opens STEP files manually).
+One external dependency at runtime (the LLM — *one of* the two paths),
+two consumer-side handoffs (STEP for CAD, STL/3MF for printing), and
+GitHub Releases as the distribution channel. End-user network traffic
+goes to Anthropic and nowhere else (N12).
 
 ## C4 — Level 2 (Container view)
 
 ```mermaid
-flowchart TB
-    subgraph Maquette["maquette (Python package)"]
-        CLI["cli<br/>(typer entrypoint)"]
-        Loop["agent.loop<br/>(orchestrator)"]
-        AgentMods["agent.* modules<br/>(planner, sanity, worker, executor)"]
-        Adapters["adapters.*<br/>(build123d_target; v0.1: nx_open_target)"]
-        Render["render<br/>(PyVista headless)"]
-        Intent["intent<br/>(pydantic schema)"]
-        Pricing["pricing<br/>(model price table)"]
-        Config["config<br/>(env + pyproject + flags)"]
+flowchart LR
+    subgraph Desktop["End-user machine (Windows)"]
+        subgraph Touchexe[".exe (or browser-tab in dev)"]
+            Renderer["Frontend (web)<br/>three.js viewport + UI shell"]
+            Main["Electron main (Node)<br/>window + sidecar supervisor"]
+            Sidecar["Backend (Python)<br/>kernel + planner + WS server"]
+        end
+        Keychain[(OS Keychain)]
+        TouchFiles[(.touch files on disk)]
     end
+    Anthropic[(Anthropic API)]
+    ClaudeCode[(Local Claude Code)]
 
-    CLI --> Loop
-    CLI --> Config
-    Loop --> AgentMods
-    Loop --> Pricing
-    Loop --> Render
-    AgentMods --> Intent
-    AgentMods --> Adapters
-    Adapters --> Intent
-    Loop -. STEP path .-> Render
+    Renderer <-->|"binary WebSocket<br/>(our protocol)"| Sidecar
+    Main -- spawn / supervise / restart --> Sidecar
+    Sidecar -.->|HTTPS, mode A| Anthropic
+    Sidecar -.->|stdio / SDK, mode B| ClaudeCode
+    Renderer -- read/write .touch --> TouchFiles
+    Renderer -- get/set Claude API key --> Keychain
 ```
 
-Hard rule (CI-enforced): `intent` has zero outbound dependencies on
-`agent.*`, `adapters.*`, or `render`. Everything depends on `intent`;
-`intent` depends on nothing. See
-[`02-classes.md` § Dependency rules](./02-classes.md#dependency-rules).
+In dev (headless Linux), the Sidecar runs standalone (no Electron main),
+and the Renderer is opened in a browser tab pointed at `ws://localhost:<port>`.
+The Renderer code is bit-identical between the two modes (N5).
 
-## C4 — Level 3 (Component view, inside `agent`)
+## C4 — Level 3 (Component view)
+
+### Inside the Frontend (web)
 
 ```mermaid
 flowchart TB
-    subgraph Agent["maquette.agent"]
-        Loop["loop<br/>(state machine, trace.jsonl writer)"]
-        Planner["planner<br/>(prompt → Intent via LLM)"]
-        Sanity["sanity<br/>(F6 dimension check)"]
-        Worker["worker<br/>(Intent → code via adapter)"]
-        Executor["executor<br/>(subprocess + STEP capture)"]
-        Evaluator["evaluator (v0.1)<br/>(vision critique)"]
+    subgraph FE["Frontend (Electron renderer or browser tab)"]
+        Viewport["viewport<br/>three.js scene + NX camera"]
+        Picking["picking<br/>raycaster + face/edge id lookup"]
+        Selection["selection<br/>current sel state"]
+        Prompt["prompt<br/>chat-thread panel"]
+        HistoryUI["history-ui<br/>undo/redo + history view"]
+        FileTree["file-tree<br/>.touch project explorer"]
+        Settings["settings<br/>provider mode + creds"]
+        Cost["cost-indicator"]
+        Splash["splash"]
+        Transport["transport<br/>WS client (binary + JSON)"]
+        DocStore["doc-store<br/>FE-side document state + mesh"]
     end
 
-    Loop --> Planner
-    Planner --> Sanity
-    Sanity --> Loop
-    Loop --> Worker
-    Loop --> Executor
-    Executor -. ExecutionResult .-> Loop
-    Loop -. v0.1 .-> Evaluator
-    Evaluator -. Critique .-> Loop
+    Viewport --> Picking
+    Picking --> Selection
+    Selection --> Prompt
+    Prompt --> Transport
+    Transport --> DocStore
+    DocStore --> Viewport
+    HistoryUI --> Transport
+    FileTree --> Transport
+    Settings --> Transport
 ```
 
-The v0 path is `Loop → Planner → Sanity → Worker → Executor`. v0.1 adds
-the Evaluator and a `Loop → Planner refinement` loopback driven by
-critique. SanityCheck is a v0 addition (per requirement F6) sitting
-between Planner output and Worker input — it inspects the Intent against
-the original prompt and logs warnings (does not block).
+### Inside the Backend (Python sidecar)
+
+```mermaid
+flowchart TB
+    subgraph BE["Backend (Python localhost server)"]
+        Server["server<br/>WS endpoint + protocol"]
+        Session["session<br/>per-connection state + cancel"]
+        Document["document<br/>operation history (.touch)"]
+        Planner["planner<br/>prompt + selection → op | question"]
+        LLM["llm_client (Protocol)<br/>anthropic_api | claude_code"]
+        Intent["intent<br/>operation schema + finders"]
+        Validation["intent_validation<br/>per-op contract checks"]
+        Adapter["adapter (build123d_target)<br/>ops → build123d code"]
+        Executor["executor<br/>run code → solid + tessellate"]
+        Tess["tessellate<br/>OCP / ocp_tessellate"]
+        Pricing["pricing"]
+        Config["config"]
+        Keychain["keychain_bridge<br/>keyring wrapper"]
+    end
+
+    Server --> Session
+    Session --> Document
+    Session --> Planner
+    Planner --> LLM
+    LLM --> Keychain
+    Planner --> Intent
+    Document --> Validation
+    Document --> Adapter
+    Adapter --> Executor
+    Executor --> Tess
+    Tess --> Session
+    Planner --> Pricing
+    Server --> Config
+```
+
+The Frontend is event-driven (user input + WS events); the Backend is
+async (a single asyncio loop runs the WS server + the planner calls +
+executor work). One op at a time per session (queue + cancel token).
 
 ## Layered responsibilities
 
-| Layer | Owns | Does NOT do |
+| Layer / Module | Owns | Does NOT do |
 |---|---|---|
-| `intent` | Pydantic schema (pure types), cross-reference validation via `@model_validator`, JSON (de)serialisation | Per-kind contract checks (those live in `intent_validation`), LLM calls, code emission, geometry, I/O |
-| `intent_validation` | Per-kind parameter contract checks (`validate_kind_contracts(intent)`) | Type definitions (those live in `intent`), anything outside the schema spec |
-| `agent.planner` | Prompt → `Intent` via structured-output LLM call; one retry on schema fail | Code generation, evaluation, sanity check |
-| `agent.sanity` | Regex extraction of dimensions from prompt + comparison to Intent params; produces `SanityResult { ok, warnings[] }` | LLM calls, code emission, geometry |
-| `agent.worker` | `Intent` → backend code via adapter delegation | LLM calls, execution, geometry |
-| `agent.executor` | Subprocess management (spawn, timeout, kill), STEP capture, error.json on crash | LLM calls, schema decisions, code generation |
-| `agent.evaluator` (v0.1) | Vision-LLM critique of renders vs prompt + Intent | Code emission, geometry |
-| `agent.loop` | Orchestration: planner → sanity → worker → executor → (v0.1: evaluator → refine). State machine. `trace.jsonl` writer. `status.json` writer | Domain logic, code emission |
-| `adapters` (package) | Defines the `Adapter` Protocol (`emit(intent: Intent) → str`) that all concrete adapters conform to. Type-checker catches signature drift between adapters | Adapter implementations live in submodules |
-| `adapters.build123d_target` | `Intent` → build123d Python source. Pure function conforming to the `Adapter` Protocol. Deterministic | I/O, execution, rendering |
-| `adapters.nx_open_target` (v0.1) | `Intent` → NX Open Python journal. Pure function conforming to the `Adapter` Protocol. Emits-only, never imports `NXOpen` | Anything that imports `NXOpen` |
-| `render` | Headless PyVista render of a STEP file into PNGs | LLM, code emission |
-| `cli` | Typer commands, argument parsing, glue between user and `agent.loop` | Domain logic |
-| `pricing` | Hardcoded model → per-token price table; computes `cost_usd_estimate` from token counts | I/O, LLM calls |
-| `config` | Env + .env + pyproject + CLI flag precedence; produces a `Config` dataclass | Anything else |
+| `viewport` (FE) | three.js scene, render loop, camera, NX-style controls (F3) | picking math, selection state |
+| `picking` (FE) | raycast → triangle → face/edge id lookup (F4, F5, N1) | selection state, prompt UX |
+| `selection` (FE) | current selection (face/edge/vertex + face_id + point_xyz) | dispatching to backend |
+| `prompt` (FE) | the prompt panel, chat-thread continuation for clarifications (F6, F7) | model state, viewport |
+| `history-ui` (FE) | undo / redo controls, history list (F9) | history mutation (server-side) |
+| `file-tree` (FE) | `.touch` project navigation, save/open/new (F10, F18) | document content / serialization |
+| `settings` (FE) | provider-mode picker (F13, F31); credential capture; OS-keychain UX | the keychain itself (BE bridge) |
+| `cost-indicator` (FE) | session cost display (F14) | cost computation (BE pricing) |
+| `splash` (FE) | cold-start splash until backend `ready` (F15) | backend lifecycle |
+| `transport` (FE) | WS client, binary + JSON, reconnect on backend restart (F16) | message semantics |
+| `doc-store` (FE) | FE-side document state (history mirror, current mesh, conv state, dirty flag) | persistence (backend owns it) |
+| `app` (Electron main) | window lifecycle, menu, native dialogs | rendering (renderer), engine work |
+| `sidecar` (Electron main) | spawn / supervise / restart the Python sidecar (F16); detect ready | renderer code |
+| `server` (BE) | WS endpoint, protocol dispatch, binary geometry framing (F19) | domain logic |
+| `session` (BE) | per-connection state: active document, conv state, cancel token, queue | persistence semantics |
+| `document` (BE) | the `.touch` operation history; load/save; replay-from-history (F10, F23, N8) | LLM, geometry execution |
+| `planner` (BE) | turn `(prompt, selection, conv_state)` into structured op OR clarifying question (F22, F7) | execution, persistence |
+| `llm_client` (BE, Protocol + impls) | the swappable LLM call surface (F31): `AnthropicAPIClient` / `ClaudeCodeClient` | planner logic |
+| `intent` (BE) | operation schema (pydantic) + selection-finder types | per-op contract checks |
+| `intent_validation` (BE) | per-op required-param contracts | type definitions |
+| `adapter (build123d_target)` (BE) | `operation history → build123d source code`, pure + deterministic (F24, N10) | execution |
+| `executor` (BE) | run the emitted build123d code, capture the in-memory solid | code generation |
+| `tessellate` (BE) | tessellate OCP solid → mesh + per-face / per-edge IDs (F20) | execution, rendering |
+| `pricing` (BE) | cost lookup from token usage (F14, N3) | LLM calls |
+| `config` (BE) | env / file / overrides; resolves `out_root` (default `/srv/touch/` on nexus, sane fallback elsewhere) | secrets |
+| `keychain_bridge` (BE) | `keyring`-based read/write of the user's Claude API key (F13, N9) | LLM calls (consumed by `llm_client`) |
 
 ## Tech stack
 
 | Concern | Choice | Why |
 |---|---|---|
-| Language | Python 3.11+ | build123d, PyVista, anthropic SDK all native here |
-| CAD kernel (default) | build123d (OCP / OpenCascade) | Free, headless, scriptable, real B-rep, STEP export native |
-| CAD kernel (v0.1 target) | Siemens NX via NX Open | Emit-only; repo never imports NXOpen |
-| Schema / validation | pydantic v2 | Strict structured outputs from LLM, first-class JSON |
-| LLM client | `anthropic` Python SDK | Claude is the default; strong at constrained code gen and structured outputs |
-| Prompt caching | Anthropic prompt caching (system prompt + few-shots) | Required to hit N2 (< $0.10 per generation) — see ADR-0003 |
-| Rendering | PyVista (headless / off-screen) | Mature wrapper over VTK; loads STEP via OCP; off-screen on Linux |
-| CLI | Typer | Minimal boilerplate, type-hint driven |
-| Packaging | `pyproject.toml`, uv or pip | Standard modern Python packaging |
-| Tests | pytest | Standard |
-| Linting / formatting | ruff + ruff format | Single tool, fast |
-| Config files | python-dotenv for `.env`; stdlib `tomllib` for pyproject | No extra deps |
+| Backend language | Python 3.12+ | Continuity from Maquette; OCP/build123d/anthropic/claude-agent-sdk native here; future FEA/multibody/control all live in Python |
+| CAD kernel | OpenCascade via OCP, scripted with build123d | Salvaged from Maquette; battle-tested for the v0 op set; native tessellation via `ocp_tessellate` |
+| LLM client | Anthropic Python SDK (`anthropic`) **and** Claude Agent SDK (`claude-agent-sdk`) behind a Protocol | F31 — two end-user paths (API key vs Pro/Max subscription) without coupling the planner to either |
+| WS server | `websockets` (Python, asyncio) | Smallest, focused; binary frames + text; no HTTP overhead we don't need |
+| Frontend language | TypeScript | Static typing across the protocol; large ecosystem |
+| Frontend UI | React + TypeScript + Vite | Largest ecosystem for VS-Code-like layouts (panels, splits, trees); Vite for fast dev rebuilds in browser-tab mode |
+| 3D viewport | three.js (vanilla, not wrapped) | Direct control over camera, picking, BufferGeometry, materials — the precision a CAD viewport needs; ocp-vscode uses three.js too |
+| Camera controls | three.js `OrbitControls` rebound to NX-style (middle-mouse rotate, shift+middle pan, scroll zoom) | F3 |
+| Desktop shell | Electron + Python sidecar | F1, N4 — see [ADR-0009](./adr/0009-desktop-shell-electron-sidecar.md) |
+| Sidecar supervision | `child_process.spawn` (Electron main) + ready/exit signalling over stdout | Standard pattern; restart on exit drives F16 |
+| Packaging | `electron-builder` (Electron) + `PyInstaller` for the Python sidecar, both bundled into the installer | Standard pattern; the **packaging spike** is the v0 phase-0 unknown |
+| Secret storage (end-user) | `keyring` (Python) → Windows Credential Manager | N9; cross-platform abstraction so macOS/Linux later is free |
+| Secret storage (dev) | SOPS (age key, host-wide) per nexus-ops `secrets.md` | N9, F29 |
+| Document format | `.touch` (JSON, schema-versioned) — see [ADR-0006](./adr/0006-touch-document-format.md) | N7; the operation history *is* the document |
+| Geometry transport | Custom binary frames (vertices + normals + indices + per-triangle face_id buffer) over WS, framed with a small JSON envelope | Avoids glTF's per-vertex constraint for face-id encoding; minimal, purpose-built |
+| Operation export (CAD handoff) | STEP via OCP | F11; lossless B-rep |
+| Operation export (printing) | STL / 3MF via OCP | F12 |
+| Frontend test | Vitest (unit) + Playwright (E2E, headless browser) | E2E in browser-tab mode runs in CI |
+| Backend test | pytest + `pytest-asyncio` | Continuity from Maquette |
+| Protocol contract | A single JSON Schema (source of truth); TS types generated for FE, pydantic models for BE | Keeps both ends honest |
+| CI | GitHub Actions (lint, test, build on tag → Release) | F27 |
+| License | MIT (continued from Maquette) | F25, N11 |
 
-## Repo layout
+## Repo layout (proposed)
 
 ```
-maquette/
+touch/                           # repo root (will be renamed from `maquette/`)
+├── pyproject.toml               # Python package: maquette → renamed to touch
+├── package.json                 # JS/TS workspace root
+├── electron-builder.yml         # packaging config
+├── LICENSE                      # MIT
 ├── README.md
-├── ARCHITECTURE.md            # one-line pointer to docs/02-architecture.md
-├── CLAUDE.md                  # project guide (already exists)
-├── pyproject.toml
-├── .env.example               # ANTHROPIC_API_KEY
-├── .gitignore                 # output/, .env, __pycache__, .venv
-├── src/maquette/
-│   ├── __init__.py
-│   ├── intent.py              # pydantic schema — pure types (see 02-data-model.md)
-│   ├── intent_validation.py   # per-kind contract checks (split from intent.py per decision B3)
-│   ├── pricing.py             # model → per-token price table (4 token classes; see ADR 0003)
-│   ├── config.py              # env / pyproject / CLI flag precedence
-│   ├── cli.py                 # typer entrypoint
-│   ├── agent/
-│   │   ├── __init__.py
-│   │   ├── loop.py            # orchestrator + state machine
-│   │   ├── planner.py         # LLM call, Intent extraction
-│   │   ├── sanity.py          # F6 dimension sanity check
-│   │   ├── worker.py          # adapter delegation
-│   │   ├── executor.py        # subprocess + STEP capture
-│   │   └── evaluator.py       # v0.1: stub in v0
+├── .sops.yaml                   # SOPS recipients (age pubkey)
+├── secrets.env.sops.yaml        # encrypted dev .env (committed; nexus-ops secrets.md)
+├── .env                         # gitignored; produced by `sops -d`
+├── docs/                        # PM-framework docs (vision/req/arch/roadmap/...)
+├── protocol/                    # ← single source of truth for the wire protocol
+│   ├── schema.json              # JSON Schema for all WS messages
+│   ├── generated/               # auto-generated types
+│   │   ├── ts/                  # for the frontend
+│   │   └── py/                  # for the backend
+│   └── README.md
+├── src/touch_backend/           # Python sidecar (was src/maquette/)
+│   ├── server.py
+│   ├── session.py
+│   ├── document.py
+│   ├── planner.py
+│   ├── llm_client/
+│   │   ├── __init__.py          # the Protocol
+│   │   ├── anthropic_api.py
+│   │   └── claude_code.py
+│   ├── intent.py                # operation schema (extends Maquette's Intent)
+│   ├── intent_validation.py
 │   ├── adapters/
-│   │   ├── __init__.py
-│   │   ├── build123d_target.py
-│   │   └── nx_open_target.py  # v0.1: stub in v0 (or absent)
-│   └── render/
-│       ├── __init__.py
-│       └── orthographic.py
-├── prompts/                   # versioned system prompts + few-shots
-│   ├── planner.system.md
-│   ├── sanity.md              # if sanity check needs reference patterns
-│   └── evaluator.system.md    # v0.1
-├── examples/                  # known-good sessions, regression cases
-├── output/                    # generated artifacts (gitignored)
-└── tests/
-    ├── test_intent.py
-    ├── test_sanity.py
-    ├── test_planner.py        # mocked LLM
-    ├── test_adapters_build123d.py   # snapshots + round-trip
-    ├── test_executor.py       # subprocess timeout, error capture
-    ├── test_render.py         # fixture STEP → PNG
-    ├── test_cli.py            # typer test client
-    └── test_loop_smoke.py     # the 3 v0 reference prompts end-to-end
+│   │   ├── __init__.py          # Adapter Protocol + AdapterRefusal
+│   │   └── build123d_target.py
+│   ├── executor.py
+│   ├── tessellate.py
+│   ├── pricing.py
+│   ├── config.py
+│   ├── keychain_bridge.py
+│   └── __main__.py              # `python -m touch_backend` for dev / sidecar
+├── web/                         # TS frontend (Vite project)
+│   ├── package.json
+│   ├── vite.config.ts
+│   ├── tsconfig.json
+│   ├── index.html
+│   ├── src/
+│   │   ├── main.ts              # app entry
+│   │   ├── viewport/
+│   │   ├── picking/
+│   │   ├── selection/
+│   │   ├── prompt/
+│   │   ├── history-ui/
+│   │   ├── file-tree/
+│   │   ├── settings/
+│   │   ├── cost-indicator/
+│   │   ├── splash/
+│   │   ├── transport/
+│   │   └── doc-store/
+│   └── tests/
+├── shell/                       # Electron main + packaging glue
+│   ├── package.json
+│   ├── main.ts                  # window + sidecar supervisor
+│   ├── preload.ts
+│   └── sidecar.ts               # spawn/supervise/restart the Python sidecar
+├── tests/                       # Python tests
+├── .github/workflows/
+│   ├── ci.yml                   # lint, test, contract
+│   └── release.yml              # build .exe on tag, upload to Release
+└── CLAUDE.md
 ```
 
-The `prompts/` directory is versioned with the repo; the active prompt
-version is captured into `status.json` per run (see ADR-0003 follow-up
-and open question Q3 in the PM record).
+Three top-level source trees (`src/touch_backend`, `web`, `shell`) and a
+shared `protocol/`. Renaming the package from `maquette` to `touch_backend`
+is the implementation chore tracked in the rename cascade.
 
 ## Non-functional requirements — design satisfaction
 
-| NFR | Met by |
-|---|---|
-| N1 (latency < 20 s p95 v0) | One LLM call (Planner only — Evaluator is v0.1); cached system prompt; deterministic adapter (microseconds); build123d subprocess and 3 renders are the remaining budget |
-| N2 (cost < $0.10) | **Anthropic prompt caching** on system prompt + few-shots (ADR-0003); tight Intent schema keeps output tokens small |
-| N3 (adapter determinism, fixture per kind) | Pure functions; sorted/normalised emission; no clock/random/env reads in adapters; snapshot test per kind in `tests/test_adapters_build123d.py` |
-| N4 (no NX imports in `src/`, all milestones) | CI grep guard in pre-commit + CI; `nx_open_target` is text-emission only |
-| N5 (headless) | PyVista off-screen mode; build123d/OCP already headless; smoke test on nexus |
-| N6 (graceful failure) | `Loop` catches all exceptions; writes `error.json` with stderr before propagating an exit code; no Python traceback to user stdout |
-| N7 (reproducibility) | Adapter purity + pinned build123d version = byte-identical `code.py` from saved `intent.json`. v0 verifies via re-emit; v0.1 ships `maquette replay` |
-| N8 (secret hygiene) | `ANTHROPIC_API_KEY` loaded only at startup via `config`; never logged; `.env` in `.gitignore`; pre-commit hook scans diffs |
-| N9 (subprocess timeout) | `subprocess.run(timeout=30)` + explicit SIGKILL handling in `Executor.execute()` |
-| N10 (self-contained run folder) | `Loop` is the only writer to `output/`; no log files elsewhere |
+| ID | NFR | Met by |
+|----|-----|--------|
+| N1 | Interactive selection feels native (< 50 ms hover→highlight) | Picking is 100 % frontend (`picking` + `viewport`); face/edge IDs are baked into the streamed mesh by `tessellate`, looked up locally. Zero WS calls on hover/click. |
+| N2 | Prompt-submit round-trip target | Async session in `server` + `session` with cancel; backend stages (`planner` → `adapter` → `executor` → `tessellate`) profiled per phase; `prompt` shows a thinking indicator across the full RTT. |
+| N3 | LLM cost per prompt | `pricing` tracks tokens × per-Mtok; `cost-indicator` surfaces session total; both `llm_client` implementations report token usage. |
+| N4 | Single-file install | `electron-builder` bundle: Python runtime + OCP native libs (via PyInstaller'd sidecar) + Electron + FE assets, packaged to one Windows installer. |
+| N5 | Dual run modes | Renderer code is identical across Electron and browser; `transport` only needs a WS URL (`ws://localhost:<port>`); the sidecar accepts both clients without distinction. |
+| N6 | Headless dev | The Vite dev server runs on the dev box, opened from the user's laptop browser pointing at the dev box; the Python sidecar runs standalone (`python -m touch_backend`); no Electron needed for dev. |
+| N7 | `.touch` portability + versioning | `document` writes JSON with `schema_version`; the format is specified in `02-data-model.md` + [ADR-0006](./adr/0006-touch-document-format.md). |
+| N8 | Crash resilience | `sidecar` (Electron main) detects child exit and restarts; FE replays `document` history via the `rebuild(history)` message; *because* the document is the operation history (not a derived snapshot), recovery is free. |
+| N9 | Secret hygiene | End-user: `keychain_bridge` → OS keychain. Dev: SOPS for `secrets.env.sops.yaml` (CI guard rejects plaintext `.env` commits). |
+| N10 | Adapter determinism | `adapter` is a pure function `history → code`; snapshot tests in CI per op kind. |
+| N11 | Open source / MIT | `LICENSE` + GitHub-hosted code + public Releases. |
+| N12 | No accidental cloud | Only outgoing traffic is to `api.anthropic.com` (mode A) or to the local Claude Code process (mode B); no Touch-operated server in the loop for end users. |
 
 ## Cross-cutting concerns
 
-- **Configuration.** `config.Config` dataclass produced by merging (in
-  precedence order): CLI flags → env vars (`MAQUETTE_*`) → `pyproject.toml`
-  `[tool.maquette]` → built-in defaults. `.env` loaded via `python-dotenv`
-  at startup. **Never read secrets from anywhere except env / `.env`.**
-- **Logging.** Structured JSON to stderr; one human-readable line per
-  state transition (colour if TTY). `-v` adds per-LLM-call summaries.
-  `-q` suppresses everything except the final run path. The run folder
-  gets `trace.jsonl` (machine-readable, one event per line, including
-  per-LLM-call token breakdown).
-- **State.** Filesystem-as-state. No DB. Each `output/<run-id>/` folder
-  is the complete record of a run and can be re-played or diffed.
-- **Sandboxing / security.** v0: subprocess + 30 s wall-clock timeout
-  (N9). v0 trusts the LLM not to emit destructive code (per requirements
-  Assumptions). Hardening (import guards, container execution) is v0.1+
-  work.
-- **Secrets.** `ANTHROPIC_API_KEY` is the only required secret. Loaded
-  from env / `.env` at startup. Never logged. Never committed (CI guard).
-- **Reproducibility.** `intent.json` + the maquette commit hash + the
-  prompts directory hash = enough to reproduce a run. The hash of the
-  `prompts/` directory at run time is stamped into `status.json` so a
-  replay can detect prompt drift. Renders may differ by 1-pixel
-  anti-aliasing artefacts; acceptable.
+- **Configuration.** `config.py` merges (in precedence) CLI flags → env
+  → `~/.config/touch/config.toml` (end-user) or repo `pyproject.toml`
+  `[tool.touch]` (dev) → built-in defaults. `.env` loaded via
+  `python-dotenv` at startup (dev); the SOPS-decrypted file is the source.
+- **Logging.** Backend logs structured JSON to stdout (Electron main
+  forwards / surfaces in dev console). Per-WS-message log line. No PII /
+  no API keys ever logged.
+- **State.** Filesystem-as-state, like Maquette: each project is a
+  folder of `.touch` files; no DB. In-memory state in the backend is a
+  derived cache, rebuildable from the on-disk document.
+- **Secrets.** See N9 / `keychain_bridge` / SOPS. The CI guard greps for
+  obvious plaintext credentials in any commit diff.
+- **Sandboxing.** v0 trusts the LLM-emitted build123d code (Maquette's
+  v0 stance). Phase-7a sandboxing (import guards) is later work.
+- **Reproducibility.** `.touch` history + Touch version + adapter
+  determinism = byte-identical build123d source emission. STEP exports
+  are reproducible modulo OCP version.
+- **Process lifecycle.** Electron main owns the Python sidecar's
+  lifecycle: spawn at app start, wait for `ready` (splash hides), restart
+  on unexpected exit (F16). In dev, the user owns it (`python -m
+  touch_backend`).
+- **Crash recovery.** A backend crash is recoverable because the document
+  is the operation history; `sidecar` restart + `rebuild(history)` is a
+  10 s recovery and the user keeps working.
+- **Cancellation.** Each session holds a cancel token; the LLM and
+  executor stages check it cooperatively. Cancel from the FE sends a
+  `cancel` message; the BE aborts the in-flight op cleanly.
+- **The packaging spike.** Bundling Python + OCP native deps inside an
+  Electron installer that runs on a clean Windows box for a non-tech
+  friend is the single highest-risk unknown; it is the **first phase of
+  the v0 roadmap** (round-trip + picked-face + `.exe` on a clean box).
 
 ## Decisions deferred
 
-These are decisions that should be revisited as v0 progresses; outcomes
-become ADRs.
+These will become ADRs when forced; recorded here so they don't get lost.
 
-1. **Provider abstraction.** Single-provider (Claude) for v0. The
-   `Planner` constructor takes an Anthropic client instance, so a future
-   swap is cheap. Do not build a generic provider layer until there's a
-   second provider in scope. (Tracked in vision § Non-goals; no separate
-   ADR yet.)
-2. **Conversational refinement vs one-shot.** v0 is one-shot. v0.2 adds
-   a multi-turn refinement mode — open whether it's a REPL, a transcript
-   file, or a watched prompt file.
-3. **NX adapter feature coverage.** Start with the same primitives the
-   build123d adapter supports. Expanding the NX surface beyond the Intent
-   schema is explicitly a non-goal — the schema is the bottleneck, not
-   the adapter.
-4. **Sandboxing strategy.** Subprocess + resource limits for v0.
-   Containerised execution (Docker) is on the v0.1+ list if anything
-   ever goes wrong here. Will be an ADR if it does.
-5. **Prompt versioning approach.** **Resolved** in
-   [ADR 0003 § Decision](./adr/0003-prompt-caching-for-cost.md): single
-   rolled-up SHA-256 of all file contents under `prompts/`, stamped into
-   `status.json.prompts_hash`. Per-file hashes considered and declined —
-   re-evaluate only if selective cache invalidation becomes painful in
-   practice.
-6. **SanityCheck tolerance.** **Resolved** in
-   [ADR 0002 § Decision](./adr/0002-dimension-sanity-check.md): ±1% or
-   ±0.5 mm, whichever is larger. Implemented in `agent.sanity` (lands in
-   phase-2a).
-
-See:
-- [ADR 0001 — Intent as the pivot](./adr/0001-intent-as-pivot.md) — Accepted
-- [ADR 0002 — Dimension sanity check](./adr/0002-dimension-sanity-check.md) — Accepted
-- [ADR 0003 — Prompt caching for cost target](./adr/0003-prompt-caching-for-cost.md) — Accepted
+1. **Frontend UI framework** — defaulted to React + TypeScript + Vite.
+   Could be Svelte/Solid if the FE engineer wants something lighter.
+   Promote to ADR if the call gets contested.
+2. **Custom binary mesh frame** vs glTF/GLB — defaulted to custom binary
+   (typed-array buffers + a small JSON envelope) for face-id encoding
+   simplicity. If we ever need third-party tooling on the wire, promote
+   to ADR.
+3. **WS authentication.** v0 binds to `127.0.0.1` only; no auth on the
+   socket. If we ever expose the backend on the LAN (e.g. cloud / multi-
+   client), this becomes an ADR.
+4. **Operation-history granularity.** Today: one op per click+prompt.
+   Could later cluster small ops into "transactions" for cleaner undo;
+   defer until the UX demands it.
+5. **Multi-doc sessions** vs one-doc-at-a-time. v0 picks one-doc per
+   session to keep `session` simple; if the file tree begs for multi-doc
+   open, revisit.
+6. **Sidecar process model on dev (Linux)** — `systemd --user` unit vs
+   manual launch. Defer; the manual launch is fine for a solo dev.

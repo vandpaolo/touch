@@ -1585,7 +1585,8 @@ the click-to-prompt + conversational + positional approach is right.
 
 ### 2026-05-29 — Architecture research conclusions (Touch FE/BE coupling)
 
-> absorbed into docs/00-vision.md @ 2026-05-29 (architecture detail feeds /pm-architecture)
+> absorbed into docs/00-vision.md @ 2026-05-29
+> absorbed into docs/02-architecture.md + docs/adr/0005 + docs/adr/0006 + docs/adr/0009 @ 2026-05-29
 
 > From a deep-research pass (105 agents, 24/25 claims verified). Full
 > report archived in the session task output. Feeds /pm-architecture.

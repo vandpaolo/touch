@@ -1,237 +1,264 @@
 # 02 — Classes & modules
 
-> *Synthesized from `notes/inbox.md` (migrated vault) + `02-architecture.md`
-> + `02-data-model.md` + `01-requirements.md` on 2026-05-16. Update via
-> `/pm-architecture`.*
->
-> This is the layer historically skipped. Every class that will exist has
-> a slot here, with public methods listed, before code is written.
+> *Re-baselined 2026-05-29 for **Touch**. Update via `/pm-architecture`.
+> Maquette's prior 02-classes.md is superseded — in git history.*
+
+Touch is a multi-language project. This doc lists every module the
+requirements imply, grouped by bounded context, with class shapes and
+dependency rules.
 
 ## Module map
 
+### Backend (Python — `src/touch_backend/`)
+
 | Module | Responsibility | Public surface | Depends on (in) | Depends on (out) |
 |--------|----------------|----------------|-----------------|------------------|
-| `maquette.intent` | Pydantic schema + invariants (pure types) | `Intent`, `Parameter`, `PrimaryFeature`, `Modifier`, `Unit`, `PrimaryKind`, `ModifierKind` | adapters, agent.*, intent_validation | pydantic |
-| `maquette.intent_validation` | Per-kind contract checks | `validate_kind_contracts(intent) → list[ContractViolation]`, `ContractViolation` | agent.loop, agent.planner | maquette.intent |
-| `maquette.pricing` | Model → per-token price table (4 token classes; see ADR 0003 for values) | `price(model, tokens) → float`, `Tokens` dataclass, `ModelPrice` dataclass | agent.loop, agent.planner (for cost calc) | stdlib only |
-| `maquette.config` | env / .env / pyproject / CLI flag precedence | `Config` dataclass, `load(cli_overrides=…)` | cli, agent.loop | python-dotenv, tomllib |
-| `maquette.cli` | Typer entrypoint | command functions (`design`, …) | (entry point) | typer, agent.loop, config |
-| `maquette.agent.loop` | Orchestrator + state machine + writers | `Loop.run(prompt, cfg) → Path`, `RunConfig` | cli | agent.*, intent, render, pricing |
-| `maquette.agent.planner` | Prompt → Intent via Claude | `plan(client, prompt, model, prompts) → PlanResult` | agent.loop | anthropic, intent, prompts files |
-| `maquette.agent.sanity` | F6 dimension extraction + comparison | `check(prompt, intent) → SanityResult` | agent.loop | intent, re |
-| `maquette.agent.worker` | Adapter delegation | `emit_code(intent) → str`, `emit_journal(intent) → str` (v0.1) | agent.loop | intent, adapters |
-| `maquette.agent.executor` | Subprocess execution + STEP capture + error.json | `Executor.execute(code_path, out_dir, timeout_s) → ExecutionResult` | agent.loop | subprocess, pathlib, json |
-| `maquette.agent.evaluator` (v0.1) | Vision-LLM critique | `evaluate(client, prompt, intent, render_paths) → Critique` | agent.loop (v0.1) | anthropic, intent |
-| `maquette.adapters.build123d_target` | Intent → build123d source | `emit(intent) → str`, `AdapterRefusal` | agent.worker | intent, textwrap |
-| `maquette.adapters.nx_open_target` (v0.1) | Intent → NX Open journal | `emit(intent) → str` | agent.worker (v0.1) | intent, textwrap (never NXOpen) |
-| `maquette.render` | Headless PyVista render | `orthographic(step_path, out_dir) → list[Path]` | agent.loop | pyvista, ocp |
+| `touch_backend.server` | WS server endpoint, message dispatch, binary geometry framing | `Server` class, `run()` entry | (process root) | websockets, asyncio, session |
+| `touch_backend.session` | Per-WS-connection state: document, conv state, cancel token, queue | `Session` class | server | document, planner, executor, tessellate |
+| `touch_backend.document` | `.touch` operation history; load/save; rebuild from history | `TouchDocument`, `Operation`, `load(path)`, `save(path)` | session, planner | intent, intent_validation, json, pathlib |
+| `touch_backend.planner` | Prompt + selection + conv-state → structured op OR clarifying question | `plan(client, prompt, selection, conv, prompts) -> PlanResult` | session | llm_client, intent, intent_validation, pricing |
+| `touch_backend.llm_client` (package) | Pluggable LLM Protocol + impls | `LLMClient` Protocol, `AnthropicAPIClient`, `ClaudeCodeClient`, `make_client(mode, …)` | planner | anthropic, claude-agent-sdk, keychain_bridge |
+| `touch_backend.intent` | Operation schema (pydantic) + Selection / FinderPredicate types | `Operation`, `Selection`, `FinderPredicate`, `Parameter`, `OperationKind` | document, planner, adapters, intent_validation | pydantic |
+| `touch_backend.intent_validation` | Per-op contract checks (required params per kind) | `validate_kind_contracts(op)`, `ContractViolation` | document, planner | intent |
+| `touch_backend.adapters` (package) | Adapter `Protocol` + `AdapterRefusal` | `Adapter`, `AdapterRefusal` | adapters.build123d_target | intent |
+| `touch_backend.adapters.build123d_target` | Operation history → build123d source code (pure, deterministic) | `emit(document) -> str` | executor | intent, adapters, textwrap |
+| `touch_backend.executor` | Run emitted build123d code → in-memory `build123d.Part` | `Executor.execute(code) -> ExecutionResult` | session | subprocess (or in-process), build123d |
+| `touch_backend.tessellate` | OCP solid → mesh + per-face / per-edge IDs | `tessellate(solid) -> Mesh` | session | OCP, ocp_tessellate, numpy |
+| `touch_backend.pricing` | Token → USD cost lookup | `price(model, tokens) -> float`, `Tokens`, `ModelPrice` | planner, session, llm_client | stdlib |
+| `touch_backend.config` | env / config-file / overrides merge | `Config`, `load(...)` | server, session | python-dotenv, tomllib |
+| `touch_backend.keychain_bridge` | `keyring` wrapper for OS-keychain read/write of the Claude API key | `get_anthropic_key()`, `set_anthropic_key(k)`, `clear()` | llm_client.anthropic_api | keyring |
+
+### Frontend (TypeScript — `web/src/`)
+
+| Module | Responsibility | Public surface | Depends on (in) | Depends on (out) |
+|--------|----------------|----------------|-----------------|------------------|
+| `web/viewport` | three.js scene, render loop, NX camera (F3) | `Viewport` class, `mount(canvas)` | (root entry) | three, web/picking, web/doc-store |
+| `web/picking` | raycast → triangle → face/edge id (F4, F5) | `Picker.pickAt(x, y) -> Selection \| null` | web/viewport, web/selection | three, web/doc-store |
+| `web/selection` | Selection state store (current sel + history of recent) | `SelectionStore` | web/picking, web/prompt | (none) |
+| `web/prompt` | Prompt panel anchored to selection; chat-thread for clarifications (F6, F7) | `PromptPanel` component | (root entry) | web/selection, web/transport |
+| `web/history-ui` | Undo/redo + history list (F9) | `HistoryView` component | (root entry) | web/transport, web/doc-store |
+| `web/file-tree` | VS-Code-like project tree (F10, F18) | `FileTree` component | (root entry) | web/transport |
+| `web/settings` | Settings panel: provider mode + creds + Claude Code detection (F13, F31) | `SettingsPanel` component | (root entry) | web/transport |
+| `web/cost-indicator` | Session cost display (F14) | `CostIndicator` component | (root entry) | web/transport |
+| `web/splash` | Cold-start splash until backend `ready` (F15) | `Splash` component | (root entry) | web/transport |
+| `web/transport` | WS client: binary frames + JSON envelopes; reconnect on backend restart (F16) | `Transport` class, `send(msg)`, `on(eventType, handler)` | (most) | (browser WebSocket) |
+| `web/doc-store` | FE-side document state mirror: history, current mesh, conv state, dirty flag | `DocStore` | viewport, history-ui, transport | (none) |
+| `web/protocol-types` | Generated TS types from `protocol/schema.json` | typed message classes | (all) | (generated) |
+
+### Desktop shell (TypeScript / Node — `shell/`)
+
+| Module | Responsibility | Public surface | Depends on (in) | Depends on (out) |
+|--------|----------------|----------------|-----------------|------------------|
+| `shell/main` | Electron main process: window, menus, native dialogs | (entry) | (Electron loads it) | electron, shell/sidecar |
+| `shell/sidecar` | Spawn / supervise / restart the Python sidecar (F16); detect `ready` from stdout | `Sidecar` class, `start()`, `stop()`, `on('ready' \| 'exit', cb)` | shell/main | child_process |
+| `shell/preload` | Bridge between renderer + main (when needed; v0 mostly direct WS) | preload script | (Electron renderer) | electron |
+
+### Shared (`protocol/`)
+
+| Module | Responsibility |
+|--------|----------------|
+| `protocol/schema.json` | Single source of truth for all WS message types + payloads (control + events + binary frame envelopes) |
+| `protocol/generated/ts/` | TS types generated from `schema.json` for the frontend |
+| `protocol/generated/py/` | pydantic models generated for the backend |
 
 ## Class diagrams
 
-### Intent module (the domain model)
+### Engine bounded context (Python backend)
 
 ```mermaid
 classDiagram
-    class Intent {
-        +str name
-        +str description
-        +int schema_version
-        +list~Parameter~ parameters
-        +list~PrimaryFeature~ features
-        +list~Modifier~ modifiers
-        +Optional~str~ extras
-        +validate_references() Intent
+    class Server {
+        <<asyncio>>
+        +run(host, port)
+        -_on_connection(ws)
     }
-    class Parameter {
-        +str name
-        +float value
-        +Unit unit
+    class Session {
+        +document: TouchDocument
+        +conversation: ConversationState | None
+        +current_solid: Part | None
+        +current_mesh: Mesh | None
+        +cancel: CancelToken
+        +cost: Tokens
+        +handle(msg) Event
+        -_apply(op) None
+        -_rebuild_from_history() None
     }
-    class PrimaryFeature {
-        +str id
-        +PrimaryKind kind
-        +dict~str, Union~ params
+    class TouchDocument {
+        +name: str
+        +description: str
+        +parameters: list~Parameter~
+        +history: list~Operation~
+        +schema_version: int
+        +touch_version: str
+        +save(path) None
+        +load(path)$ TouchDocument
+        +append(op) None
+        +pop() Operation
     }
-    class Modifier {
-        +str id
-        +ModifierKind kind
-        +Optional~str~ target
-        +dict~str, Union~ params
+    class Operation {
+        +id: str
+        +kind: OperationKind
+        +params: dict
+        +selection: Selection | None
+        +prompt_text: str
+        +conversation: list~ConversationTurn~
+        +created_at: datetime
     }
-    Intent "1" --> "*" Parameter
-    Intent "1" --> "*" PrimaryFeature
-    Intent "1" --> "*" Modifier
-    Modifier ..> PrimaryFeature : references by id
+    class Selection {
+        +target: str
+        +point_xyz: tuple
+        +finder: list~FinderPredicate~
+        +face_id_at_capture: int | None
+        +resolve(solid) TopoEntity
+    }
+    class PlanResult {
+        +outcome: Operation | ClarifyingQuestion
+        +tokens: Tokens
+        +duration_s: float
+    }
+    class ClarifyingQuestion {
+        +text: str
+    }
+    Session "1" --> "1" TouchDocument
+    Session "1" --> "0..1" ConversationState
+    TouchDocument "1" --> "*" Operation
+    Operation "1" --> "0..1" Selection
+    Session ..> PlanResult : receives from planner
+    PlanResult --> Operation : OR
+    PlanResult --> ClarifyingQuestion : OR
 ```
 
-### Adapter Protocol + concrete adapters
+### LLM Client bounded context
 
-The adapter contract is defined as a `Protocol` in `maquette.adapters`
-(per decision P2). Both concrete adapters declare conformance — the
-type checker (mypy or pyright) catches signature drift.
+```mermaid
+classDiagram
+    class LLMClient {
+        <<Protocol>>
+        +call(prompt: str, system: str) Response
+    }
+    class AnthropicAPIClient {
+        -_anthropic: Anthropic
+        -_model: str
+        +call(prompt, system) Response
+    }
+    class ClaudeCodeClient {
+        -_sdk: ClaudeSDKClient
+        +call(prompt, system) Response
+    }
+    class Response {
+        +text: str
+        +tokens: Tokens
+    }
+    class KeychainBridge {
+        +get_anthropic_key()$ str | None
+        +set_anthropic_key(k)$ None
+        +clear()$ None
+    }
+    AnthropicAPIClient ..|> LLMClient
+    ClaudeCodeClient ..|> LLMClient
+    AnthropicAPIClient ..> KeychainBridge : reads key
+    AnthropicAPIClient ..> Response : returns
+    ClaudeCodeClient ..> Response : returns
+```
+
+### Adapter bounded context
 
 ```mermaid
 classDiagram
     class Adapter {
         <<Protocol>>
-        +emit(intent: Intent) str
+        +emit(document: TouchDocument) str
     }
     class AdapterRefusal {
         <<Exception>>
-        +str reason
-        +str where
+        +reason: str
+        +where: str
     }
     class Build123dTarget {
         <<module>>
-        +emit(intent: Intent) str
-        -_preamble(intent: Intent) str
-        -_emit_features(intent: Intent) str
-        -_emit_box(f: PrimaryFeature) str
-        -_emit_cylinder(f: PrimaryFeature) str
-        -_emit_sphere(f: PrimaryFeature) str
-        -_emit_extrude(f: PrimaryFeature) str
-        -_emit_revolve(f: PrimaryFeature) str
-        -_emit_loft(f: PrimaryFeature) str
-        -_emit_modifiers(intent: Intent) str
-        -_emit_hole(m: Modifier) str
-        -_emit_fillet(m: Modifier) str
-        -_emit_chamfer(m: Modifier) str
-        -_emit_shell(m: Modifier) str
-        -_emit_pattern(m: Modifier) str
-        -_export(intent: Intent) str
-        -_extras_block(extras: str) str
+        +emit(document) str
+        -_preamble(document) str
+        -_emit_op(op) str
+        -_emit_box(op) str
+        -_emit_cylinder(op) str
+        -_emit_hole(op) str
+        // … one per kind, salvaged from Maquette
     }
+    Build123dTarget ..|> Adapter
     Build123dTarget ..> AdapterRefusal : raises
-    Build123dTarget ..|> Adapter : conforms to
 ```
 
-The v0.1 `NxOpenTarget` module conforms to the same `Adapter` Protocol;
-mypy/pyright check both implementations at type-check time.
-
-### Agent module — pipeline classes
+### Frontend bounded context (TypeScript)
 
 ```mermaid
 classDiagram
-    class PlanResult {
-        +Intent intent
-        +Tokens tokens
-        +int retries
+    class Viewport {
+        -scene: THREE.Scene
+        -camera: THREE.OrthographicCamera | PerspectiveCamera
+        -controls: OrbitControls (rebound NX-style)
+        -meshObj: THREE.Mesh
+        +mount(canvas) void
+        +setMesh(mesh: Mesh) void
+        +onHover(cb) void
+        +onClick(cb) void
     }
-    class Planner {
-        <<module>>
-        +plan(client, prompt: str, model: str, prompts: PromptsBundle) PlanResult
-        -_extract_json(response) dict
-        -_retry_with_validation_error(prompt, error) Intent
+    class Picker {
+        -raycaster: THREE.Raycaster
+        -meshAttribs: { faceIdPerTriangle, edgeIdPerSegment }
+        +pickAt(x, y) Selection | null
     }
-    class SanityResult {
-        +bool ok
-        +list~str~ warnings
-        +list~DimensionMismatch~ mismatches
+    class SelectionStore {
+        -current: Selection | null
+        +set(s: Selection)
+        +clear()
+        +get(): Selection | null
+        +subscribe(cb)
     }
-    class DimensionMismatch {
-        +str source
-        +float expected
-        +Optional~float~ found
-        +str message
+    class PromptPanel {
+        -selection: Selection
+        -thread: ConversationTurn[]
+        +submit(text) Promise~void~
+        +continueThread(reply: string) Promise~void~
     }
-    class SanityChecker {
-        +check(prompt: str, intent: Intent) SanityResult
-        -_extract_dimensions(prompt: str) list~Dimension~
-        -_compare(extracted, intent) list~DimensionMismatch~
+    class Transport {
+        -ws: WebSocket
+        +send(msg: Json) void
+        +sendBinary(payload: ArrayBuffer) void
+        +on(type, handler) void
+        +reconnect() Promise
     }
-    class Worker {
-        <<module>>
-        +emit_code(intent: Intent) str
-        +emit_journal(intent: Intent) str
+    class DocStore {
+        -history: Operation[]
+        -mesh: Mesh
+        -dirty: boolean
+        +applyEvent(evt) void
+        +rewindTo(opId) void
     }
-    class ExecutionResult {
-        +Optional~Path~ step_path
-        +Optional~str~ error
-        +int exit_code
-        +float duration_s
-    }
-    class Executor {
-        +Path out_dir
-        +float timeout_s
-        +execute(code_path: Path) ExecutionResult
-    }
-    class RunConfig {
-        +int max_iterations
-        +int max_tokens_in
-        +int max_tokens_out
-        +float exec_timeout_s
-        +str model
-        +bool sanity_enabled
-    }
-    class Loop {
-        +Path out_root
-        +RunConfig cfg
-        +run(prompt: str) Path
-        -_new_run_dir(prompt: str, intent_name: str) Path
-        -_write_trace(run_dir, event: dict) None
-        -_write_status(run_dir, status: dict) None
-        -_write_error(run_dir, error: str, exit_code: int) None
-    }
-    Planner ..> PlanResult : returns
-    SanityChecker ..> SanityResult : returns
-    Executor ..> ExecutionResult : returns
-    Loop ..> Planner : calls
-    Loop ..> SanityChecker : calls
-    Loop ..> Worker : calls
-    Loop ..> Executor : calls
-    Loop ..> Render : calls
+    Viewport --> Picker
+    Picker --> SelectionStore
+    SelectionStore --> PromptPanel
+    PromptPanel --> Transport
+    Transport --> DocStore
+    DocStore --> Viewport
 ```
 
-The `Loop` owns rendering: after the `Executor` returns an
-`ExecutionResult` with a valid `step_path`, the `Loop` calls
-`render.orthographic(step_path, run_dir)` as a separate, **non-fatal**
-step (F7). The `Executor` is a pure subprocess manager (N6, N9) and does
-not import `render` — keeping execution-safety and rendering as distinct
-concerns (matches the C4 container view, where `Loop --> Render`).
-
-### Render module
+### Desktop-shell bounded context (Electron main)
 
 ```mermaid
 classDiagram
-    class Render {
-        <<module>>
-        +orthographic(step_path: Path, out_dir: Path) list~Path~
-        -_load_step(path: Path) Mesh
-        -_render_view(mesh, camera_dir: str, out_path: Path) Path
+    class Main {
+        +createWindow() BrowserWindow
+        +onAppReady() void
     }
-```
-
-### Pricing + Config
-
-```mermaid
-classDiagram
-    class Tokens {
-        +int input
-        +int output
-        +int cache_read
-        +int cache_creation
+    class Sidecar {
+        -proc: ChildProcess | null
+        -port: number
+        +start() Promise~void~
+        +stop() Promise~void~
+        +on('ready' | 'exit', cb) void
     }
-    class Pricing {
-        <<module>>
-        +price(model: str, tokens: Tokens) float
-        -_TABLE: dict~str, ModelPrice~
-    }
-    class ModelPrice {
-        +float input_per_mtoken
-        +float output_per_mtoken
-        +float cache_read_per_mtoken
-        +float cache_creation_per_mtoken
-    }
-    note for Pricing "Concrete values (verified 2026-05-16, see ADR 0003):\n  claude-opus-4-7  : 5.00 / 25.00 / 0.50 / 6.25\n  claude-sonnet-4-6: 3.00 / 15.00 / 0.30 / 3.75\n  claude-haiku-4-5 : 1.00 /  5.00 / 0.10 / 1.25\n(input / output / cache_read / cache_creation, all per Mtok USD)"
-    class Config {
-        +Path out_root
-        +int max_iterations
-        +float exec_timeout_s
-        +str model
-        +int verbosity
-        +bool sanity_enabled
-        +load(cli_overrides: dict) Config
-    }
+    Main --> Sidecar : owns
+    Main --> BrowserWindow : owns
 ```
 
 ## DDD analysis
@@ -240,110 +267,136 @@ classDiagram
 
 | Context | Modules | Boundary |
 |---|---|---|
-| **Domain** | `intent`, `intent_validation` | Pure data + invariants. `intent` holds declarative types; `intent_validation` holds per-kind contract checks. No I/O, no LLM, no geometry. |
-| **Planning** | `agent.planner`, `agent.sanity` | Translates user intent (text) into structured Intent. Owns the LLM-facing prompts and the post-hoc semantic guard. |
-| **Translation** | `agent.worker`, `adapters.*` | Intent → backend-specific code. Pure functions. |
-| **Execution** | `agent.executor` | Subprocess management. Captures STEP + stderr. Times out. |
-| **Rendering** | `render` | STEP → PNGs. Headless. |
-| **Orchestration** | `agent.loop` | State machine, trace + status writes, error.json. The only writer to `output/`. |
-| **Interface** | `cli` | User-facing typer commands. |
-| **Infrastructure** | `pricing`, `config` | Configuration plumbing + price table. |
+| **Frontend Shell (UI / Renderer)** | `web/viewport`, `web/picking`, `web/selection`, `web/prompt`, `web/history-ui`, `web/file-tree`, `web/settings`, `web/cost-indicator`, `web/splash`, `web/doc-store` | The user's interactive surface. Owns selection, picking, prompt UX, viewport. No geometry / kernel / LLM logic. |
+| **Coupling / Protocol** | `web/transport`, `web/protocol-types`, `touch_backend.server`, `protocol/schema.json` | The wire between FE and BE. Owns the message types and binary geometry framing. Both ends are clients of this contract. |
+| **Engine (Kernel + Planner + History)** | `touch_backend.session`, `.document`, `.planner`, `.llm_client`, `.intent`, `.intent_validation`, `.adapters.*`, `.executor`, `.tessellate`, `.pricing`, `.config`, `.keychain_bridge` | The geometry truth + LLM interaction. Owns the `.touch` document semantics, build123d execution, tessellation, LLM client abstraction, pricing. |
+| **Distribution / Lifecycle** | `shell/main`, `shell/sidecar`, `shell/preload`, `electron-builder.yml`, `package.json`, `pyproject.toml`, GH Actions | App process model + packaging. Owns the wrapper for the .exe, the sidecar lifecycle, the release pipeline. |
+
+The four contexts communicate through narrow, named contracts:
+- **FE-Shell ↔ Coupling:** the `Transport` class and `protocol-types`.
+- **Engine ↔ Coupling:** `Server` + `Session` + `protocol/schema.json`.
+- **Distribution ↔ FE-Shell/Engine:** spawns the sidecar; serves the
+  renderer; otherwise hands off.
 
 ### Ubiquitous language (glossary)
 
-Terms used in code, docs, conversation, and the planner system prompt
-must be identical.
+Every term used in code, docs, conversation, and the planner system
+prompt must be identical.
 
 | Term | Definition |
 |---|---|
-| **Prompt** | Natural-language input from the user (one sentence usually). |
-| **Intent** | Validated pydantic schema; the load-bearing intermediate between prompt and code. |
-| **Parameter** | Named dimensioned scalar in an Intent (e.g. `size = 50 mm`). |
-| **PrimaryFeature** | Top-level geometric primitive in an Intent (e.g. a `box`). |
-| **Modifier** | Operation applied to a PrimaryFeature (e.g. a `hole`). |
-| **Adapter** | Pure function `Intent → str` that emits backend code. Two adapters exist: `build123d_target` (v0) and `nx_open_target` (v0.1). |
-| **AdapterRefusal** | Structured exception when an adapter cannot translate a given Intent. Carries a `where` field (e.g. `feature:loft`) for diagnostics. |
-| **Build123dTarget** | The concrete v0 `Adapter` for the build123d backend. Module `maquette.adapters.build123d_target`. Pure `emit(intent) → str` with per-kind dispatch for the 11 v0 kinds; raises `AdapterRefusal` on an unknown kind or a degenerate Intent; follows the export-variable convention in [ADR-0004](./adr/0004-build123d-export-variable.md). |
-| **NxOpenTarget** | (v0.1) The concrete `Adapter` for the Siemens NX backend. Module `maquette.adapters.nx_open_target`. Emits an NX Open Python journal and **never imports `NXOpen`** (CI-guarded, N4). Conforms to the same `Adapter` Protocol; mypy/pyright check it at type-check time. |
-| **Extras** | The escape hatch on an Intent: raw backend code appended verbatim to the adapter output. |
-| **Run** | A single invocation of `maquette design`. Identified by `run-id`. |
-| **Run-id** | `<UTC-ISO timestamp>__<intent.name slugified>`. |
-| **Trace** | `trace.jsonl` event log in the run folder. |
-| **Critique** | Output of the Evaluator (v0.1+): pass/fail + structured issues. |
-| **SanityWarning** | Output of the F6 dimension sanity check: a soft signal that an extracted dimension didn't match the Intent. Logged, never blocks. |
-| **ContractViolation** | Output of `intent_validation.validate_kind_contracts()`: a structured report that a `PrimaryFeature` or `Modifier` has params not satisfying its per-kind contract (e.g. a `box` missing `height`). Raised before the worker is called. |
-| **PromptsBundle** | In-memory representation of the `prompts/` directory loaded at runtime: a record carrying the planner system prompt, any sanity-check reference patterns, the evaluator system prompt (v0.1+), and the single rolled-up SHA-256 hash stamped into `status.json.prompts_hash` per ADR-0003. Passed into `agent.planner.plan(...)`; never mutated mid-run. |
-| **Planner** | The application service that converts a `Prompt` into a validated `Intent` via a structured-output Anthropic call. Stateless. Owns retry-on-schema-fail and Anthropic prompt caching. Module: `maquette.agent.planner`. |
-| **SanityChecker** | Domain service for the F6 dimension sanity check. Pure logic: regex-extract dimensions from a `Prompt`, compare against `Intent.parameters` + feature `params`, produce a `SanityResult`. Stateless. Module: `maquette.agent.sanity`. |
-| **Worker** | The application service that delegates `Intent → backend code` to the appropriate `Adapter`. Thin shim; no domain logic. Module: `maquette.agent.worker`. |
-| **Executor** | The application service that runs the worker's emitted code in a subprocess with a 30 s timeout (N9), captures STEP, writes `error.json` on crash, returns an `ExecutionResult`. Module: `maquette.agent.executor`. |
-| **Loop** | The application orchestrator: state machine across Planner → SanityChecker → Worker → Executor (→ Evaluator → Refiner in v0.1). The only writer to `output/<run-id>/`. Owns `trace.jsonl` and `status.json` emission. Module: `maquette.agent.loop`. |
-| **Renderer** | The application service that turns a STEP file into three orthographic PNGs via headless PyVista. Module: `maquette.render`. Sometimes referred to as `Render` (matching the module name) interchangeably. |
-| **Evaluator** | (v0.1+) The application service that uses a vision LLM to critique the renders against the original `Prompt` + `Intent` and produces a `Critique`. Module: `maquette.agent.evaluator`. |
-| **PlanResult** | Return value of `Planner.plan(...)`: carries the produced `Intent`, the `Tokens` consumed, and a retry count. Internal record. |
-| **SanityResult** | Return value of `SanityChecker.check(...)`: `{ok: bool, warnings: list[str], mismatches: list[DimensionMismatch]}`. Internal record. |
-| **Dimension** | Value object representing a numeric quantity extracted from a user prompt by `SanityChecker._extract_dimensions`: a tuple of `(value: float, unit: Unit, raw: str)` where `raw` is the source substring (e.g. `"50 mm"`). Internal to `agent.sanity`; compared against `Intent.parameters` + feature/modifier params to produce `DimensionMismatch` entries. Distinct from `DimensionMismatch` — `Dimension` is what the regex *finds*; `DimensionMismatch` is what the comparison *flags*. |
-| **DimensionMismatch** | Value object inside a `SanityResult`: one mismatch between a regex-extracted prompt dimension and an `Intent` parameter (`source`, `expected`, `found`, `message`). |
-| **ExecutionResult** | Return value of `Executor.execute(...)`: STEP path (optional), optional error message, exit code, duration. Internal record. Rendering is **not** part of execution — the `Loop` renders separately from the returned `step_path`. |
-| **RunConfig** | Per-run configuration passed into `Loop.run(...)`: max iterations, token caps, exec timeout, model, sanity-enabled flag. **Distinct from `Config`**, which is the infrastructure-layer dataclass merged from CLI > env > pyproject > defaults at startup; `RunConfig` is the run-scoped subset the orchestrator needs. |
-| **Tokens** | Frozen dataclass tracking per-call token counts across the four classes that `maquette.pricing` distinguishes: `input`, `output`, `cache_read`, `cache_creation`. Sourced from `response.usage` per ADR-0003. |
-| **ModelPrice** | Frozen dataclass holding per-Mtok pricing for one model across the four `Tokens` classes. Looked up from `maquette.pricing._TABLE` by model id; values fixed by ADR-0003. |
-| **Pricing** | Infrastructure module `maquette.pricing`. Stateless, pure price lookup: `price(model, tokens) → float` computes a `cost_usd_estimate` from a `Tokens` count and the model's `ModelPrice` row in `_TABLE`. Values fixed by ADR-0003. No I/O, no LLM calls. |
-| **Config** | Infrastructure-layer dataclass + loader (`maquette.config`). Merges settings in precedence order CLI > env/`.env` > pyproject `[tool.maquette]` > built-in defaults; the **only** module that reads `os.environ` / `.env`. **Distinct from `RunConfig`**, the run-scoped subset passed into `Loop.run(...)`. |
+| **Touch** | The product: an open-source, AI-native, interactive 3D CAD editor. |
+| **Document** / `.touch` file | The user's saved part — an ordered, append-only operation history (JSON). The source of truth; geometry is derived. |
+| **Operation** | One CAD action — typically one click+prompt. An entry in `Document.history`. Replayable. |
+| **Operation kind** | One of the structured types (`box`, `cylinder`, `hole`, `shell`, …) the planner can emit and the adapter can compile. |
+| **Selection** | The spatial context of an operation: target (face/edge/vertex) + point + a *finder*. |
+| **Finder** | A list of geometric predicates (plane-normal, contains-point, surface-type, of-feature, …) that re-identify a selection target after history replay. Replicad-inspired. |
+| **Solid** | The current in-memory B-rep (OCP `TopoDS_Shape`) built from `Document.history`. Derived, disposable. |
+| **Mesh** | The tessellated geometry shipped over the WS to the FE for display + picking; carries per-face / per-edge IDs. |
+| **Face ID / Edge ID** | Kernel-owned integers identifying topological entities on the current solid; carried in the Mesh payload; session-stable, **not** persistent across edits (that's the finder's job). |
+| **Conversation** | The clarifying-question thread the planner can open when a prompt is ambiguous (F7). Preserved alongside the resulting operation. |
+| **Session** | One open WS connection; holds one open document + the live derived state. |
+| **Planner** | The component that turns prompt + selection + conv state into either an `Operation` or a `ClarifyingQuestion`. |
+| **LLMClient** | The Protocol abstracting the LLM call surface; two v0 implementations (Anthropic API, Claude Code). |
+| **Adapter** | A pure function `Document → build123d source code`. v0 only ships `build123d_target`. |
+| **Executor** | Runs the adapter's emitted code, returns the in-memory solid. |
+| **Tessellate** | OCP-native bulk tessellation with per-face ID tagging. |
+| **Sidecar** | The Python backend process, supervised by Electron main in prod. |
+| **Provider mode** | The user's choice of LLM path: API (key in OS keychain) or Claude Code (subscription). |
+| **Browser-dev mode** | The frontend served via Vite to a browser tab pointed at a localhost sidecar — the developer's headless-Linux daily loop. |
+| **Spike** | A time-boxed prove-it-can-work prototype. The packaging spike (Electron + Python + OCP → `.exe`) is v0's phase 0. |
 
 ### Aggregates, entities, value objects
 
 | Name | Kind | Owns | Lifecycle |
 |---|---|---|---|
-| `Intent` | Aggregate root | `Parameter[]`, `PrimaryFeature[]`, `Modifier[]` | Created by Planner; immutable after construction (replacement, not mutation) |
-| `Parameter` | Value object | — | Immutable; equality by value |
-| `PrimaryFeature` | Entity | `params` dict | Identified by stable `id` (so modifiers can target by reference); replaced wholesale on Intent revision |
-| `Modifier` | Entity | `params` dict | Identified by stable `id`; references PrimaryFeature by id |
-| `Run` | Aggregate (filesystem-backed) | `output/<run-id>/` folder + all artefacts | Created by Loop; never deleted by maquette (user manages retention) |
+| `TouchDocument` | Aggregate root | `Parameter[]`, `Operation[]` (the history) | Created on new-file or load; saved to disk; lives across sessions |
+| `Operation` | Entity | `Selection` (one or none), `params` dict, `conversation` thread | Identified by `id`; appended to `Document.history`; never edited in v0 |
+| `Selection` | Value object | `FinderPredicate[]`, `point_xyz`, `face_id_at_capture` | Immutable; equality by value |
+| `FinderPredicate` | Value object | (per-variant fields) | Immutable |
+| `Parameter` | Value object | — | Immutable |
+| `Session` | Entity (transient) | the open `Document` + derived `Solid` + `Mesh` + `ConversationState?` | Created on WS connect; destroyed on disconnect; recreatable from disk |
+| `ConversationState` | Entity (transient) | `Selection`, `ConversationTurn[]` | Created when planner asks; destroyed when op accepted or cancelled |
+| `Mesh` | Value object (payload) | typed buffers + ID tags | Disposable; re-derived per geometry update |
 
 ### Services
 
 | Service | Kind | Responsibility |
 |---|---|---|
-| `Planner` | Application | Wraps the Anthropic LLM call. Stateless. |
-| `SanityChecker` | Domain | Pure logic: dimension extraction + comparison. Stateless. |
-| `Adapter` (build123d) | Domain | Pure translation. Stateless. |
-| `Worker` | Application | Adapter selection + delegation. Thin shim. |
-| `Executor` | Application | Subprocess lifecycle, STEP capture, error.json. |
-| `Render` | Application | PyVista pipeline. |
-| `Loop` | Application orchestrator | State machine + filesystem writes. |
-| `Pricing` | Infrastructure | Static price lookup. |
-| `Config` | Infrastructure | Settings merge + load. |
+| `Server` | Infrastructure | WS endpoint, dispatch, binary framing |
+| `Session` | Application orchestrator | Per-connection state machine + protocol handling |
+| `Planner` | Application | Wraps the LLM call; returns op or question; cost-tracking |
+| `LLMClient` (variants) | Infrastructure | The actual LLM call surface (API / Claude Code) |
+| `Adapter` (build123d) | Domain | Pure history→code translation |
+| `Executor` | Application | Subprocess (or in-process — TBD by packaging spike) lifecycle for the emitted code |
+| `Tessellate` | Domain | OCP-native bulk mesh extraction with face/edge tagging |
+| `Sidecar` (Electron main) | Infrastructure | Sidecar process supervision |
+| `Pricing` | Infrastructure | Static price lookup |
+| `Config` | Infrastructure | Settings merge + load |
+| `KeychainBridge` | Infrastructure | OS-keychain access |
 
 ## Dependency rules
 
-Hard constraints. Violations are CI errors.
+Hard constraints. Violations are CI errors (enforced via
+`import-linter` on the Python side; `dependency-cruiser` or similar on
+the TS side).
+
+### Backend (Python)
 
 | Rule | Enforced how |
 |---|---|
-| `intent` has zero outbound deps on `agent.*`, `adapters.*`, `render`, or `intent_validation` | `pytest` test that imports `intent` in isolation and asserts no circular import; lint rule via `import-linter` |
-| `intent_validation` depends only on `intent` (no other maquette modules) | `import-linter` rule: `intent_validation` may import only `maquette.intent` and stdlib |
-| `src/` contains zero `import NXOpen` / `from NXOpen` (all milestones) | CI grep guard: `! grep -rE "^(import NXOpen\|from NXOpen)" src/` |
-| `adapters/*` depend only on `intent` + stdlib + (their backend's emit-time targets — but emit-time means string templates, not imports) | `import-linter` rule: `adapters.*` may import only from `maquette.intent` and `textwrap` |
-| `agent.loop` is the only module that writes to `output/` | Code review; runtime audit possible via decorator |
-| `render`, `adapters`, and `intent` have no I/O side effects | Test by calling them with stubs; assert no file writes / network calls |
-| `pricing` is stateless and pure | Lint: no I/O imports |
-| `config` is the only module that reads `os.environ` or `.env` | Lint: grep guard on `os.environ` / `dotenv` outside `config.py` |
+| `touch_backend.intent` has zero outbound deps on other `touch_backend.*` modules (pure types) | `import-linter` forbidden contract |
+| `touch_backend.intent_validation` depends only on `intent` (no other touch_backend modules) | `import-linter` rule |
+| `touch_backend.adapters.*` depend only on `intent` + stdlib + textwrap (no I/O modules, no anthropic, no server) | `import-linter` rule |
+| `touch_backend.pricing` is pure + stateless (no I/O) | `import-linter` rule |
+| `touch_backend.llm_client.anthropic_api` may import `anthropic` and `keychain_bridge`; not `planner`/`server`/`session` | `import-linter` rule |
+| `touch_backend.llm_client.claude_code` may import `claude-agent-sdk`; not `planner`/`server`/`session` | `import-linter` rule |
+| `touch_backend.planner` may import `llm_client`, `intent`, `intent_validation`, `pricing` — not `server`/`session`/`document` (planner is callable from session, not the reverse) | `import-linter` rule |
+| `touch_backend.document` may import `intent`, `intent_validation` — not anything LLM-related | `import-linter` rule |
+| `touch_backend.server` is the only module that writes to client-bound sockets | code review |
+| `src/` contains zero `import NXOpen` / `from NXOpen` (carried Maquette hygiene rule, even with NX adapter not active) | CI grep guard |
+| `src/touch_backend/` has no plaintext API key strings | CI grep guard + pre-commit |
+
+### Frontend (TypeScript)
+
+| Rule | Enforced how |
+|---|---|
+| `web/viewport` may import three.js, `web/picking`, `web/doc-store`; not `web/transport` directly | `dependency-cruiser` |
+| `web/picking` may import three.js + `web/doc-store`; not UI components or transport | `dependency-cruiser` |
+| `web/transport` is the only module that opens a `WebSocket` | grep guard |
+| `web/protocol-types` has no project-internal imports (auto-generated) | regen check in CI |
+| UI components (`prompt`, `history-ui`, `file-tree`, `settings`, etc.) talk to the backend via `web/transport`, never directly to `web/viewport`'s internals | review + cruiser |
+
+### Cross-language
+
+- The protocol schema in `protocol/schema.json` is the single source of
+  truth for messages. CI regenerates `protocol/generated/ts/` and
+  `protocol/generated/py/` on every build and fails if the generated
+  files would change vs the committed ones.
 
 ## Test strategy per class
 
-| Class / module | Unit | Integration | Snapshot | Notes |
+| Module / class | Unit | Integration | Snapshot | Notes |
 |---|---|---|---|---|
-| `intent` | ✓ | — | — | Pydantic edge cases; `validate_references` model_validator failure modes |
-| `intent_validation` | ✓ | — | — | Per-kind contract tests (one per of the 11 kinds); ContractViolation formatting |
-| `agent.planner` | ✓ (mocked LLM) | ✓ (gated on `ANTHROPIC_API_KEY`) | — | Retry-on-schema-fail behaviour; JSON extraction edge cases |
-| `agent.sanity` | ✓ | — | — | Regex extraction of dimensions; comparison logic; derived-dim false-positive cases (e.g. "centred" → no warning expected) |
-| `agent.worker` | ✓ | — | — | Adapter selection; delegation |
-| `agent.executor` | — | ✓ | — | Subprocess timeout; stderr capture; error.json formatting; SIGKILL behaviour |
-| `agent.loop` | — | ✓ (smoke) | — | Full pipeline on each of the 3 v0 reference prompts; cost + latency assertions per N1/N2 |
-| `adapters.build123d_target` | ✓ | ✓ (round-trip: emit → subprocess → STEP) | ✓ (one fixture per kind = 11) | Determinism: emit twice, diff empty |
-| `adapters.nx_open_target` (v0.1) | — | — | ✓ | Snapshot only; never runtime-tested in CI (no NX) |
-| `render` | — | ✓ | — | Load fixture STEP, render 3 views, assert PNGs > 0 bytes |
-| `cli` | ✓ (typer test client) | — | — | Argument parsing; flag precedence; exit code mapping |
-| `pricing` | ✓ | — | — | Per-model calculation; cache-token classes |
-| `config` | ✓ | — | — | Precedence: CLI > env > pyproject > defaults |
+| `touch_backend.intent` | ✓ | — | — | Pydantic edge cases on new types (Selection / FinderPredicate variants) |
+| `touch_backend.intent_validation` | ✓ | — | — | Per-kind contracts (carry from Maquette) |
+| `touch_backend.adapters.build123d_target` | ✓ | ✓ (round-trip emit → execute → solid) | ✓ (one fixture per op kind) | Determinism: emit twice, diff empty (N10) |
+| `touch_backend.document` | ✓ | ✓ (save → reload → identical model) | ✓ (golden .touch files) | Schema-version migration helpers (N7) |
+| `touch_backend.planner` | ✓ (mocked LLM) | ✓ (live, gated by ANTHROPIC_API_KEY) | — | Op-vs-question branching; conv-state resumption |
+| `touch_backend.llm_client.*` | ✓ (mocked SDKs) | ✓ (live, both clients) | — | Contract test: both impls satisfy the Protocol identically |
+| `touch_backend.executor` | — | ✓ | — | Crash isolation; capturing the solid |
+| `touch_backend.tessellate` | — | ✓ | — | Per-face/edge ID stability within a session; mesh integrity |
+| `touch_backend.server` | — | ✓ (full WS round-trip with a fake client) | — | Protocol contract; cancel handling |
+| `touch_backend.session` | — | ✓ (sequence of ops on a real document) | — | Rebuild-from-history equivalence |
+| `touch_backend.pricing` | ✓ | — | — | Per-model calc |
+| `touch_backend.config` | ✓ | — | — | Precedence + /srv/touch/ default on the dev host |
+| `touch_backend.keychain_bridge` | ✓ (mocked keyring) | — | — | Key set/get/clear flow |
+| `web/viewport` | — | ✓ (jsdom + headless three) | — | Camera bindings (NX vs default) |
+| `web/picking` | ✓ | ✓ (fake mesh + raycast assertions) | — | Triangle→face-id lookup correctness |
+| `web/selection` | ✓ | — | — | Store behaviour |
+| `web/prompt` | ✓ | ✓ (Playwright: submit → assertion) | — | Chat-thread continuation; cancel |
+| `web/transport` | ✓ | ✓ (against a stub WS server) | — | Reconnect / replay on restart |
+| `web/file-tree`, `web/settings`, `web/history-ui`, `web/cost-indicator`, `web/splash` | ✓ | ✓ (Playwright E2E) | — | Standard component tests |
+| `shell/main`, `shell/sidecar` | — | ✓ (Electron test runner: launch → spawn → ready → kill → restart) | — | The crash-recovery path (F16) |
+| **Protocol contract** | — | ✓ | — | JSON-Schema validation in both languages on every CI run |
+| **E2E** | — | ✓ | — | Playwright: mini-PC flow start to finish in browser-tab mode against a real sidecar (mocked LLM); a smaller `@live` variant against real Claude in nightly |

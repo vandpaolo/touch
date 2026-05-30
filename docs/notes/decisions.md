@@ -541,3 +541,23 @@ either a note section or a decision here.
   - Remaining probes (P1 planner own F-ID, P2 file-tree should, P3 GH
     asymmetry, B1 packaging spike) handled per draft / deferred to
     /pm-roadmap.
+
+## 2026-05-29 — /pm-architecture (Touch full re-baseline)
+
+- Rewrote 02-architecture.md, 02-data-model.md, 02-classes.md fresh for
+  Touch. Maquette versions superseded (in git history).
+- 5 new ADRs (Touch-era, monotonic continuation from Maquette's 0001-0004):
+  - 0005 — Editor↔engine coupling: localhost WebSocket + our protocol.
+  - 0006 — `.touch` JSON as native (operation history, not snapshot).
+  - 0007 — Pluggable LLMClient + Claude Code subscription path.
+  - 0008 — Picking & face-identity: kernel IDs in mesh + finders +
+    append-only v0 (sidesteps full topological naming).
+  - 0009 — Desktop shell: Electron + Python sidecar; packaging spike is
+    the gating v0 phase-0 risk.
+- Four bounded contexts identified: Frontend Shell / Coupling-Protocol
+  / Engine / Distribution.
+- Repo layout proposed (top-level src/touch_backend/ + web/ + shell/ +
+  protocol/) — implements the rename cascade by adopting `touch_backend`
+  as the new package name (Maquette `maquette` retained until then).
+- "Decisions deferred" list flags FE UI framework (defaulted React) +
+  custom binary mesh format + WS auth (v0 binds 127.0.0.1 only).
