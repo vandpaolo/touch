@@ -14,6 +14,7 @@ import websockets
 from websockets.asyncio.server import ServerConnection, serve
 
 from . import cube
+from .ocp_check import ocp_selfcheck
 from .wire import Mesh, encode
 
 _FRAME: bytes = encode(
@@ -37,6 +38,11 @@ async def _handler(websocket: ServerConnection) -> None:
 
 
 async def serve_forever() -> None:
+    # R1: prove OCP's native libs are present and loadable *before* announcing
+    # ready. In the PyInstaller bundle this is the line that fails loudly if
+    # the OCCT shared libs were not collected.
+    print(f"OCP_SELFCHECK {ocp_selfcheck()}", flush=True)
+
     async with serve(_handler, "127.0.0.1", 0) as server:
         sock = next(iter(server.sockets))
         port = sock.getsockname()[1]
