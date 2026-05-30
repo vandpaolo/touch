@@ -1,4 +1,4 @@
-# Handover — Touch v0, phase T0 in_progress, Day 1 ready
+# Handover — Touch v0, phase T0 in_progress, Days 1–4 done, Day 5 next
 
 > *Start here in any fresh chat session that opens this project. Once
 > T0 closes (`/pm-phase-report T0`), rewrite "You are here" + the
@@ -10,8 +10,8 @@
 - **Project:** **Touch** — AI-native interactive 3D CAD editor (click→prompt→evolve), VS-Code-like shell, distributed as a Windows `.exe` for engineer friends. **Pivoted from Maquette** on 2026-05-29 via a full re-baseline cascade (`/pm-vision` → `/pm-requirements` → `/pm-architecture` → `/pm-roadmap`).
 - **Repo dir is still `maquette/`** and `src/` is still `src/maquette/` — the rename to `touch_backend/` is a T1a chore.
 - **Active phase:** **T0 — Packaging spike** (Electron + PyInstaller'd Python sidecar + OCP → Windows `.exe`). Started 2026-05-30. Status `in_progress`. **Scope is now frozen** on Touch design docs.
-- **Day 1 of T0 is the next thing to build.** No code exists yet under `spike/`. Plan: [`docs/phases/phase-T0.md`](docs/phases/phase-T0.md).
-- **Last commit:** `84e0f5d` (T0 phase-start). Pushed: through `7960ce7` (architecture); commits `bf3633f`, `ce1726e`, `84e0f5d` are local until `git push`.
+- **Days 1–4 done + committed** (all built and verified on the Linux dev box). **Day 5 (electron-builder + GH Actions Windows build) is next** — needs a Windows runner, can't be produced/verified on Linux. Plan: [`docs/phases/phase-T0.md`](docs/phases/phase-T0.md).
+- **Last commit:** `3556baf` (Day 4). **All Touch commits are LOCAL/unpushed** — a direct push to `main` was denied (PR-only); publish via a branch/PR. Pushed remote is still at `7960ce7` (architecture).
 
 ## What changed (Maquette → Touch)
 
@@ -27,15 +27,47 @@
 - **All code under `spike/`** (NOT `src/`) — throwaway, deleted in T1a/T1b.
 - **6 days, R1–R14** in the plan. Pre-phase audit: [`docs/audits/2026-05-30-pre-T0.md`](docs/audits/2026-05-30-pre-T0.md) (12/12 PASS after addendum).
 
-## What to do next (Day 1)
+## Progress so far (Days 1–4, all committed + verified on Linux)
 
-**Sidecar skeleton on Linux** — see [`docs/phases/phase-T0.md`](docs/phases/phase-T0.md) Day 1 row.
+Headless verify: `bash spike/verify_all.sh` → ALL-PASS (Days 1–3).
+Day-4 build: `bash spike/sidecar/build_sidecar.sh` → ALL-PASS (`BUILD_RESULT.txt`).
 
-- New tree under `spike/sidecar/` (Python project, separate `venv`, separate `pyproject.toml` — do NOT touch `src/`).
-- Module `touch_sidecar/server.py`: `websockets` server on `127.0.0.1:<random ephemeral port>`, prints `TOUCH_READY <port>` on stdout, emits one binary message on client connect — a hand-authored cube mesh (8 vertices, 12 triangles, 6 face tags in `face_tag_per_triangle`).
-- Done when: a `wscat` (or scripted Python) client connects and parses out 6 distinct face tags across 12 triangles.
+- **Day 1** (`fab21c7`) — `spike/sidecar/`: `websockets` server, ephemeral
+  port, prints `TOUCH_READY <port>`, emits the binary cube frame (8 verts /
+  12 tris / 6 face tags). Wire format matches [`02-data-model.md`](docs/02-data-model.md) §Mesh
+  (`wire.py`); edge tags + finder-hint JSON envelope deferred to T1b.
+- **Day 2** (`520f453`) — `spike/web/`: Vite + React + TS + three.js viewport.
+  Decodes the frame (`src/wire.ts` mirrors `wire.py`), non-indexed geometry,
+  raycaster `faceIndex` → `face_tag_per_triangle` local hover highlight.
+  Build green; FE↔BE wire parity verified. **Visual render+hover is the only
+  unchecked part — needs a real display.**
+- **Day 3** (`46c44db`) — `spike/shell/`: Electron main spawns the sidecar,
+  waits for `TOUCH_READY` (R3, no timeout race), opens the viewport with
+  `?port=` injected, supervises both directions. `sidecar.ts` is Electron-free
+  so `npm run smoke` validates spawn+ready+WS frame headlessly → `SMOKE_OK`.
+  **Windowed run needs a display (Electron aborts headless).**
+- **Day 4** (`3556baf`) — **R1 proven on Linux.** Sidecar now imports OCP and
+  runs a real OCCT compute at startup (`ocp_check.py`: box volume=1000.0).
+  `build.spec` discovers OCP's auditwheel libs via `ldd` on the extension
+  (they live in `cadquery_ocp.libs/` + `vtkmodules/`, NOT `OCP.libs/`) and
+  collects them; `--onedir`, no UPX. The **frozen 679 MB binary runs under
+  `env -i` with NO Python on PATH**: OCP_SELFCHECK volume=1000.0 → TOUCH_READY
+  → serves the cube. The single highest-risk unknown, now de-risked on Linux.
 
-Mesh payload shape is specified in [`docs/02-data-model.md`](docs/02-data-model.md) §Mesh. Don't invent a new shape — match the spec so Day 2's FE wiring is reusable as the reference pattern for T1b.
+## What to do next (Day 5 — needs a Windows runner)
+
+**electron-builder + GitHub Actions Windows build** — see [`docs/phases/phase-T0.md`](docs/phases/phase-T0.md) Day 5 row.
+
+- `spike/shell/package.json` `build` config: bundle the Vite build + the
+  PyInstaller `dist/touch_sidecar/` dir under `resources/sidecar/`
+  (`asarUnpack`-ed); NSIS, Windows x64; `nsis.perMachine:false` +
+  `oneClick:false` (R13, non-admin install).
+- `.github/workflows/spike-build.yml`: on tag `spike-v*`, Windows runner,
+  `setup-python` pinned to 3.12 (R12) → PyInstaller → electron-builder →
+  upload `.exe` to a Release. Add the headless WS-handshake smoke (Max goal).
+- The Linux box **cannot** produce/verify a Windows installer — Day 5 runs in
+  CI, Day 6 is the fresh-Windows-VM verify (yours). `main.ts` already resolves
+  the packaged sidecar at `process.resourcesPath/sidecar` (R2).
 
 ## Stack (locked)
 
@@ -67,12 +99,30 @@ Mesh payload shape is specified in [`docs/02-data-model.md`](docs/02-data-model.
 - F27 (auto-update + signed CI) officially v0.1 (T13). T0 may validate the unsigned CI-build path early as a Max stretch.
 - SOPS dev-`.env` adoption lands in T1a, not T0.
 
+## Environment notes (observed 2026-05-30, differ from earlier assumptions)
+
+- **node v24.15.0** on the dev box (not v22); **electron 38** installs fine.
+- **OCP** = `cadquery-ocp 7.8.1.1` wheel; pulls `vtk 9.3.1` + `numpy`. Native
+  OCCT libs are in `site-packages/cadquery_ocp.libs/` (auditwheel,
+  hash-suffixed) + `vtkmodules/` — NOT `OCP.libs/`.
+- Frozen `--onedir` bundle is **679 MB**.
+- Sidecar venv has OCP+pyinstaller installed (gitignored). Rebuild:
+  `cd spike/sidecar && python3.12 -m venv .venv && .venv/bin/pip install -e ".[build]"`.
+- **Dev box is headless** (no `DISPLAY`/xvfb/GPU): Electron windowed runs and
+  WebGL render/hover can't be verified here — only headless coupling can.
+- **Session caveat:** the tool-output layer was unreliable this session
+  (scrambled/duplicated/fabricated results). Every "PASS" above was
+  re-verified against on-disk result files with unique markers. Trust
+  `spike/verify_all.sh` + `BUILD_RESULT.txt`, not transcript echoes.
+
 ## Last commits (newest first)
 
-- `84e0f5d` — start phase T0 (frontmatter flip + audit addendum) [LOCAL]
-- `ce1726e` — plan phase T0 (R1–R9 risk register) [LOCAL]
-- `bf3633f` — re-baseline roadmap for Touch (T0–T15) [LOCAL]
+- `3556baf` — Day 4: PyInstaller bundles OCP, frozen sidecar runs (R1) [LOCAL]
+- `46c44db` — Day 3: Electron shell spawns sidecar [LOCAL]
+- `520f453` — Day 2: three.js viewport + hover [LOCAL]
+- `fab21c7` — Day 1: sidecar emits face-tagged cube [LOCAL]
+- `84e0f5d` / `ce1726e` / `bf3633f` — T0 phase-start / plan / roadmap [LOCAL]
 - `7960ce7` — re-baseline architecture for Touch [pushed]
-- `ae9d146` — pivot vision Maquette → Touch [pushed]
 
-Push when ready: `git push`.
+**All Touch work is local.** Direct push to `main` is denied (PR-only). To
+publish: branch + PR, or have the user run `git push` after authorizing it.
