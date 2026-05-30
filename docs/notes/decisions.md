@@ -519,3 +519,25 @@ either a note section or a decision here.
   CLI, CLAUDE.md, README. That's an implementation chore for later, not a
   design-doc edit. Docs now call the product "Touch"; code stays
   `maquette`-named until a rename pass.
+
+## 2026-05-29 — /pm-requirements (Touch re-baseline)
+
+- Q: Should friends be able to use their Claude Pro/Max subscription
+  instead of paying per-token API?
+- A: Yes — add as a v0 must (F31). Pluggable LLM-client abstraction with
+  two modes: (a) Anthropic API (user's key, OS keychain), (b) Claude
+  Code via `claude-agent-sdk` (user's subscription, no key in Touch).
+  Settings picks the active mode; Claude Code mode hidden when not
+  installed/authed. Friends with the subscription get flat-rate, no
+  cost anxiety; API mode is the no-extra-install default.
+- → 01-requirements.md F13, F31, Constraints, Assumptions, R12
+
+- Decisions made on /pm-requirements probes (user directives):
+  - F9 (undo/redo) → must (was should).
+  - F27 (GH Actions auto-build) stays should for v0; promote v0.1.
+  - F29 (SOPS dev key) → must (was should). Migrate Maquette's plaintext
+    .env to secrets.env.sops.yaml as an early-roadmap task; pre-commit
+    hook blocks plaintext .env commits.
+  - Remaining probes (P1 planner own F-ID, P2 file-tree should, P3 GH
+    asymmetry, B1 packaging spike) handled per draft / deferred to
+    /pm-roadmap.
