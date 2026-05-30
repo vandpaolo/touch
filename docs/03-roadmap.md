@@ -1,6 +1,6 @@
 ---
 project_status: building   # planning | building | shipped — Touch v0 in progress; T0 packaging spike kicked off 2026-05-30
-active_phase: T1a   # started 2026-05-30 (override on pre-T1a audit: 3 FAILs are pre-existing doc-hygiene debt, unrelated to the rename)
+active_phase: null   # T1a done 2026-05-30 (see docs/phases/phase-T1a-report.md); repo-identity rename next, then T1b
 ---
 
 # 03 — Roadmap
