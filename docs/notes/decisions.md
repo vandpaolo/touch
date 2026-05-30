@@ -577,3 +577,8 @@ either a note section or a decision here.
 - Q: console script name after rename — `touch`?
 - A: NO. `touch` shadows GNU `/usr/bin/touch` inside an active venv (the venv bin precedes /usr/bin on PATH), so `touch newfile` would invoke the CLI instead of creating a file. Renamed the console script to `touch-backend` (matches dist name `touch-backend` + import pkg `touch_backend`). Caught by testing during Day 1.
 - → pyproject.toml [project.scripts]; docs/phases/phase-T1a.md § day 1 + R-T1a-3
+
+## 2026-05-30 — T1a scope: rename cascade split
+- Q: "rename everything to touch" — what's in scope, and is the repo/dir rename part of T1a?
+- A: Split the cascade. T1a = code+tooling identity only (package touch_backend ✓, CLI touch-backend ✓, tests, coverage, import-linter). The repo-identity cascade — local dir maquette→touch, GitHub repo rename + remote + pyproject Documentation URL, CLAUDE.md/README/HANDOVER rewrites — is a SEPARATE focused step between T1a and T1b (deferred from the handover's "part of T1a" framing because the dir mv has venv/memory-dir/VSCode friction best done deliberately). Historical Maquette docs (phase-0..3.5, pre-pivot audits, ADR 0001-0004, blockers) are NEVER renamed — they are preserved history per the 2026-05-29 pivot decision.
+- → docs/phases/phase-T1a.md § "Scope boundary"

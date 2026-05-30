@@ -40,3 +40,17 @@ depends_on: [T0]
 - **R-T1a-3 — stale entry-point / script name.** `[project.scripts] maquette = "maquette.cli:app"` and the `Documentation` URL reference the old name; CI and any docs that call `maquette design` will break. **Decided:** rename the console script to `touch-backend` (`touch-backend = "touch_backend.cli:app"`); the exit-criterion smoke flow runs as `touch-backend design`. (Initially picked `touch`, but it shadows GNU `/usr/bin/touch` in an active venv — corrected during Day 1.)
 - **R-T1a-4 — coverage `omit`/`source` path rot.** `[tool.coverage]` hardcodes `src/maquette/...` file paths ([pyproject.toml:63–79]); missing one silently drops a file from coverage rather than erroring. Mitigation: run coverage and confirm the expected file count.
 - **R-T1a-5 — SOPS host-key assumption.** F29's round-trip depends on the host age key (`~/.config/sops/age/keys.txt`, present). A fresh clone on another host can't decrypt. Acceptable for v0 (single dev host); note it in the migration doc.
+
+## Scope boundary — what T1a renames, and what it does NOT
+
+The full Maquette → Touch rename cascade ([decisions.md:516](../notes/decisions.md), [02-architecture.md:206](../02-architecture.md#L206)) is split deliberately:
+
+- **In T1a (code + tooling identity):** the Python package (`maquette` → `touch_backend`, done Day 1), the console script (`touch-backend`, done Day 1), `tests/*` imports (Day 2), `[tool.coverage]` + `[tool.importlinter]` config (Days 2–3). This is the namespace the running code lives under.
+
+- **Deferred to a separate focused step between T1a and T1b — the "repo-identity cascade"** (decided 2026-05-30, not part of T1a):
+  - Local repo dir `~/projects/maquette` → `~/projects/touch`.
+  - GitHub repo `vandpaolo/maquette` → `vandpaolo/touch` (auto-redirects) + `git remote set-url` + the pyproject `Documentation` URL.
+  - `CLAUDE.md`, `README.md`, `HANDOVER.md` rewrites.
+  - **Friction (why it's a deliberate standalone op, not a casual `mv`):** the `.venv` hardcodes the absolute path in console-script shebangs + the editable-install `.pth` (recreate the venv after the move); the Claude Code auto-memory dir is keyed to the path (`...-projects-maquette`) and must be migrated or it orphans; this VSCode workspace is open at the old path and needs a close/reopen.
+
+- **Never renamed (deliberate history, ~24 files):** Maquette-era phase docs/reports (`phase-0` … `phase-3.5-report`), pre-pivot audits, ADRs 0001–0004, and the Maquette blockers. They name "maquette" because the project *was* Maquette before the 2026-05-29 pivot; the pivot decision preserved them as the historical record. Renaming them would falsify history.
