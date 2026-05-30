@@ -1,0 +1,7 @@
+# T0 spike sidecar — build/venv artifacts (throwaway tree)
+.venv/
+dist/
+build/
+*.egg-info/
+__pycache__/
+*.pyc
