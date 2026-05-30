@@ -16,7 +16,8 @@ let quitting = false;
 // resources/sidecar/ (asarUnpack'd), resolved via process.resourcesPath (R2).
 function packagedSidecarSpec(): SidecarSpec {
   const dir = path.join(process.resourcesPath, "sidecar");
-  return { command: path.join(dir, "touch_sidecar"), args: [], cwd: dir };
+  const bin = process.platform === "win32" ? "touch_sidecar.exe" : "touch_sidecar";
+  return { command: path.join(dir, bin), args: [], cwd: dir };
 }
 
 function resolveIndexHtml(): string {
