@@ -43,7 +43,7 @@ def test_env_override_beats_default(empty_pyproject: Path):
     cfg = Config.load(
         {},
         pyproject_path=empty_pyproject,
-        env={"MAQUETTE_MAX_ITERATIONS": "5"},
+        env={"TOUCH_BACKEND_MAX_ITERATIONS": "5"},
     )
     assert cfg.max_iterations == 5
 
@@ -58,7 +58,7 @@ def test_pyproject_override_beats_default(tmp_path: Path):
 def test_env_beats_pyproject(tmp_path: Path):
     pyp = tmp_path / "pyproject.toml"
     pyp.write_text("[tool.touch_backend]\nmax_iterations = 7\n", encoding="utf-8")
-    cfg = Config.load({}, pyproject_path=pyp, env={"MAQUETTE_MAX_ITERATIONS": "9"})
+    cfg = Config.load({}, pyproject_path=pyp, env={"TOUCH_BACKEND_MAX_ITERATIONS": "9"})
     assert cfg.max_iterations == 9
 
 
@@ -66,7 +66,7 @@ def test_cli_beats_env(empty_pyproject: Path):
     cfg = Config.load(
         {"max_iterations": 11},
         pyproject_path=empty_pyproject,
-        env={"MAQUETTE_MAX_ITERATIONS": "9"},
+        env={"TOUCH_BACKEND_MAX_ITERATIONS": "9"},
     )
     assert cfg.max_iterations == 11
 
@@ -77,7 +77,7 @@ def test_cli_beats_pyproject_and_env(tmp_path: Path):
     cfg = Config.load(
         {"max_iterations": 13},
         pyproject_path=pyp,
-        env={"MAQUETTE_MAX_ITERATIONS": "9"},
+        env={"TOUCH_BACKEND_MAX_ITERATIONS": "9"},
     )
     assert cfg.max_iterations == 13
 
@@ -96,7 +96,7 @@ def test_bool_coercion_from_env(empty_pyproject: Path):
         cfg = Config.load(
             {},
             pyproject_path=empty_pyproject,
-            env={"MAQUETTE_SANITY_ENABLED": env_val},
+            env={"TOUCH_BACKEND_SANITY_ENABLED": env_val},
         )
         assert cfg.sanity_enabled is expected, (env_val, expected)
 
@@ -105,7 +105,7 @@ def test_path_coercion_from_env(empty_pyproject: Path, tmp_path: Path):
     cfg = Config.load(
         {},
         pyproject_path=empty_pyproject,
-        env={"MAQUETTE_OUT_ROOT": str(tmp_path / "runs")},
+        env={"TOUCH_BACKEND_OUT_ROOT": str(tmp_path / "runs")},
     )
     assert cfg.out_root == tmp_path / "runs"
     assert isinstance(cfg.out_root, Path)
@@ -115,7 +115,7 @@ def test_float_coercion_from_env(empty_pyproject: Path):
     cfg = Config.load(
         {},
         pyproject_path=empty_pyproject,
-        env={"MAQUETTE_EXEC_TIMEOUT_S": "45.5"},
+        env={"TOUCH_BACKEND_EXEC_TIMEOUT_S": "45.5"},
     )
     assert cfg.exec_timeout_s == 45.5
 

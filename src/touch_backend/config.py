@@ -18,8 +18,8 @@ _DEFAULTS: Final[dict[str, Any]] = {
     "sanity_enabled": True,
 }
 
-# MAQUETTE_<FIELD_UPPER> -> field name.
-_ENV_PREFIX: Final[str] = "MAQUETTE_"
+# TOUCH_BACKEND_<FIELD_UPPER> -> field name.
+_ENV_PREFIX: Final[str] = "TOUCH_BACKEND_"
 
 
 def _coerce_bool(value: Any) -> bool:
