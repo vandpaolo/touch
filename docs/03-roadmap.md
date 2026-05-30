@@ -1,193 +1,420 @@
 ---
-project_status: building   # planning | building | shipped — v0 MILESTONE shipped 2026-05-29 (phase-3.5 done); v0.1/v0.2 phases remain, so project stays "building"
-active_phase: null         # cleared 2026-05-29 via /pm-phase-report (phase-3.5 done — v0 shipped)
+project_status: planning   # planning | building | shipped — Touch hasn't started building yet (rewritten 2026-05-29 for the Touch pivot; Maquette v0 already shipped under the prior product)
+active_phase: null
 ---
 
 # 03 — Roadmap
 
-> *Synthesized from `notes/inbox.md` (migrated vault 06-roadmap.md) +
-> `00-vision.md` + `01-requirements.md` + `02-architecture.md` on
-> 2026-05-16. Update via `/pm-roadmap`.*
+> *Re-baselined 2026-05-29 for **Touch** (the Maquette pivot). Maquette's
+> prior roadmap (phase-0 … phase-10) is superseded. Maquette phase docs
+> + reports stay in `docs/phases/phase-0.md … phase-3.5-report.md` as
+> shipped history. Touch phases live alongside as `phase-T0.md` …
+> `phase-T15.md`. Update via `/pm-roadmap`.*
 
-Three committed milestones: **v0** (single-shot, build123d-only),
-**v0.1** (loop + NX + supporting commands + sandboxing), **v0.2**
-(conversational + parameter resliders + schema v2). Anything past v0.2
-is "Later, maybe" — explicitly not committed.
+Touch's roadmap is shaped by the three locked decisions from the
+architecture pass:
 
-Each milestone is broken into phases. Phases are numbered monotonically
-across the whole project (`phase-0` … `phase-N`), never reset per
-milestone. Suffixed IDs (`phase-2a`, `phase-2b`, `phase-3.5`,
-`phase-7a`/`b`/`c`) are used when a phase is split during planning so
-that prior cross-references remain stable. Only one phase is
-`in_progress` at a time.
+- The **packaging spike is phase 0** — Electron + a PyInstaller'd
+  Python sidecar with OCP native libs into a working Windows `.exe` is
+  the single highest-risk unknown. It must be proved on a clean Windows
+  VM **before** any feature work ([ADR-0009](./adr/0009-desktop-shell-electron-sidecar.md)).
+- **Engine reuse:** the Maquette pipeline (planner, adapter, intent,
+  intent_validation, pricing, config) ports into `src/touch_backend/`
+  rather than being rewritten.
+- **Append-only v0:** parametric history editing is deferred (it
+  reopens the topological-naming problem); v0 is a clean linear flow.
+
+Two committed milestones: **v0** (the POC: model the mini-PC enclosure
+via click+prompt and ship a `.exe` a friend can install), **v0.1** (the
+features that round out the POC into a real tool — interactive
+evaluator + schema-v2a + signed releases + multi-file projects +
+parametric editing). v0.2+ is sketched but explicitly not committed.
+
+Phases are numbered with a `T` prefix to avoid collision with the
+Maquette phase docs already in `docs/phases/` (Maquette: `phase-0` …
+`phase-3.5`; Touch: `phase-T0` … `phase-T15`).
 
 ## Milestone & phase overview
 
 ```mermaid
 gantt
-    title Maquette phases (ordering only — not calendar dates)
+    title Touch phases (ordering only — not calendar dates)
     dateFormat  YYYY-MM-DD
     axisFormat  %m-%d
-    section v0
-    Phase 0     Foundations             :p0, 2026-01-01, 4d
-    Phase 1     Adapter                 :p1, after p0, 5d
-    Phase 2a    Pipeline LLM-facing     :p2a, after p1, 3d
-    Phase 2b    Pipeline runtime        :p2b, after p2a, 3d
-    Phase 3     CLI                     :p3, after p2b, 2d
-    Phase 3.5   Smoke + 3 examples      :p3h, after p3, 2d
+    section v0 (POC)
+    Phase T0   Packaging spike            :pT0, 2026-06-01, 5d
+    Phase T1a  Engine rename + salvage    :pT1a, after pT0, 3d
+    Phase T1b  Server + protocol skeleton :pT1b, after pT1a, 4d
+    Phase T2   Frontend skeleton          :pT2, after pT1b, 5d
+    Phase T3   Picking + click-to-prompt  :pT3, after pT2, 6d
+    Phase T4   .touch doc + undo/redo     :pT4, after pT3, 4d
+    Phase T5   Conversational clarif.     :pT5, after pT4, 4d
+    Phase T6   Settings + provider modes  :pT6, after pT5, 4d
+    Phase T7   Exports (STEP/STL/3MF)     :pT7, after pT6, 2d
+    Phase T8   Cost / splash / crash UX   :pT8, after pT7, 3d
+    Phase T9   File tree + polish         :pT9, after pT8, 3d
+    Phase T10  POC verify + v0 release    :pT10, after pT9, 3d
     section v0.1
-    Phase 4     Evaluator + refine loop :p4, after p3h, 5d
-    Phase 4.5   Schema v2a edge+hole    :p45, after p4, 4d
-    Phase 5     NX adapter              :p5, after p45, 4d
-    Phase 6     Supporting commands     :p6, after p5, 3d
-    Phase 7a    Sandboxing              :p7a, after p6, 2d
-    Phase 7b    Example regression CI   :p7b, after p7a, 2d
-    Phase 7c    Cost caps               :p7c, after p7b, 1d
-    section v0.2
-    Phase 8     Conversational mode     :p8, after p7c, 5d
-    Phase 9     Parameter resliders     :p9, after p8, 4d
-    Phase 10    Intent schema v2        :p10, after p9, 4d
+    Phase T11  Evaluator                  :pT11, after pT10, 5d
+    Phase T12  Schema-v2a edge/hole       :pT12, after pT11, 5d
+    Phase T13  Auto-update + signed CI    :pT13, after pT12, 3d
+    Phase T14  Multi-file project model   :pT14, after pT13, 3d
+    Phase T15  Parametric history edit    :pT15, after pT14, 6d
 ```
 
-The gantt is for *ordering* only. No calendar dates committed.
+Gantt is ordering only — no calendar dates committed.
 
-## Phases — v0
+## Phases — v0 (POC: ship Touch to a friend who installs an `.exe`)
 
-### Phase 0 — Foundations
-- **Goal:** Project scaffolded; the domain model (`intent` + `intent_validation`), pricing table, and config layer exist and are tested; CI runs on every push.
-- **Min:** `pyproject.toml` with pinned deps (`build123d`, `anthropic`, `pydantic`, `pyvista`, `typer`, `python-dotenv`); `src/maquette/intent.py` (full schema), `intent_validation.py`, `pricing.py` (with the verified Anthropic prices from ADR 0003), `config.py`; tests for `intent` + `intent_validation`; `LICENSE` (MIT — per decision G3); `.github/workflows/ci.yml` running ruff + pytest + import-linter + the `^(import\|from) NXOpen` grep guard (N4) on every push.
-- **Max:** Pre-commit hooks for secret-scan + the NX-import grep guard (local-side reinforcement of the CI rule); `README.md` skeleton; `.env.example`; `examples/` folder structure stubbed.
-- **Exit criterion:** `pytest` passes (≥20 tests across `intent` + `intent_validation`); `ruff check` + `ruff format --check` pass; `import-linter` reports zero violations; `pricing.price("claude-opus-4-7", Tokens(...))` returns a non-zero float.
-- **Plan:** [phase-0.md](phases/phase-0.md) *(not yet drafted — run `/pm-phase-plan`)*
+### Phase T0 — Packaging spike (load-bearing risk; ADR-0009)
 
-### Phase 1 — Adapter
-- **Goal:** The build123d adapter compiles all 11 Intent kinds to runnable code; one round-trip works end-to-end.
-- **Min:** `adapters/__init__.py` with `Adapter` Protocol + `AdapterRefusal`; `adapters/build123d_target.py` with `emit(Intent) → str` covering all 6 PrimaryKinds and all 5 ModifierKinds; 11 snapshot fixtures (one per kind, `intent.json` + expected `code.py`); round-trip test for the cube-with-hole reference (emit → subprocess → STEP > 0 bytes).
-- **Max:** Round-trip tests for all 3 v0 reference prompts (cube w/ hole, cylinder w/ chamfer, L-bracket w/ holes); determinism test (emit twice, diff empty) per kind; mypy / pyright clean on the Adapter Protocol conformance.
-- **Exit criterion:** Snapshot tests pass for all 11 kinds; round-trip test produces a valid STEP that opens in FreeCAD for the cube-with-hole; `grep -rE "^(import NXOpen|from NXOpen)" src/` returns nothing.
-- **Plan:** `phases/phase-1.md` *(not yet drafted — run `/pm-phase-plan` when phase-0 is `done`)*
+- **Goal:** Prove Electron + a PyInstaller'd Python sidecar with OCP
+  native libs packages into a Windows `.exe` that installs and runs on
+  a fresh non-technical Windows VM — *before* any feature work.
+- **Min:** A `Touch-spike-0.1.0.exe` installs on a clean Windows VM,
+  launches the sidecar, the Electron renderer connects to it over
+  WebSocket, the sidecar emits a known-good face-id'd mesh (hardcoded
+  cube), three.js renders it, hovering a face highlights it locally. **No
+  LLM, no real planner, no `.touch` save.**
+- **Max:** Also builds via GitHub Actions on a tag push (early F27
+  validation); a smoke check launches the `.exe` headlessly and asserts
+  the WS handshake; identical bare-frontend served as a browser tab on
+  the dev box (proving N5/N6 across both modes from day one).
+- **Exit criterion:** the Min above holds, *or* the spike is filed as
+  a `/pm-blocker` and the desktop shell pivots to Tauri (the documented
+  ADR-0009 escape hatch).
+- **Delivers (foundational, not full):** F1, F2 (skeleton), F4, F5
+  (minimal), F19, F20, F28; demonstrates N4 / N5 / N6.
+- **Plan:** [phase-T0.md](phases/phase-T0.md) *(stub — fill via `/pm-phase-plan`)*
 
-### Phase 2a — Pipeline (LLM-facing half)
-- **Goal:** Prompt → validated Intent + sanity warnings, with the Worker shim ready to call the adapter.
-- **Min:** `agent/planner.py` with `plan(client, prompt) → PlanResult`, including Anthropic prompt caching, JSON extraction, retry-on-schema-fail; `prompts/planner.system.md` with the Intent schema + few-shot examples; `agent/sanity.py` with `check(prompt, intent) → SanityResult` (regex extraction + comparison, ±1%/±0.5 mm tolerance per ADR 0002); `agent/worker.py`.
-- **Max:** Per-LLM-call duration instrumentation surfaces in `PlanResult`; sanity-check false-positive cases (`"centred"` handling) covered by unit tests; few-shot examples committed for all 3 v0 reference prompts.
-- **Exit criterion:** `plan(client, "a 50 mm cube with a 20 mm hole through the centre")` returns a valid `Intent`; `sanity.check(prompt, intent)` returns `ok=True` for the cube reference; `worker.emit_code(intent)` produces non-empty build123d source. Component tests pass with a mocked Anthropic client.
-- **Plan:** `phases/phase-2a.md` *(not yet drafted)*
+### Phase T1a — Engine rename + salvage + dev infra
 
-### Phase 2b — Pipeline (runtime + orchestration half)
-- **Goal:** Worker code runs in a sandboxed subprocess, STEP gets captured, renders get produced, and the Loop ties everything together with `trace.jsonl` + `status.json`.
-- **Min:** `agent/executor.py` with subprocess + 30 s timeout + STEP capture + `error.json` on crash; `render/orthographic.py` with PyVista headless (3 PNGs); `agent/loop.py` with the state machine (`PROMPT_RECEIVED → PLANNING → CODE_EMITTING → EXECUTING → DONE_OK | *_FAILED`), `trace.jsonl` writer (per-step events with token counts), `status.json` writer (final state including `cost_usd_estimate` via `pricing.py`).
-- **Max:** Integration test that runs the full pipeline end-to-end with a mocked LLM and asserts artefact set; per-step duration instrumentation in `trace.jsonl`; SIGKILL test (infinite-loop generated code → killed within timeout + 2 s grace per N9).
-- **Exit criterion:** Loop's `run("a 50 mm cube with a 20 mm hole through the centre")` produces a complete `output/<run-id>/` folder (`prompt.txt`, `intent.json`, `code.py`, `part.step`, `renders/{front,side,top}.png`, `trace.jsonl`, `status.json`) when called from a Python REPL with a real `ANTHROPIC_API_KEY`. All component-level tests pass.
-- **Plan:** `phases/phase-2b.md` *(not yet drafted)*
+- **Goal:** Rename `src/maquette/` → `src/touch_backend/`; carry over the
+  Maquette pipeline modules (planner, intent, intent_validation, adapter,
+  pricing, config) so they pass their existing tests under the new
+  namespace; SOPS-encrypt the dev `.env`; default the dev `out_root` to
+  `/srv/touch/`. No new modules, no new behaviour — just the move.
+- **Min:** Renamed package builds; the salvaged modules pass their
+  existing pytest suite under `touch_backend.*`; `ruff check` /
+  `ruff format --check` / `pyright` green; `lint-imports` updated with
+  the new dependency rules and green; SOPS round-trip works (`sops -d` →
+  working `.env`); `out_root` default is `/srv/touch/` on the dev host;
+  the old `src/maquette/` tree is removed.
+- **Max:** Also: a CHANGELOG / migration note; CI workflow updated for
+  the new package name; the existing `examples/` regenerated under the
+  new entry point.
+- **Exit criterion:** CI green on the renamed package end-to-end; SOPS
+  `secrets.env.sops.yaml` checked into the repo and decrypts to a
+  working dev env; the existing Maquette feature parity holds under the
+  new namespace (the existing `maquette design` smoke tests pass as
+  `touch_backend.cli design` or equivalent).
+- **Delivers:** F24 (engine resurrected under `touch_backend`), F29
+  (SOPS), F30 (`/srv/touch/`).
+- **Plan:** [phase-T1a.md](phases/phase-T1a.md)
 
-### Phase 3 — CLI
-- **Goal:** `maquette design "..."` is the only public entry point and behaves per requirements F1, F11–F14.
-- **Min:** `cli.py` with the `design` subcommand + 5 CLI flags (`--out`, `--max-iter`, `--exec-timeout`, `--model`, `-q`/`-v`); exit code mapping per F13 (0/1/2/10/11/12/13); the CLI prints the run dir path on every exit (F12); `README.md` with install + usage examples.
-- **Max:** `--help` text covers every flag; argument validation tests via Typer's test client; verbose mode prints per-LLM-call tokens.
-- **Exit criterion:** `maquette design "..."` invocation from a fresh shell produces a run folder, returns the correct exit code on success and on each documented failure path, and prints the run directory.
-- **Plan:** `phases/phase-3.md` *(not yet drafted)*
+### Phase T1b — Server + protocol skeleton + new modules
 
-### Phase 3.5 — Smoke + reference examples (v0 ships at the end of this phase)
-- **Goal:** v0 success criterion verified — the schema-native reference prompts succeed end-to-end on a clean clone, manually checked in FreeCAD, within the v0 capability bound (vision § Success criteria, restated 2026-05-28 per blocker `2026-05-28-v0-references-exceed-schema`).
-- **Min:** Manual verification of the **two hard-gate references** (cube w/ hole; cylinder w/ all-edges chamfer) producing FreeCAD-openable STEPs that visually match, each < 20 s and < $0.10; plus the **L-bracket best-effort showcase** (bare `"a 60 × 40 × 5 mm L-bracket"` — extras relief valve, demonstrated, not gating; the hole was dropped per blocker `2026-05-28-l-bracket-showcase-hole-unreliable`, deferred to phase-4.5); latency + cost recorded; results captured in the phase report.
-- **Max:** Live smoke test (`pytest -m live`, gated by `ANTHROPIC_API_KEY`, not on push CI) running the references; latency p95 script (10× runs per gate prompt); cost-per-run assertion via `status.json.cost_usd_estimate`; curated `examples/` (incl. a known-good L-bracket run).
-- **Exit criterion:** the **two hard-gate references** produce a STEP that opens in FreeCAD and visually matches, each within 20 s wall-clock and < $0.10 in API cost on a clean clone (README install incl. the vtk-osmesa swap, only `ANTHROPIC_API_KEY` set); the L-bracket showcase has at least one known-good captured run. **v0 is shipped.**
-- **Plan:** [phases/phase-3.5.md](phases/phase-3.5.md) *(drafted; currently `blocked` pending this re-design)*
+- **Goal:** Stand up the new Touch backend skeleton on top of the
+  salvaged engine: WebSocket `server`, `session`, `document` (in-memory
+  shape — load/save lands in T4), `llm_client` Protocol + both impls
+  stubbed, `tessellate` with per-face IDs, `keychain_bridge`. Define
+  `protocol/schema.json` + codegen for TS + pydantic.
+- **Min:** `python -m touch_backend` starts the WS server; a fake-client
+  integration test sends a `plan` message (mocked LLM) and receives a
+  structured op + a tessellated mesh carrying per-face IDs;
+  `protocol/schema.json` exists with TS + pydantic codegen working;
+  `AnthropicAPIClient` + `ClaudeCodeClient` both load behind the
+  `LLMClient` Protocol (smoke test only — real-call exercise lands in
+  T6).
+- **Max:** Also: the adapter refactored for the new `Operation` /
+  `Selection` / `FinderPredicate` schema (extending Maquette's `Intent`);
+  contract tests exercise both protocol directions (FE→BE and BE→FE
+  frames) against the generated types.
+- **Exit criterion:** a contract test sends `plan` with a mocked LLM
+  and receives a structured op + a tessellated face-id'd mesh;
+  `lint-imports` + `pyright` green; both LLM client impls smoke-load.
+- **Delivers:** F19, F20, F21, F22, F31 (Protocol shape — concrete
+  provider exercise lands in T6).
+- **Plan:** [phase-T1b.md](phases/phase-T1b.md)
 
-## Phases — v0.1
+### Phase T2 — Frontend skeleton
 
-(Detailed planning happens at `/pm-phase-plan` time, post-v0. Goals + min/max sketched here for sequencing.)
+- **Goal:** Stand up the Vite + React + TypeScript frontend with the
+  three.js viewport, NX camera, transport layer, and the layout shell.
+  Not yet interactive beyond camera control.
+- **Min:** `web/` builds via Vite; opening it in a browser tab shows
+  three panels (file-tree placeholder left, viewport centre, settings
+  menu); the viewport renders a static mesh sent by the backend; NX-style
+  camera controls work; `web/transport` connects to `ws://localhost:<port>`;
+  `web/protocol-types` is generated from `protocol/schema.json`.
+- **Max:** Also: hot-reload polished; basic styling matches a VS-Code-
+  lite look (dark theme, the three-panel layout).
+- **Exit criterion:** in a browser tab in dev → connect to BE → camera
+  orbits a backend-served mesh.
+- **Delivers:** F2, F3 (FE side); the FE half of F19, N1, N5, N6.
+- **Plan:** [phase-T2.md](phases/phase-T2.md)
 
-### Phase 4 — Evaluator + refinement loop
-- **Goal:** R7 (silent semantic failure) is properly mitigated — a vision LLM catches geometric mismatch and the loop refines automatically. (Ordered first in v0.1 per decision C2: R7 is the highest-impact addition. This is the **correctness guard** the phase-3.5 blocker called for — front of v0.1.)
-- **Min:** `agent/evaluator.py` with `evaluate(client, prompt, intent, render_paths) → Critique`; refinement state in `agent/loop.py` (REFINING ↔ EXECUTING); `critiques.jsonl` per run; `--max-iter` default flipped to 3; isometric render added (`renders/iso.png`); exit code 14 wired for evaluator-fail-budget-exhausted.
-- **Max:** Termination policy fully wired (max-iter, token budget, unrecoverable error counts); `examples/` regression corpus reaches ≥10 hand-curated good sessions.
-- **Exit criterion:** On the 10-prompt v0.1 corpus, ≥8 produce an evaluator-passing STEP within `max_iterations=3` and < $0.50 / prompt. (Tightened from the original 7/10 per push-back B2.)
+### Phase T3 — Picking + click-to-prompt
 
-### Phase 4.5 — Schema v2a: edge selection + hole positioning
-- **Goal:** Close the highest-value `extras` use-cases the phase-3.5 blocker exposed by making them **first-class schema** — so "chamfer the top edge" and "a hole in each flange" no longer depend on fragile, un-guarded LLM-written `extras`. (Pulled forward from phase-10 per the 2026-05-28 blocker re-design: edge selection + hole positioning are the hot cases; the rest of schema-v2 stays in phase-10.)
-- **Min:** `Intent` schema additions (bump `schema_version`): edge-selection qualifier on `fillet`/`chamfer` (e.g. a coarse selector like `edges: "top" | "all" | …`); hole positioning + axis on `hole` (face/offset + axis). Adapter support in `build123d_target` for the new params; per-kind snapshot fixtures; planner system-prompt + few-shots updated to prefer the schema over `extras`; migration so old payloads still read.
-- **Max:** The cylinder and L-bracket references expressible **without `extras`**; the v0 L-bracket showcase re-runs schema-native and passes the evaluator (phase-4); `extras` usage on the corpus drops measurably.
-- **Exit criterion:** "a 30 mm cylinder with a 2 mm chamfer on the top edge" and "an L-bracket with a hole in each flange" produce correct geometry via the schema (no `extras`), verified by the phase-4 evaluator + snapshot fixtures.
+- **Goal:** The first end-to-end click→prompt→geometry round-trip. The
+  first time the user can actually drive Touch.
+- **Min:** FE picking (raycaster + face-id lookup → instant local
+  highlight, N1); selection store; prompt panel opens on click; submit
+  sends `{selection, point, prompt}` to BE; planner returns an op (no
+  clarification yet); BE executes + re-tessellates; mesh delta back;
+  viewport updates. The op is held in memory (history persistence comes
+  in T4).
+- **Max:** Also: distinct hover vs click highlight styles; spatial click
+  point displayed in the prompt panel for transparency; a manually-typed
+  prompt without a selection (BE accepts a `None` selection for the
+  initial primary feature on a base plane).
+- **Exit criterion:** in a browser tab, click a face of a backend-built
+  cube, type "add a 5 mm chamfer here", see the chamfered cube within
+  the N2 latency budget.
+- **Delivers:** F4, F5, F6, F8 (in-memory append), F20, F22; first
+  end-to-end demonstration of N1.
+- **Plan:** [phase-T3.md](phases/phase-T3.md)
 
-### Phase 5 — NX adapter
-- **Goal:** Emit a runnable NX Open journal alongside the build123d code, preserving feature-tree fidelity.
-- **Min:** `adapters/nx_open_target.py` with `emit(Intent) → str` for all 11 kinds (or `AdapterRefusal` if NX-Open lacks a clean equivalent); 11 snapshot fixtures; CLI flags `--no-nx`, `--only-nx`; CI grep guard on `import NXOpen` in `src/` (already in Phase 0; this phase re-verifies it survives nx_open_target.py landing).
-- **Max:** Manual verification of the 3 v0 reference prompts running cleanly inside Siemens NX (Part Navigator shows features).
-- **Exit criterion:** Adapter Protocol conformance verified by mypy; snapshot tests pass for all 11 kinds; v0 reference prompts produce a `part_nx.py` that the user runs successfully inside NX for at least the cube-with-hole reference.
+### Phase T4 — Operation history + `.touch` document
 
-### Phase 6 — Supporting commands
-- **Goal:** `maquette inspect`, `maquette list`, `maquette replay` work; cost/latency observable from the CLI.
-- **Min:** `maquette inspect <run-id>` prints status + cost; `maquette list` prints reverse-chronological run summaries; `maquette replay <run-id>` re-runs worker+executor on a previous `intent.json` and produces byte-identical `code.py` (verifies N7).
-- **Max:** `maquette list --filter status=fail` etc. for triage; pretty-printed colour output; tab-completion script.
-- **Exit criterion:** All three commands work; replay produces byte-identical code.py for at least one previously-saved Intent; manual triage of a failed run via `inspect` works end-to-end.
+- **Goal:** The document *is* the operation history. Save/load + undo/
+  redo from the history.
+- **Min:** `touch_backend.document` load/save `.touch` JSON; FE
+  `doc-store` mirrors; undo pops + replays; redo re-applies; round-trip
+  a `.touch` file from disk → identical model; `schema_version` field +
+  a minimal migration helper.
+- **Max:** Also: viewport feedback at each undo step; replay-from-history
+  is the recovery path (foreshadowing T8 crash recovery).
+- **Exit criterion:** model a cube + chamfer in dev → save → close →
+  open → identical model. Undo back to empty → redo to full → unchanged.
+- **Delivers:** F8, F9 (undo/redo, **must**), F10, F23, N7, N8 (the
+  history-based recovery foundation; the supervisor itself lands in T8).
+- **Plan:** [phase-T4.md](phases/phase-T4.md)
 
-### Phase 7a — Sandboxing
-- **Goal:** Generated build123d code can't escape the subprocess to do harm.
-- **Min:** Import guard on generated build123d code (rejects `os.system`, `subprocess`, `socket`, `urllib`, `os.remove`, raw `open()` outside the run dir); guard runs in the executor before subprocess spawn; rejection surfaces as a new `error.json` with a specific reason.
-- **Max:** Containerised execution mode (Docker) gated behind a config flag for users who want stronger isolation; `--no-sanity` flag for false-positive escape on the F6 dimension check.
-- **Exit criterion:** Sandbox test (intentionally-malicious generated code) is rejected before subprocess spawn with a clear `error.json`; the executor never executes guarded code.
+### Phase T5 — Conversational clarification
 
-### Phase 7b — Example-level regression CI
-- **Goal:** Adapter drift at the *full-prompt level* is caught in CI, not just at the per-kind snapshot level.
+- **Goal:** When the planner can't answer cleanly, it asks. The prompt
+  panel becomes a chat thread; the conversation resumes the planner
+  until it produces an op (or the user cancels).
+- **Min:** Planner returns either an `Operation` or a
+  `ClarifyingQuestion`; FE renders the question; user reply resumes
+  planning with extended conversation context; max-N-turns guard
+  (config); the resulting op records the conversation in
+  `Operation.conversation`.
+- **Max:** Also: a "show me what you'd do" preview turn (the planner
+  describes the proposed op in words before commit); a small per-turn
+  cost surfaced inline.
+- **Exit criterion:** an ambiguous prompt ("hole here") triggers the
+  planner to ask ("what diameter?") → user replies → op applies and the
+  conversation is recorded with the op.
+- **Delivers:** F7, F22 (op-or-question branch).
+- **Plan:** [phase-T5.md](phases/phase-T5.md)
 
-  v0 has snapshot tests per kind (N3, 11 fixtures) — those catch drift in *how a single kind emits*. v0.1 Phase 7b adds the next layer up: each committed example (`examples/<run-id>/`) is replayed end-to-end and the result is diffed against committed artefacts. The two are complementary, not duplicates — per-kind catches micro-drift in adapter logic; per-example catches drift that emerges only in combinations.
-- **Min:** `examples/` corpus has ≥10 committed runs (the same set as the Phase 4 corpus); regression CI re-emits code from each `examples/*/intent.json` and diffs against committed `code.py`; failures block merge.
-- **Max:** Visual-regression component too — the corpus includes the 3 orthographic PNGs and CI runs a perceptual diff (allowing small anti-aliasing tolerance per the architecture's reproducibility note).
-- **Exit criterion:** Regression CI runs on every push, completes in < 60 s, and passes on the full `examples/` corpus.
+### Phase T6 — Settings + dual provider modes (F31)
 
-### Phase 7c — Cost caps
-- **Goal:** Cost overruns are flagged loudly enough that they don't surprise the user, with an opt-in hard cap available.
-- **Min:** Configurable warning threshold (default $0.10) — exceeding it logs a `COST_WARNING` to `trace.jsonl` and adds an entry to `status.json.warnings[]`; CLI flag `--max-cost USD` enforces a hard cap that aborts the run with a specific exit code if exceeded mid-generation.
-- **Max:** Per-session budget (across multiple runs in a `maquette converse` session — v0.2-coupled); cost dashboard via `maquette list --format=cost`.
-- **Exit criterion:** A run that crosses the warning threshold surfaces the warning in `status.json`; a run launched with `--max-cost 0.05` aborts cleanly when the threshold is hit; both behaviours covered by tests with a mocked LLM that reports inflated token counts.
+- **Goal:** The user can paste an API key OR pick Claude Code; the
+  credential is secured properly per N9.
+- **Min:** Settings panel; provider-mode picker (Anthropic API / Claude
+  Code); API-key paste → OS keychain via `keyring` (no plaintext on
+  disk); Claude Code mode auto-detects local Claude Code install + auth
+  status and hides the option when unavailable; the active `LLMClient`
+  is selected per Settings at session start.
+- **Max:** Also: a "test connection" button per mode; cost-per-mode
+  preview before committing; "clear key" wipes the keychain entry.
+- **Exit criterion:** change provider in Settings → next prompt routes
+  through the chosen client; an API-key set+clear cycle leaves no
+  plaintext on disk (filesystem grep + git-history scan clean).
+- **Delivers:** F13, F31, N9.
+- **Plan:** [phase-T6.md](phases/phase-T6.md)
 
-## Phases — v0.2
+### Phase T7 — Exports (STEP / STL / 3MF)
 
-### Phase 8 — Conversational mode
-- **Goal:** Multi-turn refinement before commit; revised Intents accumulate without restarting.
-- **Min:** `maquette converse "..."` command; session JSON file format; user can re-open and continue a session; revised Intents stored as `intent.v2.json` etc. in the session.
-- **Max:** A REPL-style interface (vs flat command); session resume on stdin; cumulative cost reporting per session.
-- **Exit criterion:** A user can run `maquette converse "make a bracket"`, see renders, say `"make the hole 25 mm"`, and get an updated Intent + renders without re-running the planner from scratch.
+- **Goal:** Ship the part to other tools.
+- **Min:** STEP export from the current solid (opens cleanly in FreeCAD);
+  STL export (opens in a standard slicer).
+- **Max:** Also: 3MF export; per-export options (tolerance, units).
+- **Exit criterion:** model a cube → File → Export STEP → opens in
+  FreeCAD identical to the on-screen model.
+- **Delivers:** F11, F12.
+- **Plan:** [phase-T7.md](phases/phase-T7.md)
 
-### Phase 9 — Parameter resliders + tweak command
-- **Goal:** Iterating dimensions costs zero LLM calls.
-- **Min:** `maquette tweak <run-id> --param hole_diam=25` mutates `intent.parameters`, re-emits code, re-executes; `trace.jsonl` for the new run contains zero LLM-call entries.
-- **Max:** A web-style param panel (HTML, no JS framework) as a v0.2 follow-up if there's a reason.
-- **Exit criterion:** A v0 cube-with-hole run can be tweaked three times to adjust dimensions; verified zero tokens in all three resulting `trace.jsonl` files.
+### Phase T8 — Cost indicator + cold-start splash + crash recovery
 
-### Phase 10 — Intent schema v2 (remainder)
-- **Goal:** The schema absorbs the most common *remaining* `extras` use-cases from v0 / v0.1 runs. (Edge selection + hole positioning were pulled forward to **phase-4.5** per the 2026-05-28 blocker re-design; this phase handles whatever else the corpus shows is hot.)
-- **Min:** Analysis of `extras` usage across the regression corpus; schema-v2 spec for the remaining hot cases; pydantic schema bumped (building on phase-4.5's `schema_version` bump); migration helper; old `examples/` payloads remain readable.
-- **Max:** First-class sketches as entities; whatever else the corpus shows is hot beyond edge selection / hole positioning.
-- **Exit criterion:** ≥80% of prior `extras` usage replaced by first-class schema (phase-4.5 + phase-10 combined); migration tested on all `examples/`.
+- **Goal:** Production-grade lifecycle UX. The app handles its own boots
+  and crashes with grace.
+- **Min:** Cold-start splash until backend `ready` (F15); session cost
+  indicator from `pricing` (F14); Electron main `shell/sidecar` spawns
+  + supervises + restarts the Python sidecar on unexpected exit (F16);
+  FE `transport` reconnects and issues `rebuild(history)`; toast: "engine
+  restarted, work restored"; cancel button completes for in-flight
+  prompts (F17 done end-to-end).
+- **Max:** Also: per-LLM-call token breakdown view; sidecar log surface
+  in dev only (off in prod).
+- **Exit criterion:** chaos test: kill the sidecar mid-session → app
+  recovers in < 10 s with a single toast and identical model; running
+  cost displayed in the UI matches the sum of per-prompt costs.
+- **Delivers:** F14, F15, F16, F17, N8 (now fully realised).
+- **Plan:** [phase-T8.md](phases/phase-T8.md)
+
+### Phase T9 — File/project tree + polish
+
+- **Goal:** VS-Code-like file/project tree; tightened error UX; small
+  polish for the v0 ship.
+- **Min:** `file-tree` shows `.touch` files in the project root, with
+  open / new / rename; structured-error toasts for any BE error (no
+  Python traceback ever visible to the user); the cancel + clarification
+  threads from T5 are polished; menu polish (File, Edit, Export, …).
+- **Max:** Also: drag-to-reorder in the tree; recent-projects menu;
+  keyboard shortcuts for common ops.
+- **Exit criterion:** open a folder with several `.touch` files; navigate
+  and edit one; a forced BE error renders a friendly toast (verified
+  on each of the F13/F22 failure paths).
+- **Delivers:** F18, F21 (verified end-to-end).
+- **Plan:** [phase-T9.md](phases/phase-T9.md)
+
+### Phase T10 — POC verification + v0 release
+
+- **Goal:** Touch v0 is shipped. The mini-PC enclosure flow works inside
+  the app on a fresh Windows VM; an engineer-friend installs the `.exe`
+  and completes the flow with their own credentials.
+- **Min:** Run the full mini-PC flow (empty → click plane → "40×40×25
+  box" → click top → "hollow with 30×30×15 box" → click face → "USB slot
+  here") inside the `.exe` on a fresh Windows VM; STEP export opens in
+  FreeCAD and visually matches; a friend installs the `.exe`, sets up
+  credentials (API key or Claude Code), and completes the flow; latency
+  + cost measured per step; `phase-T10-report.md` captures the run.
+- **Max:** Also: a GitHub Actions release build (F27 promoted), full
+  release notes + a CHANGELOG entry; (optional) a short video
+  walkthrough on the README.
+- **Exit criterion:** the v0 success criterion in `00-vision.md` holds —
+  the mini-PC enclosure is modelled by touching, inside the app, on a
+  clean install; **Touch v0 is shipped.**
+- **Delivers:** F1, F25, F26, F28; cross-cutting verification of all v0
+  F/N-IDs.
+- **Plan:** [phase-T10.md](phases/phase-T10.md)
+
+## Phases — v0.1 (after the POC ships)
+
+Detailed planning happens at `/pm-phase-plan` time, post-v0. Goals + min/
+max sketched here for sequencing only.
+
+### Phase T11 — Evaluator
+- **Goal:** A vision-LLM critique of the live geometry vs the prompt +
+  selection catches silent semantic failure interactively (Maquette's
+  planned phase-4 idea, rebuilt for an interactive app).
+- **Min:** `agent/evaluator.py` calling a vision LLM with the streamed
+  renders + the prompt; surfaces a "this might not match" warning in
+  the prompt panel with a one-click rerun.
+- **Max:** Optional auto-refine that proposes a corrective op.
+- **Exit:** on a representative corpus, the evaluator catches ≥ 70 % of
+  injected silent-semantic mismatches; precision ≥ 80 %.
+
+### Phase T12 — Schema-v2a: edge selection + oriented hole placement
+- **Goal:** First-class edge selection (chamfer/fillet a *named* edge)
+  and oriented hole placement (face + axis). Reduces reliance on
+  finders for the harder cases (Maquette's planned phase-4.5,
+  rebuilt for Touch's interactive model).
+- **Min:** `Operation` schema gains edge-selection + face+axis hole
+  params; adapter compiles them; finders still cover the fallback.
+- **Max:** UI affordances for picking an edge in three.js (currently a
+  facet-pick proxy); per-pick gizmo previews.
+- **Exit:** "chamfer the top edge of the cylinder", "a hole through
+  this side of the box" produce correct geometry first try, without
+  ambiguity-triggered clarification.
+
+### Phase T13 — Auto-update + signed CI build
+- **Goal:** Promote F27 to **must**. GitHub Actions tags-and-uploads;
+  the `.exe` is code-signed; the app checks for updates and notifies.
+- **Min:** Tagged push → signed `Touch-vX.Y.Z-setup.exe` on the
+  Release page; auto-update notification in-app on launch.
+- **Max:** Background download + apply-on-restart.
+- **Exit:** a friend's running install detects + applies a new release
+  without re-downloading manually.
+
+### Phase T14 — Multi-file project model
+- **Goal:** A "project" is a folder of related `.touch` files (preludes
+  assemblies). The tree handles many files; cross-file references are
+  v0.2 work.
+- **Min:** Multi-file open in tree; per-file undo state isolated;
+  recent-project history.
+- **Max:** Project-level settings file (`.touch-project.json`);
+  per-project provider override.
+- **Exit:** open 5+ `.touch` files in one project; edit each; saves
+  remain isolated and correct.
+
+### Phase T15 — Parametric history editing
+- **Goal:** Re-open op N, change its parameters, replay forward.
+  Reopens the topological-naming problem in full force; depends on the
+  evaluator (T11) catching post-replay mismatches and on schema-v2a
+  (T12) reducing finder fragility.
+- **Min:** UI for picking an op in the history → editing its params →
+  replaying; an "op N no longer resolves" failure mode that prompts the
+  user (not silently re-anchored).
+- **Max:** Parameter resliders (the Maquette phase-9 idea: tweak a
+  number, see the model rebuild instantly, zero LLM calls).
+- **Exit:** for a representative subset of v0 ops, parametric editing
+  works without selection breakage; a stress-test mismatched-finder
+  case is handled with a clear user-driven re-pick UX.
+
+## Phases — v0.2 (sketched, uncommitted)
+
+- A **hosted / browser** version of Touch — the FE already runs in a
+  browser; deployment + auth + multi-user storage are the new pieces.
+- **Compute services** (FEA / multibody / dynamics / control /
+  optimization) as separate Python services exchanging STEP/mesh with
+  Touch's editor — does NOT change the editor↔engine coupling.
+- Conversational *multi-prompt session* refinement before commit (Maquette's
+  planned phase-8 idea, now mostly subsumed by the live click-converse
+  loop but a "what-if" mode could earn its place).
 
 ## Later, maybe
 
-Explicit non-roadmap items. Worth thinking about, not worth committing to.
+Explicit non-roadmap items. Worth thinking about, not worth committing.
 
-- **FreeCAD adapter** — parallel to NX, also free. Same emit-only pattern. Bonus: if NX adapter (phase 4) proves brittle, FreeCAD is the natural fallback (per PR-FAQ biggest-risk mitigation).
-- **Assembly support** — multi-part Intents, mate inference. Big scope, may not be worth it given the system's "fast first-draft" positioning.
-- **Vision input** — sketch in → Intent out. A different system, really; could share the schema.
-- **Constraint solving** — GCS or similar. Adjacent to assemblies.
-- **Web UI** — only with a reason. Possibly if anyone else picks the project up.
-- **Model batching / async loop** — if a user generates 50 variants overnight, this becomes relevant.
+- **NX Open adapter** — was Maquette's planned phase-5. Explicit
+  non-goal for Touch unless a paying NX shop ever wants it. The
+  emit-only pattern still works architecturally; just not earning its
+  place against the rest of the roadmap.
+- **Mobile / tablet client** — touchscreen interaction is interesting
+  for a "touch"-named tool, but a mobile FE is a separate product.
+- **Multi-user real-time collaboration** — Onshape's pitch, not
+  Touch's. Would be a whole architecture overlay.
+- **Web-only deployment without a desktop install** — the FE supports
+  it, but it would change Touch's "single-user, your own key" privacy
+  story.
 
 ## Open decisions
 
 Decisions to revisit as phases progress; outcomes become ADRs.
 
-1. **Intent strictness vs flexibility.** Lean strict; `extras` is the relief valve. Re-evaluate after 20 real v0 runs.
-2. **LLM provider abstraction.** Single-provider (Claude) for v0. Add a thin adapter interface only when a second provider is actually in scope. (See vision § Non-goals + ADR 0003's "explicitly traded away.")
-3. **Sandboxing strategy.** Subprocess + 30 s timeout for v0. Phase 7 adds import guards. Containerised execution lands as an ADR if those prove insufficient.
-4. **Prompt versioning.** Single SHA-256 of `prompts/` contents (ADR 0003). If selective cache invalidation becomes painful, file an ADR for per-file hashes.
-5. **NX adapter feature coverage breadth.** Start with the same primitives the build123d adapter supports (the 11 v0 kinds). Expanding the NX surface beyond the Intent schema is an explicit non-goal.
+1. **Frontend UI framework** — defaulted to React + TypeScript + Vite
+   (architecture deferred-decisions #1). Promote to ADR if Svelte/Solid
+   ever becomes serious.
+2. **Custom binary mesh frame vs glTF/GLB** — defaulted to custom
+   (architecture deferred-decisions #2). Promote to ADR if we ever need
+   third-party tools on the wire or want glTF interchange.
+3. **WS authentication.** v0 binds to `127.0.0.1` only. The moment a
+   hosted/web version is on the table (v0.2), auth becomes an ADR.
+4. **Operation-history granularity.** Today: one op per click+prompt.
+   Clustering into "transactions" (for cleaner undo) is deferred until
+   UX demands it.
+5. **Multi-doc sessions** vs one-doc-at-a-time. v0 picks one-doc per
+   session; T14 reopens this if multi-file projects need it.
+6. **Sidecar process model on dev (Linux).** Manual launch is fine for
+   a solo dev; could become a `systemd --user` unit if it earns its
+   place.
+7. **`extras` relief valve on `Operation`** — Maquette had it as the
+   compound-shape escape hatch. Touch deliberately does *not* include
+   it on the v0 `Operation` schema (finders + clarification + schema-v2a
+   should cover the hard cases). If real prompts surface gaps the
+   schema can't express, revisit in T12 or as a /pm-blocker.
 
-## License & repo hygiene (carried forward, non-negotiable)
+## Repo hygiene (carried forward, non-negotiable)
 
-- Code license: MIT or Apache-2.0 (pick before first public commit).
-- **Never** commit a recorded NX journal from a licensed session. The NX adapter writes code from scratch against public API docs.
-- API keys via `.env`, never in prompts or examples.
-- `output/` always gitignored; `examples/` contains only hand-curated runs with no timing / cost artefacts.
-- CI guard: no `NXOpen` import in `src/` (all milestones).
+- Code license: MIT (continued from Maquette).
+- **No `NXOpen` imports** in `src/touch_backend/` (CI grep guard).
+- `secrets.env.sops.yaml` is the committable artefact for the dev
+  `.env`; plaintext `.env` is gitignored and CI rejects it.
+- `output/` and the user's `~/.config/touch/` are gitignored.
+- `examples/` (when introduced) contains only hand-curated `.touch`
+  files with no timing/cost artefacts.
