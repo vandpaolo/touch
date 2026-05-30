@@ -1,11 +1,11 @@
 ---
 id: T0
 title: Packaging spike (Electron + Python sidecar + OCP → Windows .exe)
-status: in_progress
+status: done
 started: 2026-05-30
-finished: null
-min_goal_met: null
-max_goal_met: null
+finished: 2026-05-30
+min_goal_met: true
+max_goal_met: false
 blocker: null
 depends_on: []
 ---
