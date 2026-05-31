@@ -1,6 +1,6 @@
 ---
 project_status: building   # planning | building | shipped — Touch v0 in progress; T0 packaging spike kicked off 2026-05-30
-active_phase: T1b   # started 2026-05-31 (repo-identity rename done; pre-T1b audit override: 2 blockers fixed, 3 doc-quality FAILs deferred)
+active_phase: null   # T1b done 2026-05-31 (Min met, Max partial — see phase-T1b-report.md); T2 (frontend skeleton) next
 ---
 
 # 03 — Roadmap

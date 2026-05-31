@@ -1,11 +1,11 @@
 ---
 id: T1b
 title: Server + protocol skeleton + new modules
-status: in_progress
+status: done
 started: 2026-05-31
-finished: null
-min_goal_met: null
-max_goal_met: null
+finished: 2026-05-31
+min_goal_met: true
+max_goal_met: false
 blocker: null
 depends_on: [T1a]
 ---
