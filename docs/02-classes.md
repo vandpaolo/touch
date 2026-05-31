@@ -328,7 +328,7 @@ prompt must be identical.
 | `Planner` | Application | Wraps the LLM call; returns op or question; cost-tracking |
 | `LLMClient` (variants) | Infrastructure | The actual LLM call surface (API / Claude Code) |
 | `Adapter` (build123d) | Domain | Pure history→code translation |
-| `Executor` | Application | Subprocess (or in-process — TBD by packaging spike) lifecycle for the emitted code |
+| `Executor` | Application | Subprocess/worker lifecycle for the emitted code (decided — decisions.md 2026-05-31 P3; in-process rejected: user build123d can crash the server) |
 | `Tessellate` | Domain | OCP-native bulk mesh extraction with face/edge tagging |
 | `Sidecar` (Electron main) | Infrastructure | Sidecar process supervision |
 | `Pricing` | Infrastructure | Static price lookup |

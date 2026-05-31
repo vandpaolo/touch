@@ -582,3 +582,17 @@ either a note section or a decision here.
 - Q: "rename everything to touch" — what's in scope, and is the repo/dir rename part of T1a?
 - A: Split the cascade. T1a = code+tooling identity only (package touch_backend ✓, CLI touch-backend ✓, tests, coverage, import-linter). The repo-identity cascade — local dir maquette→touch, GitHub repo rename + remote + pyproject Documentation URL, CLAUDE.md/README/HANDOVER rewrites — is a SEPARATE focused step between T1a and T1b (deferred from the handover's "part of T1a" framing because the dir mv has venv/memory-dir/VSCode friction best done deliberately). Historical Maquette docs (phase-0..3.5, pre-pivot audits, ADR 0001-0004, blockers) are NEVER renamed — they are preserved history per the 2026-05-29 pivot decision.
 - → docs/phases/phase-T1a.md § "Scope boundary"
+
+## 2026-05-31 — /pm-phase-plan (T1b)
+- Q (P1, crux): Operation schema in Min, or only on the wire?
+- A: Protocol/wire shape is Operation (authoritative from Day 1); the mocked planner returns an Operation and Min's mesh comes from a sample solid. The real Intent→Operation engine + adapter refactor (geometry generated from an Operation history) is Max. Matches the roadmap Min/Max split; keeps Min a true skeleton.
+- → docs/phases/phase-T1b.md § Min/Max + R-T1b-1
+- Q (P2): new deps this phase?
+- A: Yes — websockets, keyring, datamodel-code-generator (py codegen), an OCP tessellation path (ocp_tessellate or direct OCP); claude-agent-sdk import-guarded; TS codegen via npx json-schema-to-typescript (no web/ toolchain yet).
+- → docs/phases/phase-T1b.md § days 1-4
+- Q (P3): executor process-model (carryover audit FAIL #7)?
+- A: Record the decision now — subprocess/worker (running user build123d in-process can crash the server); implement when the adapter→executor path lands (Max). Resolves the 02-classes.md:331 TBD.
+- → docs/phases/phase-T1b.md § R-T1b-5
+- Q (B1, push-back): spike deletion belongs to T1b?
+- A: Keep it as the final cleanup unit (Day 6) in T1b per the roadmap; low risk, releases/tags preserve the artifacts.
+- → docs/phases/phase-T1b.md § day 6
