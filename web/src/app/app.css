@@ -1,0 +1,228 @@
+/* web/app — VS-Code-lite dark shell. Day 2 skeleton; resizable splits + polish
+   are the Day-10 (Max) styling pass. Palette mirrors VS Code's dark theme. */
+
+:root {
+  color-scheme: dark;
+  --bg: #1e1e1e;
+  --bg-panel: #252526;
+  --bg-bar: #323233;
+  --border: #3c3c3c;
+  --fg: #cccccc;
+  --fg-dim: #8a8a8a;
+  --accent: #0e639c;
+  --accent-hover: #1177bb;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-size: 13px;
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+/* Menu bar */
+.menubar {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  height: 32px;
+  flex: 0 0 auto;
+  padding: 0 0.75rem;
+  background: var(--bg-bar);
+  border-bottom: 1px solid var(--border);
+  user-select: none;
+}
+.menubar-brand {
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.menubar-menus {
+  display: flex;
+  gap: 0.25rem;
+}
+.menubar-item {
+  background: transparent;
+  border: none;
+  color: var(--fg);
+  font: inherit;
+  padding: 0.25rem 0.6rem;
+  border-radius: 3px;
+  cursor: pointer;
+}
+.menubar-item:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.08);
+}
+.menubar-item:disabled {
+  color: var(--fg-dim);
+  cursor: default;
+}
+
+/* Body: sidebar + main */
+.body {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+/* Activity bar (icon rail) */
+.activitybar {
+  flex: 0 0 48px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0.5rem 0;
+  background: #333333;
+  border-right: 1px solid var(--border);
+}
+.activity-spacer {
+  flex: 1 1 auto;
+}
+.activity-item {
+  width: 48px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: var(--fg-dim);
+  cursor: pointer;
+}
+.activity-item:hover {
+  color: var(--fg);
+}
+.activity-item.active {
+  color: #fff;
+  box-shadow: inset 2px 0 0 #fff;
+}
+
+.sidebar {
+  flex: 0 0 auto;
+  background: var(--bg-panel);
+  overflow: auto;
+}
+.resizer {
+  flex: 0 0 4px;
+  cursor: col-resize;
+  background: var(--border);
+}
+.resizer:hover {
+  background: var(--accent);
+}
+.main {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+}
+
+/* File tree */
+.panel-title {
+  padding: 0.5rem 0.75rem;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--fg-dim);
+}
+.file-tree-list {
+  list-style: none;
+  margin: 0;
+  padding: 0 0.75rem;
+}
+.file-tree-empty {
+  color: var(--fg-dim);
+  font-style: italic;
+}
+
+/* Viewport host */
+.viewport-host {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+}
+.viewport-placeholder {
+  color: var(--fg-dim);
+}
+
+/* Status bar (bottom) */
+.statusbar {
+  flex: 0 0 22px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 1.25rem;
+  padding: 0 0.75rem;
+  background: #007acc;
+  color: #fff;
+  font-size: 12px;
+  user-select: none;
+}
+.statusbar-item {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.status-dot {
+  font-size: 9px;
+  line-height: 1;
+}
+.status-dot.disconnected {
+  color: #ffb3b3;
+}
+
+/* Settings overlay */
+.settings-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.settings-dialog {
+  width: 420px;
+  max-width: 90vw;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+.settings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border);
+  font-weight: 600;
+}
+.settings-close {
+  background: transparent;
+  border: none;
+  color: var(--fg);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 0.25rem;
+}
+.settings-close:hover {
+  color: #fff;
+}
+.settings-body {
+  padding: 1rem;
+}
+.settings-mode {
+  color: var(--fg-dim);
+}
