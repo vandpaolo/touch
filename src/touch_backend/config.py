@@ -16,6 +16,10 @@ _DEFAULTS: Final[dict[str, Any]] = {
     "model": "claude-opus-4-7",
     "verbosity": 0,
     "sanity_enabled": True,
+    # WS server (F19). Bind localhost only in v0 (ADR-0005); port is
+    # configurable (0 = let the OS pick an ephemeral port, used in tests).
+    "ws_host": "127.0.0.1",
+    "ws_port": 8765,
 }
 
 # TOUCH_BACKEND_<FIELD_UPPER> -> field name.
@@ -49,6 +53,8 @@ _COERCERS: Final[dict[str, Callable[[Any], Any]]] = {
     "model": lambda v: str(v),
     "verbosity": lambda v: int(v),
     "sanity_enabled": _coerce_bool,
+    "ws_host": lambda v: str(v),
+    "ws_port": lambda v: int(v),
 }
 
 
@@ -60,6 +66,8 @@ class Config:
     model: str = "claude-opus-4-7"
     verbosity: int = 0
     sanity_enabled: bool = True
+    ws_host: str = "127.0.0.1"
+    ws_port: int = 8765
 
     @staticmethod
     def load(
