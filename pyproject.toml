@@ -41,6 +41,7 @@ dev = [
     "import-linter~=2.11.0",
     "pyright~=1.1.409",
     "coverage~=7.14.0",
+    "datamodel-code-generator>=0.26,<1.0",
 ]
 
 [project.scripts]
@@ -81,11 +82,14 @@ include = [
 ]
 show_missing = true
 
+[tool.pyright]
+exclude = ["src/touch_backend/_generated", "protocol/generated", "**/__pycache__"]
+
 [tool.ruff]
 line-length = 88
 target-version = "py312"
 src = ["src", "tests"]
-extend-exclude = ["tests/fixtures"]
+extend-exclude = ["tests/fixtures", "src/touch_backend/_generated", "protocol/generated"]
 
 [tool.ruff.lint]
 select = [

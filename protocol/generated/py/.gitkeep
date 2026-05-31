@@ -1,0 +1,2 @@
+# Canonical generated pydantic models are emitted into src/touch_backend/_generated/ for import;
+# this dir is kept per the design layout for any language-neutral artifacts.
