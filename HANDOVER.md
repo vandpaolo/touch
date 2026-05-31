@@ -1,71 +1,75 @@
-# Handover — Touch v0, T0 DONE, T1a is next
+# Handover — Touch v0, T1a DONE, T1b is next
 
 > *Start here in any fresh chat session that opens this project. Once
-> T1a closes (`/pm-phase-report T1a`), rewrite "You are here" + the
-> "What to do next" task for T1b. Keep this short enough to read in
-> 60 seconds.*
+> T1b closes (`/pm-phase-report T1b`), rewrite "You are here" + the
+> "What to do next" task for the phase after it. Keep this short enough
+> to read in 60 seconds.*
 
 ## You are here
 
 - **Project:** **Touch** — AI-native interactive 3D CAD editor
   (click→prompt→evolve), VS-Code-like shell, distributed as a Windows
   `.exe` for engineer friends. Pivoted from Maquette 2026-05-29.
-- **Repo dir is still `maquette/`** and `src/` is still `src/maquette/`
-  — the rename to `src/touch_backend/` is **the T1a headline**.
-- **No phase is active** (`active_phase: null`). **T0 is DONE** (Min met
-  100% on a real Windows laptop, 2026-05-30). **T1a is next** but NOT
-  yet planned in detail — run `/pm-phase-start T1a` (runs the pre-phase
-  audit, then flips it to in_progress) when ready to begin.
+- **Repo + package are renamed.** Repo dir is `touch/`, GitHub repo is
+  `vandpaolo/touch`, the Python package is `src/touch_backend/`, the CLI
+  is `touch-backend`, env prefix is `TOUCH_BACKEND_*`. (If you still see
+  `maquette/` as the dir, the OS-level rename step hasn't been run yet —
+  see the repo-rename runbook at the bottom.)
+- **No phase is active** (`active_phase: null`). **T0 + T1a are DONE.**
+  **T1b is next** but NOT yet planned in detail — run `/pm-phase-plan T1b`
+  to fill the day breakdown, then `/pm-phase-start T1b` (runs the
+  pre-phase audit, flips it to in_progress).
 - **Scope freeze is OFF** — design docs are editable again until a phase
   goes `in_progress`.
 
-## T0 outcome (just closed)
+## What's done
 
-- **The load-bearing v0 risk is cleared.** Electron + PyInstaller-frozen
-  Python sidecar (OCP native libs) → Windows NSIS `.exe` that installs
-  admin-free, spawns the sidecar, renders a face-tagged cube in three.js
-  with working per-face hover-highlight. Verified on a real Windows 11
-  laptop. ADR-0009 primary stack holds; Tauri fallback not needed.
-- Full writeup + lessons: [`docs/phases/phase-T0-report.md`](docs/phases/phase-T0-report.md).
-- **All spike code is under `spike/`** (throwaway — deleted in T1a/T1b).
-  Don't salvage it; rebuild fresh in `src/`. But the *patterns* are
-  proven — reuse the designs (see report's "Carryover").
-- **Shipped via** branch `spike/t0-packaging` (PR #1, **unmerged on
-  `main`**) + GitHub releases `spike-v0.1.0` / `spike-v0.1.1`.
+- **T0 — packaging spike (DONE).** Electron + PyInstaller-frozen Python
+  sidecar (OCP native libs) → admin-free Windows `.exe`, face-tagged cube
+  with hover-highlight, verified on real Windows 11. ADR-0009 holds.
+  Report: [`docs/phases/phase-T0-report.md`](docs/phases/phase-T0-report.md).
+- **T1a — engine rename + dev infra (DONE).** Maquette pipeline → headless
+  `touch_backend` (F24); SOPS dev secrets (F29); `/srv/touch/` out_root
+  (F30). Full CI gate green (164 tests, 96% cov). Single session, no
+  blockers. Report: [`docs/phases/phase-T1a-report.md`](docs/phases/phase-T1a-report.md).
+
+## What to do next (T1b — server + protocol skeleton)
+
+Plan: [`docs/phases/phase-T1b.md`](docs/phases/phase-T1b.md) (stub — detail it via
+`/pm-phase-plan T1b`, then `/pm-phase-start T1b`).
+
+- Stand up the localhost WebSocket server + the editor↔engine protocol
+  (ADR-0005), the `.touch` JSON document (ADR-0006), and the new modules
+  the architecture calls for. Delete the throwaway `spike/` tree.
+- **Resolve the executor process-model TBD** (`02-classes.md:331`, FAIL #7
+  in the pre-T1a audit) when planning the executor — record the T0
+  spike's outcome in `docs/notes/decisions.md`.
 
 ## Two bugs T0 caught (will bite T1b if forgotten)
 
-1. **OCP native libs** live in `cadquery_ocp.libs/` + `vtkmodules/`
-   (named after the *distribution*), NOT `OCP.libs/`. The PyInstaller
-   spec discovers them by globbing `*.libs` + `vtkmodules` — cross-platform
-   (Linux auditwheel + Windows delvewheel). Never hardcode the path.
+1. **OCP native libs** live in `cadquery_ocp.libs/` + `vtkmodules/` (named
+   after the *distribution*), NOT `OCP.libs/`. The PyInstaller spec globs
+   `*.libs` + `vtkmodules` — never hardcode the path.
 2. **Vite `base: "./"`** is required — Electron loads the renderer over
    `file://`, where the default absolute base 404s the JS bundle (blank
    window). Set relative base in the real frontend (T2) from day one.
 
-## What to do next (T1a — engine rename + salvage)
+## Dev onboarding (after a fresh clone / the dir rename)
 
-Plan: [`docs/phases/phase-T1a.md`](docs/phases/phase-T1a.md) (stub — detail it via
-`/pm-phase-plan` if it isn't filled, then `/pm-phase-start T1a`).
-
-- Rename `src/maquette/` → `src/touch_backend/`; carry over the Maquette
-  pipeline (planner, intent, intent_validation, adapter, pricing, config)
-  so existing tests pass under the new namespace. No new behaviour.
-- SOPS-encrypt the dev `.env`; default dev `out_root` to `/srv/touch/`.
-- Green CI: `ruff check` + `ruff format --check` + `pyright` +
-  `lint-imports` (run the full sequence locally before pushing — see
-  auto-memory `feedback_ci-checks`).
-- Delivers F24, F29, F30. The `spike/` tree stays untouched until T1b.
+1. `pip install -e ".[dev]"`, then swap to headless VTK:
+   `pip uninstall -y vtk && pip install --extra-index-url https://wheels.vtk.org vtk-osmesa==9.3.1`
+   (a plain `pip install -e .` re-pulls X11 `vtk` and shadows `vtk-osmesa`).
+2. `make secrets-decrypt` — writes a working `.env` (needs the host age key).
+3. `make hooks` — installs the plaintext-`.env` pre-commit guard.
+4. `make ci` — full local gate.
 
 ## Where things live
 
 - Long-form thinking: `docs/notes/*.md` (decisions, constraints, inbox, …).
 - Design: `docs/00-*`, `docs/01-*`, `docs/02-*`, `docs/adr/`, `docs/03-roadmap.md`.
-- Phases: `docs/phases/phase-T0.md` (+ `-report.md`), `phase-T1a.md` …
-  `phase-T15.md` (stubs). Maquette history: `phase-0.md … phase-3.5-report.md`
-  (DO NOT modify).
-- Spike (throwaway): `spike/sidecar/`, `spike/web/`, `spike/shell/`,
-  `.github/workflows/spike-build.yml`.
+- Phases: `phase-T0.md` … `phase-T15.md` (+ `-report.md`). Maquette history:
+  `phase-0.md … phase-3.5-report.md` (DO NOT modify — preserved history).
+- Engine: `src/touch_backend/`. Spike (throwaway, until T1b): `spike/`.
 - This file (always reread): `HANDOVER.md`.
 
 ## Rules in effect
@@ -74,40 +78,46 @@ Plan: [`docs/phases/phase-T1a.md`](docs/phases/phase-T1a.md) (stub — detail it
   design docs while `in_progress`; `/pm-phase-report` to close;
   `/pm-blocker` if a design decision turns out wrong mid-phase.
 - **Tool-call batching (VSCode):** keep parallel batches ≤ ~3, go
-  sequential for git/order-sensitive steps, use `run_in_background` not
-  trailing `&`, avoid `pkill -f`. Env fix:
-  `export CLAUDE_CODE_MAX_TOOL_USE_CONCURRENCY=3` (see CLAUDE.md). The
-  harness scrambled tool output badly during T0 under high parallelism.
+  sequential for git/order-sensitive steps, use `run_in_background` not a
+  trailing `&`. Env fix: `export CLAUDE_CODE_MAX_TOOL_USE_CONCURRENCY=3`.
 - **Notes capture mid-chat:** noteworthy → append to `docs/notes/*.md`,
   confirm in one line.
 - **Auto-memory** at `~/.claude/.../memory/MEMORY.md` loads every session.
 
 ## Open carry-overs
 
-- **PR #1 (`spike/t0-packaging`)** unmerged — decide merge vs. keep as a
-  spike record before T1a.
-- **Repo dir rename** `maquette/` → `touch/` + CLAUDE.md/README rewrite
-  (tracked in `docs/notes/inbox.md` + `decisions.md`) — part of T1a.
+- **PR #1 (`spike/t0-packaging`)** kept as a spike record (not merged);
+  releases `spike-v0.1.0` / `spike-v0.1.1` preserve the artifacts.
+- **Three pre-T1a audit FAILs** (doc hygiene, none blocking): executor TBD
+  (#7, → T1b above); Maquette-era `constraints.md` "absorbed" marker (#8,
+  annotate); phase-report frontmatter key mismatch `min_met` vs
+  `min_goal_met` (#9, standardize the template).
 - **R10 OCP/OCCT LGPL** — add a `LICENSES/` dir to the installer before
   any wider distribution (≤ T13).
-- **Deferred to T13:** code-signing / SmartScreen / Defender (R7/R11/R14);
-  the `.exe` artifact-name version is hardcoded `0.1.0` (cosmetic).
+- **Deferred to T13:** code-signing / SmartScreen / Defender (R7/R11/R14).
 - **Deferred to T2/T3:** cold-start latency baseline; browser-tab N5/N6
-  visual demo (wired, not yet shown live).
-- SOPS dev-`.env` adoption lands in T1a.
+  visual demo.
 
-## Last commits (newest first)
+## Repo-rename runbook (run once, with VSCode CLOSED, if not already done)
 
-- `e5d5c39` — fix: relative Vite base (packaged blank window) [branch]
-- `d4e9e41` — Day 5: electron-builder NSIS + GH Actions Windows build [branch]
-- `99ec01e` — docs: cap tool-call batching (VSCode reliability) [branch]
-- `8eee255` — docs: handover (days 1–4) [branch]
-- `9439046` — Day 4: PyInstaller bundles OCP, frozen sidecar runs (R1) [branch]
-- `46c44db` / `520f453` / `fab21c7` — Day 3 / 2 / 1 spike [branch]
-- `84e0f5d` / `ce1726e` / `bf3633f` — T0 phase-start / plan / roadmap [LOCAL on main]
-- `7960ce7` — re-baseline architecture for Touch [pushed]
+The code identity is renamed; the OS-level move must be run by you:
 
-**Branches:** `spike/t0-packaging` has Days 1–5 + fixes (pushed, PR #1).
-`main` locally has the pre-spike docs commits (`84e0f5d` etc.) still
-unpushed. This phase-report commit lands on whichever branch you're on —
-check `git branch` before committing T1a work.
+```bash
+# 1. move the working tree
+mv ~/projects/maquette ~/projects/touch
+cd ~/projects/touch
+
+# 2. recreate the venv (it hardcodes the old absolute path)
+rm -rf .venv && python3.12 -m venv .venv && source .venv/bin/activate
+pip install -e ".[dev]"
+pip uninstall -y vtk && pip install --extra-index-url https://wheels.vtk.org vtk-osmesa==9.3.1
+make secrets-decrypt && make hooks
+
+# 3. migrate the Claude Code memory dir (keyed to the project path)
+mv ~/.claude/projects/-home-vandpaolo-projects-maquette \
+   ~/.claude/projects/-home-vandpaolo-projects-touch
+
+# 4. reopen VSCode at ~/projects/touch
+```
+
+The GitHub repo (`vandpaolo/touch`) and git remote are renamed in-session.

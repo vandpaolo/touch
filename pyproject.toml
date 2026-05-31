@@ -48,7 +48,7 @@ dev = [
 touch-backend = "touch_backend.cli:app"
 
 [project.urls]
-Documentation = "https://github.com/vandpaolo/maquette/tree/main/docs"
+Documentation = "https://github.com/vandpaolo/touch/tree/main/docs"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/touch_backend"]

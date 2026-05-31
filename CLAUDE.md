@@ -1,4 +1,6 @@
-# Maquette — Claude project guide
+# Touch — Claude project guide
+
+> *Formerly Maquette; pivoted to the interactive editor 2026-05-29.*
 
 This project follows the **PM Framework** at
 `~/projects/pm-framework/FRAMEWORK.md`.
