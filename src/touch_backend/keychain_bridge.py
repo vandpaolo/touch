@@ -8,15 +8,22 @@ Manager / Secret Service). Consumed by `llm_client.AnthropicAPIClient`.
 from __future__ import annotations
 
 import keyring
-from keyring.errors import PasswordDeleteError
+from keyring.errors import KeyringError, PasswordDeleteError
 
 SERVICE = "touch_backend"
 USERNAME = "anthropic_api_key"
 
 
 def get_anthropic_key() -> str | None:
-    """Return the stored Anthropic API key, or None if unset."""
-    return keyring.get_password(SERVICE, USERNAME)
+    """Return the stored Anthropic API key, or None if unset/unavailable.
+
+    Tolerates a missing OS backend (headless dev box) by returning None rather
+    than raising — callers treat that as "no key".
+    """
+    try:
+        return keyring.get_password(SERVICE, USERNAME)
+    except KeyringError:
+        return None
 
 
 def set_anthropic_key(key: str) -> None:

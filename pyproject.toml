@@ -266,3 +266,61 @@ forbidden_modules = [
     "touch_backend.agent.worker",
     "touch_backend.agent.executor",
 ]
+
+# --- T1b: new server/protocol modules ---
+
+[[tool.importlinter.contracts]]
+name = "tessellate is a leaf (OCP + numpy only, no project deps)"
+type = "forbidden"
+source_modules = ["touch_backend.tessellate"]
+forbidden_modules = [
+    "touch_backend.server",
+    "touch_backend.session",
+    "touch_backend.document",
+    "touch_backend.planner",
+    "touch_backend.llm_client",
+    "touch_backend.frames",
+    "touch_backend.keychain_bridge",
+    "touch_backend.config",
+]
+
+[[tool.importlinter.contracts]]
+name = "keychain_bridge is a leaf (keyring only, no project deps)"
+type = "forbidden"
+source_modules = ["touch_backend.keychain_bridge"]
+forbidden_modules = [
+    "touch_backend.server",
+    "touch_backend.session",
+    "touch_backend.document",
+    "touch_backend.planner",
+    "touch_backend.llm_client",
+    "touch_backend.frames",
+    "touch_backend.tessellate",
+]
+
+[[tool.importlinter.contracts]]
+name = "llm_client sits below the engine (infra; keychain only)"
+type = "forbidden"
+source_modules = ["touch_backend.llm_client"]
+forbidden_modules = [
+    "touch_backend.server",
+    "touch_backend.session",
+    "touch_backend.document",
+    "touch_backend.planner",
+    "touch_backend.tessellate",
+    "touch_backend.frames",
+]
+
+[[tool.importlinter.contracts]]
+name = "server is the process root — nothing below it imports it"
+type = "forbidden"
+source_modules = [
+    "touch_backend.session",
+    "touch_backend.document",
+    "touch_backend.planner",
+    "touch_backend.tessellate",
+    "touch_backend.frames",
+    "touch_backend.llm_client",
+    "touch_backend.keychain_bridge",
+]
+forbidden_modules = ["touch_backend.server"]

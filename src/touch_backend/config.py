@@ -20,6 +20,8 @@ _DEFAULTS: Final[dict[str, Any]] = {
     # configurable (0 = let the OS pick an ephemeral port, used in tests).
     "ws_host": "127.0.0.1",
     "ws_port": 8765,
+    # Active LLM client mode (F31): "anthropic_api" | "claude_code".
+    "llm_mode": "anthropic_api",
 }
 
 # TOUCH_BACKEND_<FIELD_UPPER> -> field name.
@@ -55,6 +57,7 @@ _COERCERS: Final[dict[str, Callable[[Any], Any]]] = {
     "sanity_enabled": _coerce_bool,
     "ws_host": lambda v: str(v),
     "ws_port": lambda v: int(v),
+    "llm_mode": lambda v: str(v),
 }
 
 
@@ -68,6 +71,7 @@ class Config:
     sanity_enabled: bool = True
     ws_host: str = "127.0.0.1"
     ws_port: int = 8765
+    llm_mode: str = "anthropic_api"
 
     @staticmethod
     def load(
