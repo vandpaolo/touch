@@ -1,4 +1,0 @@
-# T0 spike Electron shell — build/dep artifacts (throwaway tree)
-node_modules/
-dist/
-*.tsbuildinfo
