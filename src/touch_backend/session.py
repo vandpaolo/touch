@@ -9,7 +9,9 @@ end-to-end (mocked client in tests); the other control messages are stubbed.
 from __future__ import annotations
 
 import json
+import tempfile
 from collections.abc import Callable
+from pathlib import Path
 
 from pydantic import ValidationError
 
@@ -25,10 +27,18 @@ from touch_backend._generated.protocol import (
     MsgRebuild,
     TouchProtocol,
 )
+from touch_backend.adapters import AdapterRefusal
 from touch_backend.document import TouchDocument
+from touch_backend.frames import mesh_frame_envelope, pack
 from touch_backend.llm_client.base import LLMClient
 
 SCHEMA_VERSION = 1
+_EXEC_TIMEOUT_S = 30.0
+
+
+class _GeometryError(Exception):
+    """The emitted code failed to produce a solid."""
+
 
 # FE->BE control messages the session expects from a client.
 _CLIENT_MESSAGES = (MsgPlan, MsgApplyOp, MsgCancel, MsgRebuild, MsgExportStep)
@@ -110,22 +120,46 @@ class Session:
 
         self.document.append(operation)
 
-        # Min: mesh a sample solid. Real geometry from the operation history
-        # (adapter -> executor -> tessellate) lands in the Max refactor.
-        # Imported lazily: OCP/build123d at module top poisons VTK-OSMesa for
-        # the in-process render test (auto-memory `render-backend`).
-        from build123d import Box
+        try:
+            mesh = self._rebuild_mesh()
+        except AdapterRefusal as exc:
+            self.document.history.pop()  # the op didn't take; don't keep it
+            return [self._error("adapter_refusal", exc.reason, where=exc.where)]
+        except _GeometryError as exc:
+            self.document.history.pop()
+            return [self._error("geometry_failed", str(exc), where="execute")]
 
-        from touch_backend.frames import mesh_frame_envelope, pack
-        from touch_backend.tessellate import tessellate
-
-        mesh = tessellate(Box(10, 10, 10))
         envelope = mesh_frame_envelope(mesh)
         return [
             MsgOp(type="op", operation=operation).model_dump_json(),
             envelope.model_dump_json(),
             pack(mesh),
         ]
+
+    def _rebuild_mesh(self):
+        """Build the current solid from the operation history and tessellate it.
+
+        Real geometry path (adapter -> subprocess executor -> tessellate). OCP /
+        build123d are imported lazily — importing them at module top poisons
+        VTK-OSMesa for the in-process render test (auto-memory `render-backend`);
+        the heavy OCP build itself runs in the Executor *subprocess*.
+        """
+        from build123d import import_step
+
+        from touch_backend import operation_adapter
+        from touch_backend.agent.executor import Executor
+        from touch_backend.tessellate import tessellate
+
+        code = operation_adapter.emit(self.document.history)
+        with tempfile.TemporaryDirectory(prefix="touch-rebuild-") as tmp:
+            out_dir = Path(tmp)
+            code_path = out_dir / "code.py"
+            code_path.write_text(code, encoding="utf-8")
+            result = Executor(out_dir, _EXEC_TIMEOUT_S).execute(code_path)
+            if result.step_path is None:
+                raise _GeometryError(result.error or "execution produced no solid")
+            solid = import_step(result.step_path)
+        return tessellate(solid)
 
     @staticmethod
     def _error(code: str, message: str, where: str | None = None) -> str:

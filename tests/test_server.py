@@ -28,7 +28,7 @@ class _MockClient:
         operation = {
             "id": "01HZMOCK",
             "kind": "box",
-            "params": {"length": 10, "width": 10, "height": 10},
+            "params": {"length": 30, "width": 20, "height": 10},
             "selection": None,
             "prompt_text": prompt,
             "conversation": [],
@@ -91,9 +91,13 @@ def test_errors_never_leak_a_traceback():
     assert 'File "' not in blob
 
 
-def test_plan_returns_structured_op_and_face_id_mesh():
-    """T1b Min exit criterion: a `plan` (mocked LLM) yields a structured op +
-    a tessellated mesh carrying per-face IDs."""
+def test_plan_returns_structured_op_and_real_face_id_mesh():
+    """T1b Min exit criterion + Max: a `plan` (mocked LLM) yields a structured
+    op and a tessellated mesh with per-face IDs built from REAL geometry —
+    the mesh's bounding box matches the operation's box params (30x20x10),
+    proving it came from adapter -> executor -> tessellate, not a fixed solid."""
+    import numpy as np
+
     from touch_backend.frames import unpack
 
     async def scenario():
@@ -139,3 +143,6 @@ def test_plan_returns_structured_op_and_face_id_mesh():
     )
     assert mesh.face_tag_per_triangle.shape[0] == 12
     assert {int(t) for t in mesh.face_tag_per_triangle} == set(range(6))
+
+    extents = mesh.vertices.max(axis=0) - mesh.vertices.min(axis=0)
+    assert np.allclose(np.sort(extents), [10.0, 20.0, 30.0], atol=1e-3)
