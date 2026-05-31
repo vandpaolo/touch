@@ -1,6 +1,6 @@
 ---
 project_status: building   # planning | building | shipped — Touch v0 in progress; T0 packaging spike kicked off 2026-05-30
-active_phase: null   # T1b done 2026-05-31 (Min met, Max partial — see phase-T1b-report.md); T2 (frontend skeleton) next
+active_phase: T2   # started 2026-05-31 — frontend skeleton (Vite + React + TS + three.js); see phase-T2.md
 ---
 
 # 03 — Roadmap

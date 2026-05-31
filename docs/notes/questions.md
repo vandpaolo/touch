@@ -44,3 +44,21 @@ Tick the box and link to where the answer landed once decided.
 - **To formalize:** if this becomes a v0.1 requirement, run
   `/pm-requirements`; the auth piece may warrant a new ADR per ADR-0005's
   trigger.
+
+### 2026-05-31 — User stance: web UI hosted for live iteration, repo stays clean
+
+- **User preference:** wants the UI kept on the web during dev — always up,
+  refreshable, visually improvable on the fly — *without* dirtying the
+  desktop-app repo.
+- **Resolution (no conflict):** `web/` is product code (the Electron renderer
+  + the browser-dev tab — same bundle, N5/N6), so it belongs in the repo.
+  The *hosting/serving* layer (Caddy route on nexus, any always-on
+  systemd/Vite unit, Tailscale gating) stays **host-level ops, not committed**
+  — that's the line that keeps the trunk clean.
+- **Iteration loop:** Vite dev-server HMR is the on-the-fly edit→refresh loop;
+  the "always-on" Caddy instance is just that server (or a built bundle)
+  exposed 24/7 over Tailscale.
+- **Design note for T2:** keep Electron-only surfaces (native file dialogs,
+  OS keychain via preload) behind a thin **capability shim** so the identical
+  FE runs in a plain browser tab without diverging from prod. Cheap from day
+  one, painful to retrofit.

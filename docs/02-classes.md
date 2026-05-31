@@ -32,7 +32,9 @@ dependency rules.
 
 | Module | Responsibility | Public surface | Depends on (in) | Depends on (out) |
 |--------|----------------|----------------|-----------------|------------------|
-| `web/viewport` | three.js scene, render loop, NX camera (F3) | `Viewport` class, `mount(canvas)` | (root entry) | three, web/picking, web/doc-store |
+| `web/app` | Shell: three-panel layout owner + menu (F2); mounts every UI surface; app-level wiring (transport lifecycle, splash gating) | `App` component, `bootstrap(root)` | `web/main` (entry) | all UI components, web/transport, web/platform |
+| `web/platform` | Capability shim (N5): runtime detection (browser vs Electron) + native-surface adapters (file dialogs, OS-keychain) with browser fallbacks | `platform` object: `isElectron()`, `openFile()`, `saveFile()`, `keychain.*` | web/app, web/file-tree, web/settings | (Electron preload / `window.electron`) |
+| `web/viewport` | three.js scene, render loop, NX camera (F3) | `Viewport` class, `mount(canvas)` | web/app | three, web/picking, web/doc-store |
 | `web/picking` | raycast → triangle → face/edge id (F4, F5) | `Picker.pickAt(x, y) -> Selection \| null` | web/viewport, web/selection | three, web/doc-store |
 | `web/selection` | Selection state store (current sel + history of recent) | `SelectionStore` | web/picking, web/prompt | (none) |
 | `web/prompt` | Prompt panel anchored to selection; chat-thread for clarifications (F6, F7) | `PromptPanel` component | (root entry) | web/selection, web/transport |
@@ -59,7 +61,7 @@ dependency rules.
 |--------|----------------|
 | `protocol/schema.json` | Single source of truth for all WS message types + payloads (control + events + binary frame envelopes) |
 | `protocol/generated/ts/` | TS types generated from `schema.json` for the frontend |
-| `protocol/generated/py/` | pydantic models generated for the backend |
+| `src/touch_backend/_generated/` | pydantic models generated from `schema.json` for the backend (importable package; lives under `src/`, not `protocol/` — decided T1b) |
 
 ## Class diagrams
 
@@ -192,6 +194,17 @@ classDiagram
 
 ```mermaid
 classDiagram
+    class App {
+        -transport: Transport
+        +bootstrap(root: HTMLElement) void
+        -renderLayout() void
+    }
+    class Platform {
+        +isElectron() boolean
+        +openFile() Promise~FileHandle~
+        +saveFile(data) Promise~void~
+        +keychain: KeychainShim
+    }
     class Viewport {
         -scene: THREE.Scene
         -camera: THREE.OrthographicCamera | PerspectiveCamera
@@ -234,6 +247,9 @@ classDiagram
         +applyEvent(evt) void
         +rewindTo(opId) void
     }
+    App --> Viewport
+    App --> Transport
+    App --> Platform
     Viewport --> Picker
     Picker --> SelectionStore
     SelectionStore --> PromptPanel
@@ -267,7 +283,7 @@ classDiagram
 
 | Context | Modules | Boundary |
 |---|---|---|
-| **Frontend Shell (UI / Renderer)** | `web/viewport`, `web/picking`, `web/selection`, `web/prompt`, `web/history-ui`, `web/file-tree`, `web/settings`, `web/cost-indicator`, `web/splash`, `web/doc-store` | The user's interactive surface. Owns selection, picking, prompt UX, viewport. No geometry / kernel / LLM logic. |
+| **Frontend Shell (UI / Renderer)** | `web/app`, `web/platform`, `web/viewport`, `web/picking`, `web/selection`, `web/prompt`, `web/history-ui`, `web/file-tree`, `web/settings`, `web/cost-indicator`, `web/splash`, `web/doc-store` | The user's interactive surface. `app` owns the layout (F2); `platform` is the lone browser-vs-Electron seam (N5). Owns selection, picking, prompt UX, viewport. No geometry / kernel / LLM logic. |
 | **Coupling / Protocol** | `web/transport`, `web/protocol-types`, `touch_backend.server`, `protocol/schema.json` | The wire between FE and BE. Owns the message types and binary geometry framing. Both ends are clients of this contract. |
 | **Engine (Kernel + Planner + History)** | `touch_backend.session`, `.document`, `.planner`, `.llm_client`, `.intent`, `.intent_validation`, `.adapters.*`, `.executor`, `.tessellate`, `.pricing`, `.config`, `.keychain_bridge` | The geometry truth + LLM interaction. Owns the `.touch` document semantics, build123d execution, tessellation, LLM client abstraction, pricing. |
 | **Distribution / Lifecycle** | `shell/main`, `shell/sidecar`, `shell/preload`, `electron-builder.yml`, `package.json`, `pyproject.toml`, GH Actions | App process model + packaging. Owns the wrapper for the .exe, the sidecar lifecycle, the release pipeline. |
@@ -289,12 +305,14 @@ prompt must be identical.
 | **Document** / `.touch` file | The user's saved part — an ordered, append-only operation history (JSON). The source of truth; geometry is derived. |
 | **Operation** | One CAD action — typically one click+prompt. An entry in `Document.history`. Replayable. |
 | **Operation kind** | One of the structured types (`box`, `cylinder`, `hole`, `shell`, …) the planner can emit and the adapter can compile. |
+| **Parameter** | A named dimensioned scalar (`name`/`value`/`unit`) referenceable in an operation's `extras` build123d code; a value object held in `TouchDocument.parameters`. Carried over from Maquette. Immutable; `name` must be a valid, non-reserved Python identifier. |
 | **Selection** | The spatial context of an operation: target (face/edge/vertex) + point + a *finder*. |
 | **Finder** | A list of geometric predicates (plane-normal, contains-point, surface-type, of-feature, …) that re-identify a selection target after history replay. Replicad-inspired. |
 | **Solid** | The current in-memory B-rep (OCP `TopoDS_Shape`) built from `Document.history`. Derived, disposable. |
 | **Mesh** | The tessellated geometry shipped over the WS to the FE for display + picking; carries per-face / per-edge IDs. |
 | **Face ID / Edge ID** | Kernel-owned integers identifying topological entities on the current solid; carried in the Mesh payload; session-stable, **not** persistent across edits (that's the finder's job). |
 | **Conversation** | The clarifying-question thread the planner can open when a prompt is ambiguous (F7). Preserved alongside the resulting operation. |
+| **ClarifyingQuestion** | The structured object the Planner returns *instead of* an `Operation` when a prompt is ambiguous (F7); carries the question `text`. The user's reply resumes planning; the resolved exchange is preserved as the operation's Conversation. |
 | **Session** | One open WS connection; holds one open document + the live derived state. |
 | **Planner** | The component that turns prompt + selection + conv state into either an `Operation` or a `ClarifyingQuestion`. |
 | **LLMClient** | The Protocol abstracting the LLM call surface; two v0 implementations (Anthropic API, Claude Code). |
@@ -304,6 +322,8 @@ prompt must be identical.
 | **Sidecar** | The Python backend process, supervised by Electron main in prod. |
 | **Provider mode** | The user's choice of LLM path: API (key in OS keychain) or Claude Code (subscription). |
 | **Browser-dev mode** | The frontend served via Vite to a browser tab pointed at a localhost sidecar — the developer's headless-Linux daily loop. |
+| **App shell** | `web/app` — the module that owns the three-panel VS-Code-like layout (F2) and mounts every UI surface. The renderer's composition root. |
+| **Capability shim** | `web/platform` — the single seam abstracting native surfaces (file dialogs, OS-keychain) so the identical renderer runs in both Electron and a plain browser tab (N5). The only module aware of which run mode it is in. |
 | **Spike** | A time-boxed prove-it-can-work prototype. The packaging spike (Electron + Python + OCP → `.exe`) is v0's phase 0. |
 
 ### Aggregates, entities, value objects
@@ -361,6 +381,8 @@ the TS side).
 
 | Rule | Enforced how |
 |---|---|
+| `web/app` may import any UI component + `web/transport` + `web/platform`; no module may import `web/app` (it is the shell root, mounted only by `web/main`) | `dependency-cruiser` |
+| `web/platform` is the only module that touches Electron preload / `window.electron`; UI components reach native surfaces (file dialogs, keychain) only via `web/platform` | grep guard + `dependency-cruiser` |
 | `web/viewport` may import three.js, `web/picking`, `web/doc-store`; not `web/transport` directly | `dependency-cruiser` |
 | `web/picking` may import three.js + `web/doc-store`; not UI components or transport | `dependency-cruiser` |
 | `web/transport` is the only module that opens a `WebSocket` | grep guard |
@@ -371,8 +393,8 @@ the TS side).
 
 - The protocol schema in `protocol/schema.json` is the single source of
   truth for messages. CI regenerates `protocol/generated/ts/` and
-  `protocol/generated/py/` on every build and fails if the generated
-  files would change vs the committed ones.
+  `src/touch_backend/_generated/` (pydantic) on every build and fails if the
+  generated files would change vs the committed ones.
 
 ## Test strategy per class
 
@@ -391,6 +413,8 @@ the TS side).
 | `touch_backend.pricing` | ✓ | — | — | Per-model calc |
 | `touch_backend.config` | ✓ | — | — | Precedence + /srv/touch/ default on the dev host |
 | `touch_backend.keychain_bridge` | ✓ (mocked keyring) | — | — | Key set/get/clear flow |
+| `web/app` | — | ✓ (Playwright: all three panels present + reachable) | — | Layout composition (F2); usable at 1920×1080 |
+| `web/platform` | ✓ (mocked `window.electron` + browser fallback) | — | — | Both run modes resolve native surfaces correctly (N5) |
 | `web/viewport` | — | ✓ (jsdom + headless three) | — | Camera bindings (NX vs default) |
 | `web/picking` | ✓ | ✓ (fake mesh + raycast assertions) | — | Triangle→face-id lookup correctness |
 | `web/selection` | ✓ | — | — | Store behaviour |

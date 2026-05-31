@@ -596,3 +596,22 @@ either a note section or a decision here.
 - Q (B1, push-back): spike deletion belongs to T1b?
 - A: Keep it as the final cleanup unit (Day 6) in T1b per the roadmap; low risk, releases/tags preserve the artifacts.
 - → docs/phases/phase-T1b.md § day 6
+
+## 2026-05-31 — /pm-phase-plan (T2)
+- Q (G1+B1, mesh source): how does the FE get a backend-served mesh in T2 before picking/prompt (T3)?
+- A: Connect-time demo mesh — the sidecar emits a known cube meshFrame on connect behind a dev flag (~few lines in session.py), deleted once T3 picking drives real geometry. Keeps Min's "backend-served mesh" intact and proves the live WS path end-to-end (rejected: pure FE fixture, requestMesh message, mocked plan path).
+- → docs/phases/phase-T2.md § Day 5 + R2
+- Q (C1+C2, arch pre-pass): run /pm-architecture before /pm-phase-start T2?
+- A: Yes — full pass: name the F2 shell-owner module (web/app), add the browser/Electron capability shim, fix the protocol-layout doc drift (generated py moved to src/touch_backend/_generated/ in T1b). Scope freeze is OFF now. Blocks /pm-phase-start.
+- → docs/phases/phase-T2.md § Depends on + R1/R3
+- Q (P2, FE dep rules): wire dependency-cruiser in T2?
+- A: Defer to a later FE phase (T3+) — T2's module set is too small to be worth it yet.
+- → docs/phases/phase-T2.md § R5
+- Q (P3, FE tests): test coverage in T2?
+- A: Targeted Vitest unit tests for transport (binary frame decode) + doc-store; manual exit-criterion verification for viewport/camera; full E2E + Playwright from T3.
+- → docs/phases/phase-T2.md § Days 4/6 + test strategy
+
+## 2026-05-31 — /pm-architecture (pre-T2 scoped pass)
+- Q: name + shape the F2 shell-owner and the N5 capability shim; fix the generated-protocol layout drift.
+- A: Added `web/app` (shell: three-panel layout owner, mounts every UI surface, app-level wiring; mounted only by `web/main`) and `web/platform` (capability shim: sole owner of Electron-preload/`window.electron`; native file dialogs + keychain with browser fallbacks). FE dep rules added (cruiser-enforced later — deferred per T2 P2). Fixed docs: generated pydantic lives at `src/touch_backend/_generated/` (not `protocol/generated/py/`); TS stays at `protocol/generated/ts/`; `web/main.ts`→`main.tsx`. No new ADR (both modules are direct consequences of the locked F2 + N5).
+- → docs/02-architecture.md (FE component view, responsibilities, repo tree, N5 row); docs/02-classes.md (module map, FE class diagram, bounded contexts, dep rules, test strategy, glossary)

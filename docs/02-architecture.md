@@ -79,6 +79,8 @@ The Renderer code is bit-identical between the two modes (N5).
 ```mermaid
 flowchart TB
     subgraph FE["Frontend (Electron renderer or browser tab)"]
+        App["app<br/>shell: three-panel layout owner (F2)"]
+        Platform["platform<br/>capability shim: browser vs Electron (N5)"]
         Viewport["viewport<br/>three.js scene + NX camera"]
         Picking["picking<br/>raycaster + face/edge id lookup"]
         Selection["selection<br/>current sel state"]
@@ -92,6 +94,11 @@ flowchart TB
         DocStore["doc-store<br/>FE-side document state + mesh"]
     end
 
+    App --> Viewport
+    App --> FileTree
+    App --> Settings
+    App --> Prompt
+    App --> Splash
     Viewport --> Picking
     Picking --> Selection
     Selection --> Prompt
@@ -101,7 +108,15 @@ flowchart TB
     HistoryUI --> Transport
     FileTree --> Transport
     Settings --> Transport
+    FileTree --> Platform
+    Settings --> Platform
 ```
+
+The `app` module owns the panel composition (F2); every UI surface mounts
+inside its layout. `platform` is the thin capability shim (N5): the only
+module that touches Electron-preload / `window.electron`, exposing native
+surfaces (file dialogs, OS-keychain access) with a browser-tab fallback so
+the renderer code is bit-identical across both run modes.
 
 ### Inside the Backend (Python sidecar)
 
@@ -146,6 +161,8 @@ executor work). One op at a time per session (queue + cancel token).
 
 | Layer / Module | Owns | Does NOT do |
 |---|---|---|
+| `app` (FE) | the shell: three-panel layout composition + menu, mounts every UI surface (F2); app-level wiring (transport lifecycle, splash gating) | panel internals, geometry, transport message semantics |
+| `platform` (FE) | capability shim (N5): runtime detection (browser tab vs Electron renderer) + native-surface adapters (file dialogs, OS-keychain) with browser fallbacks; sole owner of `window.electron`/preload access | UI rendering, WS messaging, business logic |
 | `viewport` (FE) | three.js scene, render loop, camera, NX-style controls (F3) | picking math, selection state |
 | `picking` (FE) | raycast → triangle → face/edge id lookup (F4, F5, N1) | selection state, prompt UX |
 | `selection` (FE) | current selection (face/edge/vertex + face_id + point_xyz) | dispatching to backend |
@@ -215,11 +232,13 @@ touch/                           # repo root (will be renamed from `maquette/`)
 ├── docs/                        # PM-framework docs (vision/req/arch/roadmap/...)
 ├── protocol/                    # ← single source of truth for the wire protocol
 │   ├── schema.json              # JSON Schema for all WS messages
-│   ├── generated/               # auto-generated types
-│   │   ├── ts/                  # for the frontend
-│   │   └── py/                  # for the backend
+│   ├── generated/
+│   │   └── ts/                  # generated TS types for the frontend
 │   └── README.md
+│   # NB: generated pydantic models live in src/touch_backend/_generated/
+│   #     (importable as a package), NOT under protocol/ (decided T1b).
 ├── src/touch_backend/           # Python sidecar (was src/maquette/)
+│   ├── _generated/              # generated pydantic protocol models (make codegen; do not edit)
 │   ├── server.py
 │   ├── session.py
 │   ├── document.py
@@ -245,7 +264,9 @@ touch/                           # repo root (will be renamed from `maquette/`)
 │   ├── tsconfig.json
 │   ├── index.html
 │   ├── src/
-│   │   ├── main.ts              # app entry
+│   │   ├── main.tsx             # entry: bootstraps app
+│   │   ├── app/                 # shell: three-panel layout owner (F2)
+│   │   ├── platform/            # capability shim: browser vs Electron (N5)
 │   │   ├── viewport/
 │   │   ├── picking/
 │   │   ├── selection/
@@ -256,6 +277,7 @@ touch/                           # repo root (will be renamed from `maquette/`)
 │   │   ├── cost-indicator/
 │   │   ├── splash/
 │   │   ├── transport/
+│   │   ├── protocol-types/      # re-export of protocol/generated/ts (path alias)
 │   │   └── doc-store/
 │   └── tests/
 ├── shell/                       # Electron main + packaging glue
@@ -282,7 +304,7 @@ is the implementation chore tracked in the rename cascade.
 | N2 | Prompt-submit round-trip target | Async session in `server` + `session` with cancel; backend stages (`planner` → `adapter` → `executor` → `tessellate`) profiled per phase; `prompt` shows a thinking indicator across the full RTT. |
 | N3 | LLM cost per prompt | `pricing` tracks tokens × per-Mtok; `cost-indicator` surfaces session total; both `llm_client` implementations report token usage. |
 | N4 | Single-file install | `electron-builder` bundle: Python runtime + OCP native libs (via PyInstaller'd sidecar) + Electron + FE assets, packaged to one Windows installer. |
-| N5 | Dual run modes | Renderer code is identical across Electron and browser; `transport` only needs a WS URL (`ws://localhost:<port>`); the sidecar accepts both clients without distinction. |
+| N5 | Dual run modes | Renderer code is identical across Electron and browser; `transport` only needs a WS URL (`ws://localhost:<port>`); the sidecar accepts both clients without distinction. The `platform` shim is the single seam where native surfaces (file dialogs, keychain) diverge — Electron-preload in prod, browser fallback in dev — so no other module is mode-aware. |
 | N6 | Headless dev | The Vite dev server runs on the dev box, opened from the user's laptop browser pointing at the dev box; the Python sidecar runs standalone (`python -m touch_backend`); no Electron needed for dev. |
 | N7 | `.touch` portability + versioning | `document` writes JSON with `schema_version`; the format is specified in `02-data-model.md` + [ADR-0006](./adr/0006-touch-document-format.md). |
 | N8 | Crash resilience | `sidecar` (Electron main) detects child exit and restarts; FE replays `document` history via the `rebuild(history)` message; *because* the document is the operation history (not a derived snapshot), recovery is free. |
