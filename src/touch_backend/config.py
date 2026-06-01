@@ -22,6 +22,10 @@ _DEFAULTS: Final[dict[str, Any]] = {
     "ws_port": 8765,
     # Active LLM client mode (F31): "anthropic_api" | "claude_code".
     "llm_mode": "anthropic_api",
+    # Dev-only (T2): emit a known cube meshFrame on connect so the frontend has
+    # real backend geometry before the click->prompt flow exists. Removed once
+    # T3 picking drives real ops.
+    "demo_mesh": False,
 }
 
 # TOUCH_BACKEND_<FIELD_UPPER> -> field name.
@@ -58,6 +62,7 @@ _COERCERS: Final[dict[str, Callable[[Any], Any]]] = {
     "ws_host": lambda v: str(v),
     "ws_port": lambda v: int(v),
     "llm_mode": lambda v: str(v),
+    "demo_mesh": _coerce_bool,
 }
 
 
@@ -72,6 +77,7 @@ class Config:
     ws_host: str = "127.0.0.1"
     ws_port: int = 8765
     llm_mode: str = "anthropic_api"
+    demo_mesh: bool = False
 
     @staticmethod
     def load(

@@ -36,6 +36,12 @@ class Server:
     async def _handle(self, connection: ServerConnection) -> None:
         session = Session(self._client_factory)
         await connection.send(session.ready())
+        if self._config.demo_mesh:
+            try:
+                for response in session.demo_mesh():
+                    await connection.send(response)
+            except Exception as exc:  # dev affordance: never kill the connection
+                print(f"demo_mesh failed: {exc!r}", file=sys.stderr)
         async for raw in connection:
             for response in session.handle(raw):
                 await connection.send(response)

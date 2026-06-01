@@ -25,6 +25,7 @@ from touch_backend._generated.protocol import (
     MsgPlan,
     MsgReady,
     MsgRebuild,
+    Operation,
     TouchProtocol,
 )
 from touch_backend.adapters import AdapterRefusal
@@ -45,6 +46,19 @@ _CLIENT_MESSAGES = (MsgPlan, MsgApplyOp, MsgCancel, MsgRebuild, MsgExportStep)
 
 Response = str | bytes
 
+# Dev-only demo geometry (T2): a 40 mm cube, built through the real pipeline.
+_DEMO_OP = Operation.model_validate(
+    {
+        "id": "demo-cube",
+        "kind": "box",
+        "params": {"length": 40, "width": 40, "height": 40},
+        "selection": None,
+        "prompt_text": "demo cube",
+        "conversation": [],
+        "created_at": "2026-06-01T00:00:00Z",
+    }
+)
+
 
 class Session:
     """State + message dispatch for one WebSocket connection."""
@@ -57,6 +71,14 @@ class Session:
     def ready(self) -> str:
         """The `ready` envelope sent once on connect (F15)."""
         return MsgReady(type="ready", schema_version=SCHEMA_VERSION).model_dump_json()
+
+    def demo_mesh(self) -> list[Response]:
+        """Dev-only (T2, config.demo_mesh): a connect-time cube so the frontend
+        has real backend geometry before the click->prompt flow exists. Built
+        through the real adapter->executor->tessellate path. Throwaway — remove
+        once T3 picking drives real operations."""
+        mesh = self._rebuild_mesh([_DEMO_OP])
+        return [mesh_frame_envelope(mesh).model_dump_json(), pack(mesh)]
 
     def handle(self, raw: str | bytes) -> list[Response]:
         """Parse one inbound message and return zero or more responses (JSON
@@ -136,13 +158,15 @@ class Session:
             pack(mesh),
         ]
 
-    def _rebuild_mesh(self):
-        """Build the current solid from the operation history and tessellate it.
+    def _rebuild_mesh(self, history: list[Operation] | None = None):
+        """Build the solid from an operation history and tessellate it.
 
-        Real geometry path (adapter -> subprocess executor -> tessellate). OCP /
-        build123d are imported lazily — importing them at module top poisons
-        VTK-OSMesa for the in-process render test (auto-memory `render-backend`);
-        the heavy OCP build itself runs in the Executor *subprocess*.
+        Defaults to the session's document history; an explicit history drives
+        the dev demo mesh. Real geometry path (adapter -> subprocess executor ->
+        tessellate). OCP / build123d are imported lazily — importing them at
+        module top poisons VTK-OSMesa for the in-process render test (auto-memory
+        `render-backend`); the heavy OCP build itself runs in the Executor
+        *subprocess*.
         """
         from build123d import import_step
 
@@ -150,7 +174,9 @@ class Session:
         from touch_backend.agent.executor import Executor
         from touch_backend.tessellate import tessellate
 
-        code = operation_adapter.emit(self.document.history)
+        if history is None:
+            history = self.document.history
+        code = operation_adapter.emit(history)
         with tempfile.TemporaryDirectory(prefix="touch-rebuild-") as tmp:
             out_dir = Path(tmp)
             code_path = out_dir / "code.py"
