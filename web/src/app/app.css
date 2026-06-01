@@ -148,13 +148,12 @@ body {
 /* Viewport host */
 .viewport-host {
   flex: 1 1 auto;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  min-width: 0;
+  overflow: hidden;
   background: var(--bg);
 }
-.viewport-placeholder {
-  color: var(--fg-dim);
+.viewport-host canvas {
+  display: block;
 }
 
 /* Status bar (bottom) */
@@ -178,6 +177,12 @@ body {
 .status-dot {
   font-size: 9px;
   line-height: 1;
+}
+.status-dot.connected {
+  color: #7ee787;
+}
+.status-dot.connecting {
+  color: #ffd27a;
 }
 .status-dot.disconnected {
   color: #ffb3b3;

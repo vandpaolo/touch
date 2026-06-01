@@ -1,10 +1,7 @@
-// web/viewport — placeholder host (Day 2). The real three.js scene + NX camera
-// (the Viewport class) mounts into this slot in Day 7. For now it's just the
-// centre-panel canvas mount point so the shell layout is complete.
-export function ViewportHost() {
-  return (
-    <div className="viewport-host" data-testid="viewport-host">
-      <div className="viewport-placeholder">viewport — three.js scene lands in Day 7</div>
-    </div>
-  )
+// web/viewport — the centre-panel mount point. The Viewport class (three.js)
+// is attached to this container by web/app; the canvas fills it.
+import type { Ref } from 'react'
+
+export function ViewportHost({ containerRef }: { containerRef: Ref<HTMLDivElement> }) {
+  return <div className="viewport-host" data-testid="viewport-host" ref={containerRef} />
 }
