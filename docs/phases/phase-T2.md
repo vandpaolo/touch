@@ -1,11 +1,11 @@
 ---
 id: T2
 title: Frontend skeleton (Vite + React + TS + three.js)
-status: in_progress
+status: done
 started: 2026-05-31
-finished: null
-min_goal_met: null
-max_goal_met: null
+finished: 2026-06-01
+min_goal_met: true
+max_goal_met: true
 blocker: null
 depends_on: [T1b]
 ---
