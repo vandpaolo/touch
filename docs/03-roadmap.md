@@ -48,9 +48,10 @@ gantt
     Phase T2   Frontend skeleton          :pT2, after pT1b, 5d
     Phase T3   Picking + click-to-prompt  :pT3, after pT2, 6d
     Phase T4   .touch + folder workspace  :pT4, after pT3, 5d
-    Phase T4b  Editor tabs / multi-doc    :pT4b, after pT4, 4d
-    Phase T5   Conversational clarif.     :pT5, after pT4b, 4d
-    Phase T6   Settings + provider modes  :pT6, after pT5, 4d
+    Phase T5   Clarify + face resolution  :pT5, after pT4, 4d
+    Phase T5b  Edge identity + targeting  :pT5b, after pT5, 3d
+    Phase T4b  Editor tabs / multi-doc    :pT4b, after pT5b, 4d
+    Phase T6   Settings + provider modes  :pT6, after pT4b, 4d
     Phase T7   Exports (STEP/STL/3MF)     :pT7, after pT6, 2d
     Phase T8   Cost / splash / crash UX   :pT8, after pT7, 3d
     Phase T9   File tree + polish         :pT9, after pT8, 3d
@@ -196,6 +197,47 @@ Gantt is ordering only — no calendar dates committed.
 - **Delivers:** F8, F9, F10, F18, F32, F33, F34, F23, N7, N8, N13.
 - **Plan:** [phase-T4.md](phases/phase-T4.md)
 
+### Phase T5 — Conversational clarification + robust face resolution
+
+> *Re-scoped 2026-06-02: widened from clarification-only to also fix the
+> face-selection brittleness surfaced live in T4 (ADR-0011). Edge targeting
+> split out to T5b. Sequenced before T4b — usable single-part editing matters
+> more than juggling multiple parts.*
+
+- **Goal:** When the planner can't answer cleanly, it asks; and a clicked
+  face resolves to **exactly** the face the user clicked, deterministically.
+- **Min:** (clarify) Planner returns either an `Operation` or a
+  `ClarifyingQuestion`; FE renders the question; user reply resumes
+  planning with extended conversation context; max-N-turns guard (config);
+  the op records the conversation in `Operation.conversation`. (resolution)
+  Tiered face resolution (ADR-0011) — captured `entity_id_at_capture` first,
+  geometric finder fallback, clarify only on genuine ambiguity; the
+  `entity_id_at_capture` rename + `.touch` migration; edge/corner-adjacent
+  and off-surface clicks no longer fail with "ambiguous"/"no face".
+- **Max:** A "show me what you'd do" preview turn (planner describes the op
+  before commit); small per-turn cost surfaced inline.
+- **Exit criterion:** an ambiguous prompt ("hole here") triggers the planner
+  to ask ("what diameter?") → reply → op applies, conversation recorded; AND
+  clicking any face (incl. near an edge/corner) then chamfering resolves to
+  that face with no finder error.
+- **Delivers:** F7, F22, F36.
+- **Plan:** [phase-T5.md](phases/phase-T5.md)
+
+### Phase T5b — Edge identity + edge targeting
+
+- **Goal:** Select a single **edge** and chamfer/fillet exactly that edge,
+  not the whole face's edge loop.
+- **Min:** The mesh frame carries per-edge ids (`edge_tag_per_segment`, F20
+  end-to-end); FE edge picking (raycast a wireframe segment → edge id); an
+  **edge resolver** in `finder` (same tiered model as faces, ADR-0011);
+  `operation_adapter` applies edge-scoped ops to the resolved single edge.
+- **Max:** Edge hover affordance/highlight parity with faces; multi-edge
+  selection for a batched chamfer.
+- **Exit criterion:** click one edge of a box → chamfer → only that edge is
+  chamfered (not the loop); face selection still applies face-scoped ops.
+- **Delivers:** F20 (edge channel), F37.
+- **Plan:** [phase-T5b.md](phases/phase-T5b.md)
+
 ### Phase T4b — Editor tabs / multi-document model
 
 - **Goal:** Keep multiple parts open and switch between them via editor tabs
@@ -208,25 +250,6 @@ Gantt is ordering only — no calendar dates committed.
   undo history); close one — the others intact.
 - **Delivers:** F35; the multi-document foundation.
 - **Plan:** [phase-T4b.md](phases/phase-T4b.md)
-
-### Phase T5 — Conversational clarification
-
-- **Goal:** When the planner can't answer cleanly, it asks. The prompt
-  panel becomes a chat thread; the conversation resumes the planner
-  until it produces an op (or the user cancels).
-- **Min:** Planner returns either an `Operation` or a
-  `ClarifyingQuestion`; FE renders the question; user reply resumes
-  planning with extended conversation context; max-N-turns guard
-  (config); the resulting op records the conversation in
-  `Operation.conversation`.
-- **Max:** Also: a "show me what you'd do" preview turn (the planner
-  describes the proposed op in words before commit); a small per-turn
-  cost surfaced inline.
-- **Exit criterion:** an ambiguous prompt ("hole here") triggers the
-  planner to ask ("what diameter?") → user replies → op applies and the
-  conversation is recorded with the op.
-- **Delivers:** F7, F22 (op-or-question branch).
-- **Plan:** [phase-T5.md](phases/phase-T5.md)
 
 ### Phase T6 — Settings + dual provider modes (F31)
 

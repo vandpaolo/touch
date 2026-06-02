@@ -125,16 +125,28 @@ rather than persistent topological names. See [ADR-0008](./adr/0008-picking-and-
   - `{kind: "surface_type", value: "cylindrical"}`.
   - `{kind: "centroid_near", point_xyz: (..), tol: 0.5}`.
   - `{kind: "of_feature", op_id: "<uuid>"}` — created by this prior op.
-- `face_id_at_capture: int | None` — the kernel-owned face/edge ID the
-  backend reported at the moment of click (a hint for fast match; if it
-  no longer matches a topological entity after re-execution, fall back
-  to the finder predicates).
+- `entity_id_at_capture: int | None` — the kernel-owned face/edge ID the
+  backend reported at the moment of click (typed by `target`; was
+  `face_id_at_capture`). The **within-session primary resolver**
+  (ADR-0011): per-entity ids are stable within a session, so the
+  just-clicked entity resolves directly and deterministically. The
+  `finder` is the durable fallback used on replay / cross-session / id
+  miss.
+
+**Resolution order (ADR-0011):** ① `entity_id_at_capture` against the
+live solid (within-session, deterministic); ② the `finder` predicates
+(durable, on replay or id miss) — must resolve to exactly one; ③ if both
+fail (0 or >1), a structured error → clarification (F7).
 
 **Invariants:**
 - `point_xyz` lies on the resolved target's surface (within tolerance).
-- The set of predicates must resolve to **exactly one** target on a
-  freshly-replayed model; ambiguity is an error the planner is asked to
-  refine via clarification (F7).
+- `point_xyz` / `contains_point` alone is **not** a sufficient resolver
+  for the live case (edge/corner-adjacent click → multiple faces;
+  off-surface float gap → none); it is a durability predicate, not the
+  within-session primary.
+- On a freshly-replayed model the `finder` must resolve to **exactly
+  one** target; residual ambiguity is an error the planner refines via
+  clarification (F7).
 
 ### ConversationTurn (value object)
 

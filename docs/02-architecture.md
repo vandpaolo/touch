@@ -130,6 +130,7 @@ flowchart TB
         LLM["llm_client (Protocol)<br/>anthropic_api | claude_code"]
         Intent["intent<br/>operation schema + finders"]
         Validation["intent_validation<br/>per-op contract checks"]
+        Finder["finder<br/>selection → entity (id-first, finder fallback; ADR-0011)"]
         Adapter["adapter (build123d_target)<br/>ops → build123d code"]
         Executor["executor<br/>run code → solid + tessellate"]
         Tess["tessellate<br/>OCP / ocp_tessellate"]
@@ -146,6 +147,7 @@ flowchart TB
     Planner --> Intent
     Document --> Validation
     Document --> Adapter
+    Adapter --> Finder
     Adapter --> Executor
     Executor --> Tess
     Tess --> Session
@@ -183,6 +185,7 @@ executor work). One op at a time per session (queue + cancel token).
 | `llm_client` (BE, Protocol + impls) | the swappable LLM call surface (F31): `AnthropicAPIClient` / `ClaudeCodeClient` | planner logic |
 | `intent` (BE) | operation schema (pydantic) + selection-finder types | per-op contract checks |
 | `intent_validation` (BE) | per-op required-param contracts | type definitions |
+| `finder` (BE) | resolve a `Selection` → topological entity deterministically (captured-id first, geometric-finder fallback, else clarify); face + edge resolvers (F36, F37, ADR-0011) | authoring finders (planner/capture), op semantics |
 | `adapter (build123d_target)` (BE) | `operation history → build123d source code`, pure + deterministic (F24, N10) | execution |
 | `executor` (BE) | run the emitted build123d code, capture the in-memory solid | code generation |
 | `tessellate` (BE) | tessellate OCP solid → mesh + per-face / per-edge IDs (F20) | execution, rendering |

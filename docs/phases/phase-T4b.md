@@ -7,7 +7,7 @@ finished: null
 min_goal_met: null
 max_goal_met: null
 blocker: null
-depends_on: [T4]
+depends_on: [T5b]
 ---
 
 # Phase T4b — Editor tabs / multi-document model

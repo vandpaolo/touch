@@ -7,7 +7,7 @@ finished: null
 min_goal_met: null
 max_goal_met: null
 blocker: null
-depends_on: [T5]
+depends_on: [T4b]
 ---
 
 # Phase T6 — Settings + dual provider modes
