@@ -626,3 +626,17 @@ either a note section or a decision here.
 - Q (B3, planner): which planner for T3's NL→op?
 - A: Real AnthropicAPIClient with the dev .env/keychain key now; live verification in T3 (matches roadmap F22). The Settings UI to configure provider/credentials stays T6.
 - → docs/phases/phase-T3.md § Depends-on + R3
+
+## 2026-06-01 — /pm-phase-plan (T4)
+- Q (scope/R1): one phase or split T4a/T4b?
+- A: One phase (~11 days, at the cap) — the persistence + explorer + undo/redo pieces interlock; tight Min, trimmed Max. Split only if it over-runs.
+- → docs/phases/phase-T4.md § sprint table + R1
+- Q (file I/O): how are .touch files read/written?
+- A: Backend over WS — the sidecar owns file I/O under out_root; FE save/open/list go over the WebSocket (identical browser-dev + Electron; works at nexus/touch today). Native OS dialogs via the capability shim deferred to T9.
+- → docs/phases/phase-T4.md § Min + R3
+- Q (new doc / demo seed): empty new doc or keep the demo cube?
+- A: Keep the demo cube as the DEFAULT canvas; "New" creates an empty doc; create-from-scratch (no-selection primary) seeds geometry. demo_mesh stays on by default (make up unchanged). Undo-to-empty still works (demo cube is op[0]).
+- → docs/phases/phase-T4.md § Min + R4
+- Q (C1, forced): T4 exit needs creating a cube from scratch (skipped T3 Max).
+- A: Folded into Day 6 as required scope (no-selection primary → box/cylinder/sphere); the FE gap is a prompt entry without a face click.
+- → docs/phases/phase-T4.md § Min + Day 6 + R2
