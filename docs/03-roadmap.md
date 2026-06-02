@@ -47,8 +47,9 @@ gantt
     Phase T1b  Server + protocol skeleton :pT1b, after pT1a, 4d
     Phase T2   Frontend skeleton          :pT2, after pT1b, 5d
     Phase T3   Picking + click-to-prompt  :pT3, after pT2, 6d
-    Phase T4   .touch doc + undo/redo     :pT4, after pT3, 4d
-    Phase T5   Conversational clarif.     :pT5, after pT4, 4d
+    Phase T4   .touch + folder workspace  :pT4, after pT3, 5d
+    Phase T4b  Editor tabs / multi-doc    :pT4b, after pT4, 4d
+    Phase T5   Conversational clarif.     :pT5, after pT4b, 4d
     Phase T6   Settings + provider modes  :pT6, after pT5, 4d
     Phase T7   Exports (STEP/STL/3MF)     :pT7, after pT6, 2d
     Phase T8   Cost / splash / crash UX   :pT8, after pT7, 3d
@@ -175,21 +176,38 @@ Gantt is ordering only — no calendar dates committed.
   end-to-end demonstration of N1.
 - **Plan:** [phase-T3.md](phases/phase-T3.md)
 
-### Phase T4 — Operation history + `.touch` document
+### Phase T4 — Operation history + `.touch` document + folder workspace
 
-- **Goal:** The document *is* the operation history. Save/load + undo/
-  redo from the history.
-- **Min:** `touch_backend.document` load/save `.touch` JSON; FE
-  `doc-store` mirrors; undo pops + replays; redo re-applies; round-trip
-  a `.touch` file from disk → identical model; `schema_version` field +
-  a minimal migration helper.
-- **Max:** Also: viewport feedback at each undo step; replay-from-history
-  is the recovery path (foreshadowing T8 crash recovery).
-- **Exit criterion:** model a cube + chamfer in dev → save → close →
-  open → identical model. Undo back to empty → redo to full → unchanged.
-- **Delivers:** F8, F9 (undo/redo, **must**), F10, F23, N7, N8 (the
-  history-based recovery foundation; the supervisor itself lands in T8).
+> *Re-scoped 2026-06-01 (blocker `2026-06-01-folder-workspace-explorer`): the
+> single-doc persistence shipped, then the explorer was widened to a VS-Code
+> folder workspace. Backend owns the filesystem; FE owns the interaction
+> (ADR-0010). One part open at a time — editor tabs are T4b.*
+
+- **Goal:** The document *is* the operation history; persist parts in a
+  VS-Code-style **folder workspace**, with undo/redo from history.
+- **Min:** `.touch` save/load + undo/redo (done); **File → Open Folder** →
+  Explorer mirrors the folder **1:1** (backend-owned tree, ADR-0010);
+  create/open/rename `.touch` parts; menu bar (File/Edit/View/Help) + activity
+  rail (Explorer real; Search/Git/Extensions stubbed). One part open at a time.
+- **Max:** Hand-rolled-tree polish; content-addressed rebuild cache; viewport
+  feedback per undo step.
+- **Exit criterion:** Open Folder → create a cube + chamfer part → it appears in
+  the Explorer 1:1 → refresh → reopen → identical model; undo→empty→redo.
+- **Delivers:** F8, F9, F10, F18, F32, F33, F34, F23, N7, N8, N13.
 - **Plan:** [phase-T4.md](phases/phase-T4.md)
+
+### Phase T4b — Editor tabs / multi-document model
+
+- **Goal:** Keep multiple parts open and switch between them via editor tabs
+  (the multi-doc slice of T14 + open-decision #5, pulled forward).
+- **Min:** Several parts open at once; an editor-tab strip; switching tabs swaps
+  the viewport (rebuild cache keeps it instant); per-part undo/redo + dirty
+  (state was made multi-doc-ready in T4); close-tab with an unsaved guard.
+- **Max:** Drag-reorder tabs; recent-parts; split view.
+- **Exit criterion:** open ≥2 parts; switch tabs (each shows its own model +
+  undo history); close one — the others intact.
+- **Delivers:** F35; the multi-document foundation.
+- **Plan:** [phase-T4b.md](phases/phase-T4b.md)
 
 ### Phase T5 — Conversational clarification
 
@@ -332,6 +350,9 @@ max sketched here for sequencing only.
   without re-downloading manually.
 
 ### Phase T14 — Multi-file project model
+> *The folder workspace + multiple open parts moved earlier (T4 + T4b,
+> 2026-06-01). T14 now covers what remains: cross-file references /
+> assemblies and project-level settings — largely v0.2.*
 - **Goal:** A "project" is a folder of related `.touch` files (preludes
   assemblies). The tree handles many files; cross-file references are
   v0.2 work.
