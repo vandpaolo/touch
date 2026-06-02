@@ -27,7 +27,15 @@ export type Message =
   | MsgUndo
   | MsgRedo
   | MsgFileList
-  | MsgDocument;
+  | MsgDocument
+  | MsgOpenFolder
+  | MsgListDir
+  | MsgOpenPart
+  | MsgSavePart
+  | MsgNewPart
+  | MsgRenamePart
+  | MsgRemovePart
+  | MsgDir;
 /**
  * World-space point [x, y, z] in mm.
  *
@@ -289,4 +297,69 @@ export interface MsgDocument {
   dirty: boolean;
   can_undo: boolean;
   can_redo: boolean;
+}
+/**
+ * FE->BE: set the workspace root to this folder path (ADR-0010); the backend replies with the root `dir` listing.
+ */
+export interface MsgOpenFolder {
+  type: "openFolder";
+  path: string;
+}
+/**
+ * FE->BE: list a directory within the workspace (lazy expand); path is workspace-relative ("" = root).
+ */
+export interface MsgListDir {
+  type: "listDir";
+  path: string;
+}
+/**
+ * FE->BE: open a .touch part by workspace-relative path; the model is rebuilt by replaying its history (F10).
+ */
+export interface MsgOpenPart {
+  type: "openPart";
+  path: string;
+}
+/**
+ * FE->BE: save the active document to a .touch part at this workspace-relative path (F10).
+ */
+export interface MsgSavePart {
+  type: "savePart";
+  path: string;
+}
+/**
+ * FE->BE: create an empty .touch part at this workspace-relative path and open it.
+ */
+export interface MsgNewPart {
+  type: "newPart";
+  path: string;
+}
+/**
+ * FE->BE: rename/move a workspace entry from `path` to `to_path` (both workspace-relative).
+ */
+export interface MsgRenamePart {
+  type: "renamePart";
+  path: string;
+  to_path: string;
+}
+/**
+ * FE->BE: delete a workspace entry at this workspace-relative path.
+ */
+export interface MsgRemovePart {
+  type: "removePart";
+  path: string;
+}
+/**
+ * BE->FE: a directory listing within the workspace (lazy per-folder).
+ */
+export interface MsgDir {
+  type: "dir";
+  path: string;
+  entries: DirEntry[];
+}
+/**
+ * One entry in a workspace directory listing.
+ */
+export interface DirEntry {
+  name: string;
+  is_dir: boolean;
 }

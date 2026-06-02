@@ -497,6 +497,116 @@ class MsgDocument(BaseModel):
     can_redo: bool
 
 
+class DirEntry(BaseModel):
+    """
+    One entry in a workspace directory listing.
+    """
+
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    name: str
+    is_dir: bool
+
+
+class MsgOpenFolder(BaseModel):
+    """
+    FE->BE: set the workspace root to this folder path (ADR-0010); the backend replies with the root `dir` listing.
+    """
+
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    type: Literal['openFolder']
+    path: str
+
+
+class MsgListDir(BaseModel):
+    """
+    FE->BE: list a directory within the workspace (lazy expand); path is workspace-relative ("" = root).
+    """
+
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    type: Literal['listDir']
+    path: str
+
+
+class MsgOpenPart(BaseModel):
+    """
+    FE->BE: open a .touch part by workspace-relative path; the model is rebuilt by replaying its history (F10).
+    """
+
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    type: Literal['openPart']
+    path: str
+
+
+class MsgSavePart(BaseModel):
+    """
+    FE->BE: save the active document to a .touch part at this workspace-relative path (F10).
+    """
+
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    type: Literal['savePart']
+    path: str
+
+
+class MsgNewPart(BaseModel):
+    """
+    FE->BE: create an empty .touch part at this workspace-relative path and open it.
+    """
+
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    type: Literal['newPart']
+    path: str
+
+
+class MsgRenamePart(BaseModel):
+    """
+    FE->BE: rename/move a workspace entry from `path` to `to_path` (both workspace-relative).
+    """
+
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    type: Literal['renamePart']
+    path: str
+    to_path: str
+
+
+class MsgRemovePart(BaseModel):
+    """
+    FE->BE: delete a workspace entry at this workspace-relative path.
+    """
+
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    type: Literal['removePart']
+    path: str
+
+
+class MsgDir(BaseModel):
+    """
+    BE->FE: a directory listing within the workspace (lazy per-folder).
+    """
+
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    type: Literal['dir']
+    path: str
+    entries: list[DirEntry]
+
+
 class Message(
     RootModel[
         MsgPlan
@@ -518,6 +628,14 @@ class Message(
         | MsgRedo
         | MsgFileList
         | MsgDocument
+        | MsgOpenFolder
+        | MsgListDir
+        | MsgOpenPart
+        | MsgSavePart
+        | MsgNewPart
+        | MsgRenamePart
+        | MsgRemovePart
+        | MsgDir
     ]
 ):
     root: (
@@ -540,6 +658,14 @@ class Message(
         | MsgRedo
         | MsgFileList
         | MsgDocument
+        | MsgOpenFolder
+        | MsgListDir
+        | MsgOpenPart
+        | MsgSavePart
+        | MsgNewPart
+        | MsgRenamePart
+        | MsgRemovePart
+        | MsgDir
     ) = Field(
         ...,
         description='Any control-message envelope on the wire (discriminated by `type`).',

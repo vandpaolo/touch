@@ -13,6 +13,7 @@ project dir (`out_root`); names are sanitized (no path traversal).
 from __future__ import annotations
 
 import json
+import shutil
 import tempfile
 from collections.abc import Callable
 from pathlib import Path
@@ -21,21 +22,30 @@ from pydantic import ValidationError
 
 from touch_backend import planner
 from touch_backend._generated.protocol import (
+    DirEntry,
     MsgApplyOp,
     MsgCancel,
+    MsgDir,
     MsgDocument,
     MsgError,
     MsgExportStep,
     MsgFileList,
+    MsgListDir,
     MsgListFiles,
     MsgNewDoc,
+    MsgNewPart,
     MsgOp,
     MsgOpen,
+    MsgOpenFolder,
+    MsgOpenPart,
     MsgPlan,
     MsgReady,
     MsgRebuild,
     MsgRedo,
+    MsgRemovePart,
+    MsgRenamePart,
     MsgSave,
+    MsgSavePart,
     MsgUndo,
     Operation,
     TouchProtocol,
@@ -88,6 +98,7 @@ class Session:
     ) -> None:
         self.document = TouchDocument()
         self._project_dir = project_dir
+        self._workspace_root: Path | None = None
         self._client_factory = client_factory
         self._llm: LLMClient | None = None
         self._dirty = False
@@ -156,6 +167,20 @@ class Session:
             return self._handle_undo()
         if isinstance(message, MsgRedo):
             return self._handle_redo()
+        if isinstance(message, MsgOpenFolder):
+            return self._handle_open_folder(message)
+        if isinstance(message, MsgListDir):
+            return self._handle_list_dir(message)
+        if isinstance(message, MsgOpenPart):
+            return self._handle_open_part(message)
+        if isinstance(message, MsgSavePart):
+            return self._handle_save_part(message)
+        if isinstance(message, MsgNewPart):
+            return self._handle_new_part(message)
+        if isinstance(message, MsgRenamePart):
+            return self._handle_rename_part(message)
+        if isinstance(message, MsgRemovePart):
+            return self._handle_remove_part(message)
         if isinstance(message, _STUBBED_MESSAGES):
             return [
                 self._error(
@@ -266,6 +291,174 @@ class Session:
         self.document.history.append(self._redo.pop())
         self._dirty = True
         return self._snapshot_with_mesh(where="redo")
+
+    # --- workspace folder (ADR-0010) -----------------------------------
+
+    def _handle_open_folder(self, message: MsgOpenFolder) -> list[Response]:
+        root = Path(message.path).expanduser()
+        if not root.is_dir():
+            return [
+                self._error(
+                    "not_found", f"no such folder: {message.path}", where="openFolder"
+                )
+            ]
+        self._workspace_root = root.resolve()
+        return [self._list_dir("")]
+
+    def _handle_list_dir(self, message: MsgListDir) -> list[Response]:
+        try:
+            return [self._list_dir(message.path)]
+        except _DocError as exc:
+            return [self._error("invalid_path", str(exc), where="listDir")]
+
+    def _handle_open_part(self, message: MsgOpenPart) -> list[Response]:
+        try:
+            path = self._resolve_in_workspace(message.path)
+        except _DocError as exc:
+            return [self._error("invalid_path", str(exc), where="openPart")]
+        if not path.exists():
+            return [
+                self._error(
+                    "not_found", f"no such part: {message.path}", where="openPart"
+                )
+            ]
+        try:
+            self.document = TouchDocument.load(path)
+        except (json.JSONDecodeError, ValidationError, OSError):
+            return [
+                self._error(
+                    "open_failed", "could not read the .touch part", where="openPart"
+                )
+            ]
+        self._redo = []
+        self._dirty = False
+        return self._snapshot_with_mesh(where="openPart")
+
+    def _handle_save_part(self, message: MsgSavePart) -> list[Response]:
+        try:
+            path = self._resolve_in_workspace(message.path)
+        except _DocError as exc:
+            return [self._error("invalid_path", str(exc), where="savePart")]
+        self.document.name = path.stem
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            self.document.save(path)
+        except OSError:
+            return [
+                self._error(
+                    "save_failed", "could not write the .touch part", where="savePart"
+                )
+            ]
+        self._dirty = False
+        return [self._snapshot(), self._list_dir(self._rel(path.parent))]
+
+    def _handle_new_part(self, message: MsgNewPart) -> list[Response]:
+        try:
+            path = self._resolve_in_workspace(message.path)
+        except _DocError as exc:
+            return [self._error("invalid_path", str(exc), where="newPart")]
+        if path.exists():
+            return [
+                self._error(
+                    "exists", f"already exists: {message.path}", where="newPart"
+                )
+            ]
+        self.document = TouchDocument(name=path.stem)
+        self._redo = []
+        self._dirty = False
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            self.document.save(path)
+        except OSError:
+            return [
+                self._error(
+                    "save_failed", "could not create the .touch part", where="newPart"
+                )
+            ]
+        return [self._snapshot(), self._list_dir(self._rel(path.parent))]
+
+    def _handle_rename_part(self, message: MsgRenamePart) -> list[Response]:
+        try:
+            src = self._resolve_in_workspace(message.path)
+            dst = self._resolve_in_workspace(message.to_path)
+        except _DocError as exc:
+            return [self._error("invalid_path", str(exc), where="renamePart")]
+        if not src.exists():
+            return [
+                self._error(
+                    "not_found", f"no such entry: {message.path}", where="renamePart"
+                )
+            ]
+        if dst.exists():
+            return [
+                self._error(
+                    "exists", f"already exists: {message.to_path}", where="renamePart"
+                )
+            ]
+        try:
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            src.rename(dst)
+        except OSError:
+            return [
+                self._error("rename_failed", "could not rename", where="renamePart")
+            ]
+        out = [self._list_dir(self._rel(src.parent))]
+        if dst.parent != src.parent:
+            out.append(self._list_dir(self._rel(dst.parent)))
+        return out
+
+    def _handle_remove_part(self, message: MsgRemovePart) -> list[Response]:
+        try:
+            path = self._resolve_in_workspace(message.path)
+        except _DocError as exc:
+            return [self._error("invalid_path", str(exc), where="removePart")]
+        if not path.exists():
+            return [
+                self._error(
+                    "not_found", f"no such entry: {message.path}", where="removePart"
+                )
+            ]
+        try:
+            if path.is_dir():
+                shutil.rmtree(path)
+            else:
+                path.unlink()
+        except OSError:
+            return [
+                self._error("remove_failed", "could not remove", where="removePart")
+            ]
+        return [self._list_dir(self._rel(path.parent))]
+
+    def _resolve_in_workspace(self, relpath: str) -> Path:
+        """Resolve a workspace-relative path, contained to the open root (no
+        traversal / absolute escape; ADR-0010 / CLAUDE.md boundary rule)."""
+        if self._workspace_root is None:
+            raise _DocError("no workspace folder is open")
+        candidate = (self._workspace_root / relpath).resolve()
+        if (
+            candidate != self._workspace_root
+            and self._workspace_root not in candidate.parents
+        ):
+            raise _DocError("path escapes the workspace")
+        return candidate
+
+    def _rel(self, path: Path) -> str:
+        assert self._workspace_root is not None
+        return (
+            ""
+            if path == self._workspace_root
+            else str(path.relative_to(self._workspace_root))
+        )
+
+    def _list_dir(self, relpath: str) -> str:
+        target = self._resolve_in_workspace(relpath)
+        entries: list[DirEntry] = []
+        if target.is_dir():
+            for p in sorted(
+                target.iterdir(), key=lambda x: (not x.is_dir(), x.name.lower())
+            ):
+                entries.append(DirEntry(name=p.name, is_dir=p.is_dir()))
+        return MsgDir(type="dir", path=relpath, entries=entries).model_dump_json()
 
     # --- helpers --------------------------------------------------------
 

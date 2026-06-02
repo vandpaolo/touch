@@ -399,6 +399,107 @@
       "required": ["type", "name", "history", "dirty", "can_undo", "can_redo"],
       "additionalProperties": false
     },
+    "DirEntry": {
+      "title": "DirEntry",
+      "description": "One entry in a workspace directory listing.",
+      "type": "object",
+      "properties": {
+        "name": {"type": "string"},
+        "is_dir": {"type": "boolean"}
+      },
+      "required": ["name", "is_dir"],
+      "additionalProperties": false
+    },
+    "MsgOpenFolder": {
+      "title": "MsgOpenFolder",
+      "description": "FE->BE: set the workspace root to this folder path (ADR-0010); the backend replies with the root `dir` listing.",
+      "type": "object",
+      "properties": {
+        "type": {"const": "openFolder"},
+        "path": {"type": "string"}
+      },
+      "required": ["type", "path"],
+      "additionalProperties": false
+    },
+    "MsgListDir": {
+      "title": "MsgListDir",
+      "description": "FE->BE: list a directory within the workspace (lazy expand); path is workspace-relative (\"\" = root).",
+      "type": "object",
+      "properties": {
+        "type": {"const": "listDir"},
+        "path": {"type": "string"}
+      },
+      "required": ["type", "path"],
+      "additionalProperties": false
+    },
+    "MsgOpenPart": {
+      "title": "MsgOpenPart",
+      "description": "FE->BE: open a .touch part by workspace-relative path; the model is rebuilt by replaying its history (F10).",
+      "type": "object",
+      "properties": {
+        "type": {"const": "openPart"},
+        "path": {"type": "string"}
+      },
+      "required": ["type", "path"],
+      "additionalProperties": false
+    },
+    "MsgSavePart": {
+      "title": "MsgSavePart",
+      "description": "FE->BE: save the active document to a .touch part at this workspace-relative path (F10).",
+      "type": "object",
+      "properties": {
+        "type": {"const": "savePart"},
+        "path": {"type": "string"}
+      },
+      "required": ["type", "path"],
+      "additionalProperties": false
+    },
+    "MsgNewPart": {
+      "title": "MsgNewPart",
+      "description": "FE->BE: create an empty .touch part at this workspace-relative path and open it.",
+      "type": "object",
+      "properties": {
+        "type": {"const": "newPart"},
+        "path": {"type": "string"}
+      },
+      "required": ["type", "path"],
+      "additionalProperties": false
+    },
+    "MsgRenamePart": {
+      "title": "MsgRenamePart",
+      "description": "FE->BE: rename/move a workspace entry from `path` to `to_path` (both workspace-relative).",
+      "type": "object",
+      "properties": {
+        "type": {"const": "renamePart"},
+        "path": {"type": "string"},
+        "to_path": {"type": "string"}
+      },
+      "required": ["type", "path", "to_path"],
+      "additionalProperties": false
+    },
+    "MsgRemovePart": {
+      "title": "MsgRemovePart",
+      "description": "FE->BE: delete a workspace entry at this workspace-relative path.",
+      "type": "object",
+      "properties": {
+        "type": {"const": "removePart"},
+        "path": {"type": "string"}
+      },
+      "required": ["type", "path"],
+      "additionalProperties": false
+    },
+    "MsgDir": {
+      "title": "MsgDir",
+      "description": "BE->FE: a directory listing within the workspace (lazy per-folder).",
+      "type": "object",
+      "properties": {
+        "type": {"const": "dir"},
+        "path": {"type": "string"},
+        "entries": {"type": "array", "items": {"$ref": "#/$defs/DirEntry"}}
+      },
+      "required": ["type", "path", "entries"],
+      "additionalProperties": false
+    },
     "Message": {
       "title": "Message",
       "description": "Any control-message envelope on the wire (discriminated by `type`).",
@@ -421,7 +522,15 @@
         {"$ref": "#/$defs/MsgUndo"},
         {"$ref": "#/$defs/MsgRedo"},
         {"$ref": "#/$defs/MsgFileList"},
-        {"$ref": "#/$defs/MsgDocument"}
+        {"$ref": "#/$defs/MsgDocument"},
+        {"$ref": "#/$defs/MsgOpenFolder"},
+        {"$ref": "#/$defs/MsgListDir"},
+        {"$ref": "#/$defs/MsgOpenPart"},
+        {"$ref": "#/$defs/MsgSavePart"},
+        {"$ref": "#/$defs/MsgNewPart"},
+        {"$ref": "#/$defs/MsgRenamePart"},
+        {"$ref": "#/$defs/MsgRemovePart"},
+        {"$ref": "#/$defs/MsgDir"}
       ]
     }
   },
