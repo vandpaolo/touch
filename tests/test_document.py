@@ -32,7 +32,9 @@ def test_save_load_round_trip(tmp_path):
     assert loaded.name == "cube"
     assert loaded.description == "demo"
     assert loaded.schema_version == SCHEMA_VERSION
-    assert [op.model_dump() for op in loaded.history] == [op.model_dump() for op in doc.history]
+    assert [op.model_dump() for op in loaded.history] == [
+        op.model_dump() for op in doc.history
+    ]
 
 
 def test_touch_file_is_human_readable_json(tmp_path):
