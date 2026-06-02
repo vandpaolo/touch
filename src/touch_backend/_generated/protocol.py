@@ -401,6 +401,102 @@ class MsgMeshFrame(BaseModel):
     )
 
 
+class MsgNewDoc(BaseModel):
+    """
+    FE->BE: start a new empty document (F10).
+    """
+
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    type: Literal['newDoc']
+
+
+class MsgOpen(BaseModel):
+    """
+    FE->BE: open a .touch file by name from the project dir; the model is rebuilt by replaying its history (F10).
+    """
+
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    type: Literal['open']
+    name: str
+
+
+class MsgSave(BaseModel):
+    """
+    FE->BE: save the current document as a .touch file (by name) under the project dir (F10).
+    """
+
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    type: Literal['save']
+    name: str
+
+
+class MsgListFiles(BaseModel):
+    """
+    FE->BE: list the .touch files in the project dir (for the explorer).
+    """
+
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    type: Literal['listFiles']
+
+
+class MsgUndo(BaseModel):
+    """
+    FE->BE: step back one operation in the history (F9).
+    """
+
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    type: Literal['undo']
+
+
+class MsgRedo(BaseModel):
+    """
+    FE->BE: re-apply the last undone operation (F9).
+    """
+
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    type: Literal['redo']
+
+
+class MsgFileList(BaseModel):
+    """
+    BE->FE: the .touch files available in the project dir.
+    """
+
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    type: Literal['fileList']
+    files: list[str]
+
+
+class MsgDocument(BaseModel):
+    """
+    BE->FE: a snapshot of the current document for the FE mirror — history, name, dirty + undo/redo availability (F8/F9/F10).
+    """
+
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    type: Literal['document']
+    name: str
+    history: list[Operation]
+    dirty: bool
+    can_undo: bool
+    can_redo: bool
+
+
 class Message(
     RootModel[
         MsgPlan
@@ -414,6 +510,14 @@ class Message(
         | MsgConversationTurn
         | MsgError
         | MsgMeshFrame
+        | MsgNewDoc
+        | MsgOpen
+        | MsgSave
+        | MsgListFiles
+        | MsgUndo
+        | MsgRedo
+        | MsgFileList
+        | MsgDocument
     ]
 ):
     root: (
@@ -428,6 +532,14 @@ class Message(
         | MsgConversationTurn
         | MsgError
         | MsgMeshFrame
+        | MsgNewDoc
+        | MsgOpen
+        | MsgSave
+        | MsgListFiles
+        | MsgUndo
+        | MsgRedo
+        | MsgFileList
+        | MsgDocument
     ) = Field(
         ...,
         description='Any control-message envelope on the wire (discriminated by `type`).',

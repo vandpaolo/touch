@@ -319,6 +319,86 @@
       "required": ["type", "version", "vertex_count", "triangle_count", "edge_segment_count", "face_id_to_finder_hint"],
       "additionalProperties": false
     },
+    "MsgNewDoc": {
+      "title": "MsgNewDoc",
+      "description": "FE->BE: start a new empty document (F10).",
+      "type": "object",
+      "properties": {"type": {"const": "newDoc"}},
+      "required": ["type"],
+      "additionalProperties": false
+    },
+    "MsgOpen": {
+      "title": "MsgOpen",
+      "description": "FE->BE: open a .touch file by name from the project dir; the model is rebuilt by replaying its history (F10).",
+      "type": "object",
+      "properties": {
+        "type": {"const": "open"},
+        "name": {"type": "string"}
+      },
+      "required": ["type", "name"],
+      "additionalProperties": false
+    },
+    "MsgSave": {
+      "title": "MsgSave",
+      "description": "FE->BE: save the current document as a .touch file (by name) under the project dir (F10).",
+      "type": "object",
+      "properties": {
+        "type": {"const": "save"},
+        "name": {"type": "string"}
+      },
+      "required": ["type", "name"],
+      "additionalProperties": false
+    },
+    "MsgListFiles": {
+      "title": "MsgListFiles",
+      "description": "FE->BE: list the .touch files in the project dir (for the explorer).",
+      "type": "object",
+      "properties": {"type": {"const": "listFiles"}},
+      "required": ["type"],
+      "additionalProperties": false
+    },
+    "MsgUndo": {
+      "title": "MsgUndo",
+      "description": "FE->BE: step back one operation in the history (F9).",
+      "type": "object",
+      "properties": {"type": {"const": "undo"}},
+      "required": ["type"],
+      "additionalProperties": false
+    },
+    "MsgRedo": {
+      "title": "MsgRedo",
+      "description": "FE->BE: re-apply the last undone operation (F9).",
+      "type": "object",
+      "properties": {"type": {"const": "redo"}},
+      "required": ["type"],
+      "additionalProperties": false
+    },
+    "MsgFileList": {
+      "title": "MsgFileList",
+      "description": "BE->FE: the .touch files available in the project dir.",
+      "type": "object",
+      "properties": {
+        "type": {"const": "fileList"},
+        "files": {"type": "array", "items": {"type": "string"}}
+      },
+      "required": ["type", "files"],
+      "additionalProperties": false
+    },
+    "MsgDocument": {
+      "title": "MsgDocument",
+      "description": "BE->FE: a snapshot of the current document for the FE mirror — history, name, dirty + undo/redo availability (F8/F9/F10).",
+      "type": "object",
+      "properties": {
+        "type": {"const": "document"},
+        "name": {"type": "string"},
+        "history": {"type": "array", "items": {"$ref": "#/$defs/Operation"}},
+        "dirty": {"type": "boolean"},
+        "can_undo": {"type": "boolean"},
+        "can_redo": {"type": "boolean"}
+      },
+      "required": ["type", "name", "history", "dirty", "can_undo", "can_redo"],
+      "additionalProperties": false
+    },
     "Message": {
       "title": "Message",
       "description": "Any control-message envelope on the wire (discriminated by `type`).",
@@ -333,7 +413,15 @@
         {"$ref": "#/$defs/MsgOp"},
         {"$ref": "#/$defs/MsgConversationTurn"},
         {"$ref": "#/$defs/MsgError"},
-        {"$ref": "#/$defs/MsgMeshFrame"}
+        {"$ref": "#/$defs/MsgMeshFrame"},
+        {"$ref": "#/$defs/MsgNewDoc"},
+        {"$ref": "#/$defs/MsgOpen"},
+        {"$ref": "#/$defs/MsgSave"},
+        {"$ref": "#/$defs/MsgListFiles"},
+        {"$ref": "#/$defs/MsgUndo"},
+        {"$ref": "#/$defs/MsgRedo"},
+        {"$ref": "#/$defs/MsgFileList"},
+        {"$ref": "#/$defs/MsgDocument"}
       ]
     }
   },

@@ -19,7 +19,15 @@ export type Message =
   | MsgOp
   | MsgConversationTurn
   | MsgError
-  | MsgMeshFrame;
+  | MsgMeshFrame
+  | MsgNewDoc
+  | MsgOpen
+  | MsgSave
+  | MsgListFiles
+  | MsgUndo
+  | MsgRedo
+  | MsgFileList
+  | MsgDocument;
 /**
  * World-space point [x, y, z] in mm.
  *
@@ -225,4 +233,60 @@ export interface MsgMeshFrame {
   face_id_to_finder_hint: {
     [k: string]: Selection;
   };
+}
+/**
+ * FE->BE: start a new empty document (F10).
+ */
+export interface MsgNewDoc {
+  type: "newDoc";
+}
+/**
+ * FE->BE: open a .touch file by name from the project dir; the model is rebuilt by replaying its history (F10).
+ */
+export interface MsgOpen {
+  type: "open";
+  name: string;
+}
+/**
+ * FE->BE: save the current document as a .touch file (by name) under the project dir (F10).
+ */
+export interface MsgSave {
+  type: "save";
+  name: string;
+}
+/**
+ * FE->BE: list the .touch files in the project dir (for the explorer).
+ */
+export interface MsgListFiles {
+  type: "listFiles";
+}
+/**
+ * FE->BE: step back one operation in the history (F9).
+ */
+export interface MsgUndo {
+  type: "undo";
+}
+/**
+ * FE->BE: re-apply the last undone operation (F9).
+ */
+export interface MsgRedo {
+  type: "redo";
+}
+/**
+ * BE->FE: the .touch files available in the project dir.
+ */
+export interface MsgFileList {
+  type: "fileList";
+  files: string[];
+}
+/**
+ * BE->FE: a snapshot of the current document for the FE mirror — history, name, dirty + undo/redo availability (F8/F9/F10).
+ */
+export interface MsgDocument {
+  type: "document";
+  name: string;
+  history: Operation[];
+  dirty: boolean;
+  can_undo: boolean;
+  can_redo: boolean;
 }
