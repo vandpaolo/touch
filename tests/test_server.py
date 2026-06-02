@@ -118,17 +118,22 @@ def test_plan_returns_structured_op_and_real_face_id_mesh():
                     )
                 )
                 op_msg = json.loads(await ws.recv())
+                doc_msg = json.loads(await ws.recv())
                 frame_msg = json.loads(await ws.recv())
                 binary = await ws.recv()
         finally:
             server.close()
             await server.wait_closed()
-        return op_msg, frame_msg, binary
+        return op_msg, doc_msg, frame_msg, binary
 
-    op_msg, frame_msg, binary = asyncio.run(scenario())
+    op_msg, doc_msg, frame_msg, binary = asyncio.run(scenario())
 
     assert op_msg["type"] == "op"
     assert op_msg["operation"]["kind"] == "box"
+    # plan now also emits a document snapshot (T4) for the FE mirror
+    assert doc_msg["type"] == "document"
+    assert len(doc_msg["history"]) == 1
+    assert doc_msg["dirty"] is True
     assert frame_msg["type"] == "meshFrame"
     assert frame_msg["triangle_count"] == 12
     assert set(frame_msg["face_id_to_finder_hint"]) == {str(i) for i in range(6)}

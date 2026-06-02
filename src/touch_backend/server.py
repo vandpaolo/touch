@@ -34,7 +34,7 @@ class Server:
         self._client_factory = client_factory or (lambda: make_client(config.llm_mode))
 
     async def _handle(self, connection: ServerConnection) -> None:
-        session = Session(self._client_factory)
+        session = Session(self._client_factory, project_dir=self._config.out_root)
         await connection.send(session.ready())
         if self._config.demo_mesh:
             try:
