@@ -79,3 +79,23 @@ From driving the first real click→chamfer round-trip:
   unsupported intent and refuse/clarify ("I can't make holes yet") instead of
   guessing wrong. → T5 clarification + the deferred modifier set
   (hole/fillet/shell/pattern) in the focused Intent→Operation effort.
+
+## 2026-06-01 — More live feedback (→ T4 / prompt UX)
+
+- **Geometry must persist via the file explorer (T4).** Hard-refresh resets to
+  the demo cube because nothing is saved. Want: create a `.touch` file → open it
+  → the modified geometry persists (refresh-proof), since the op history is saved
+  in the file. This is core T4 (.touch save/load + file-tree open/new) — the
+  demo-cube throwaway seed should be replaced by a real new/open-document flow.
+- **Prompt loading feedback was too subtle.** The only in-flight cue was the
+  bottom-left status-bar "working…". Fix (done pre-T4): keep the prompt panel
+  OPEN in a working state until the modification lands. T5 expands this into the
+  full chat-thread-stays-open clarification UX.
+
+## 2026-06-01 — T4 file explorer should mirror VS Code / Cursor
+
+The `.touch` file explorer (T4, F10/F18) should model the **VS Code / Cursor
+Explorer**: collapsible file/folder tree in the left sidebar (the Explorer panel
+the activity-bar icon already toggles), single-click to open a file, context
+actions for new / rename / (later) delete, the active file highlighted. Fits the
+VS-Code-lite shell already built in T2. Keep it familiar — same muscle memory.
