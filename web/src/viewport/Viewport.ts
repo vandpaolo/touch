@@ -259,6 +259,19 @@ export class Viewport {
     this.camera.updateProjectionMatrix()
   }
 
+  /** Remove all geometry + highlights (e.g. on a new/empty document). */
+  clear(): void {
+    this.setHoverHighlight(null)
+    this.setSelectedFace(null)
+    this.meshData = undefined
+    if (this.mesh) {
+      this.scene.remove(this.mesh)
+      this.mesh.geometry.dispose()
+      ;(this.mesh.material as THREE.Material).dispose()
+      this.mesh = undefined
+    }
+  }
+
   dispose(): void {
     cancelAnimationFrame(this.raf)
     if (this.onPointerMove) {

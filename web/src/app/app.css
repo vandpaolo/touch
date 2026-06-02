@@ -69,6 +69,17 @@ body {
   color: var(--fg-dim);
   cursor: default;
 }
+.menubar-doc {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--fg-dim);
+}
+.menubar-dirty {
+  color: #ffd27a;
+  font-size: 9px;
+}
 
 /* Body: sidebar + main */
 .body {
@@ -127,22 +138,77 @@ body {
   display: flex;
 }
 
-/* File tree */
+/* File explorer */
 .panel-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   padding: 0.5rem 0.75rem;
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--fg-dim);
 }
+.ft-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+.ft-action {
+  background: transparent;
+  border: none;
+  color: var(--fg-dim);
+  font: inherit;
+  font-size: 11px;
+  text-transform: none;
+  letter-spacing: 0;
+  cursor: pointer;
+  padding: 0;
+}
+.ft-action:hover {
+  color: var(--fg);
+}
 .file-tree-list {
   list-style: none;
   margin: 0;
-  padding: 0 0.75rem;
+  padding: 0;
 }
 .file-tree-empty {
+  padding: 0.2rem 0.75rem;
   color: var(--fg-dim);
   font-style: italic;
+}
+.ft-file {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  width: 100%;
+  background: transparent;
+  border: none;
+  color: var(--fg);
+  font: inherit;
+  text-align: left;
+  padding: 0.2rem 0.75rem;
+  cursor: pointer;
+}
+.ft-file:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+.ft-file.active {
+  background: rgba(255, 255, 255, 0.1);
+}
+.ft-icon {
+  flex: 0 0 auto;
+  color: var(--fg-dim);
+}
+.ft-name {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ft-dirty {
+  color: #ffd27a;
+  font-size: 9px;
 }
 
 /* Viewport host */

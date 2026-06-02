@@ -1,7 +1,7 @@
 // web/app — the shell (F2). Owns the VS-Code-like layout: menu bar (top),
-// activity bar + resizable sidebar (file-tree) + viewport host (centre),
-// status bar (bottom), and Settings reachable from the menu/activity bar.
-// The composition root of the renderer.
+// activity bar + resizable sidebar (file explorer) + viewport host (centre),
+// status bar (bottom). Composition root: wires transport <-> doc-store <->
+// viewport and the document lifecycle (open/new/save/undo/redo, T4).
 import {
   useCallback,
   useEffect,
@@ -9,11 +9,11 @@ import {
   useState,
   type PointerEvent as ReactPointerEvent,
 } from 'react'
-import { DocStore } from '../doc-store'
+import { DocStore, type DocState } from '../doc-store'
 import { SelectionStore, selectionFromHit } from '../selection'
 import { Transport, type TransportOptions } from '../transport'
 import { PromptPanel, buildPlanMessage } from '../prompt/PromptPanel.tsx'
-import type { Selection } from '../protocol-types'
+import type { Message, Selection } from '../protocol-types'
 import { FileTree } from '../file-tree/FileTree.tsx'
 import { Viewport } from '../viewport/Viewport.ts'
 import { ViewportHost } from '../viewport/ViewportHost.tsx'
@@ -26,14 +26,23 @@ const SIDEBAR_MIN = 160
 const SIDEBAR_MAX = 480
 
 // When served over HTTPS (behind Caddy at /touch), connect to the WS via a
-// relative path (wss://<host>/touch/ws) so the reverse proxy handles it.
-// On the localhost dev server, fall back to the default ws://localhost:8765.
+// relative path (wss://<host>/touch/ws). On the localhost dev server, fall
+// back to the default ws://localhost:8765.
 function transportOpts(): TransportOptions {
   if (typeof window !== 'undefined' && window.location.protocol === 'https:') {
     const base = window.location.pathname.replace(/\/+$/, '')
     return { path: `${base}/ws` }
   }
   return {}
+}
+
+const EMPTY_DOC: DocState = {
+  mesh: null,
+  name: 'untitled',
+  history: [],
+  dirty: false,
+  canUndo: false,
+  canRedo: false,
 }
 
 export function App() {
@@ -46,11 +55,19 @@ export function App() {
   )
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [doc, setDoc] = useState<DocState>(EMPTY_DOC)
+  const [files, setFiles] = useState<string[]>([])
+
   const viewportRef = useRef<HTMLDivElement>(null)
   const transportRef = useRef<Transport | null>(null)
+  const docRef = useRef<DocState>(doc)
+  docRef.current = doc
 
-  // Engine wiring: transport -> doc-store -> viewport, plus the live
-  // connection indicator. Mounted once; torn down on unmount.
+  const send = useCallback((msg: Message) => {
+    transportRef.current?.send(msg)
+  }, [])
+
+  // Engine wiring: transport <-> doc-store <-> viewport. Mounted once.
   useEffect(() => {
     const container = viewportRef.current
     if (!container) return
@@ -62,9 +79,6 @@ export function App() {
     const transport = new Transport(transportOpts())
     transportRef.current = transport
 
-    // Left-click a face → build a Selection from the mesh's finder hint, store
-    // it, show the selected-face highlight, and open the prompt panel anchored
-    // at the click. Empty click clears selection + closes the prompt.
     viewport.onFaceClick((hit, screen) => {
       if (!hit) {
         selection.clear()
@@ -81,18 +95,25 @@ export function App() {
     const offs = [
       transport.on('mesh', (m) => {
         store.applyMesh(m)
+        viewport.setMesh(m)
         setBusy(false)
         setPrompt(null) // the modification landed — close the prompt
       }),
-      store.subscribe((s) => {
-        if (s.mesh) viewport.setMesh(s.mesh)
+      transport.on('document', (d) => {
+        store.applyDocument(d)
+        if (d.history.length === 0) viewport.clear() // new/undone-to-empty
       }),
+      transport.on('fileList', (f) => setFiles(f.files)),
+      store.subscribe(setDoc),
       transport.on('error', (e) => {
         setBusy(false)
         setError(e.message)
       }),
+      transport.on('ready', () => {
+        setConnection('connected')
+        transport.send({ type: 'listFiles' })
+      }),
       transport.on('open', () => setConnection('connected')),
-      transport.on('ready', () => setConnection('connected')),
       transport.on('close', () => setConnection('disconnected')),
       transport.on('socketError', () => setConnection('disconnected')),
     ]
@@ -106,16 +127,51 @@ export function App() {
     }
   }, [])
 
+  // --- document actions ----------------------------------------------------
+
+  const newFile = useCallback(() => send({ type: 'newDoc' }), [send])
+  const openFile = useCallback((name: string) => send({ type: 'open', name }), [send])
+  const undo = useCallback(() => send({ type: 'undo' }), [send])
+  const redo = useCallback(() => send({ type: 'redo' }), [send])
+  const saveFile = useCallback(() => {
+    const current = docRef.current.name
+    const suggested = current && current !== 'untitled' ? current : 'untitled'
+    const name = window.prompt('Save as:', suggested)
+    if (name) send({ type: 'save', name })
+  }, [send])
+
+  const addFeature = useCallback(() => {
+    // Prompt with no selection → the planner emits a primary (create-from-scratch).
+    setPrompt({ x: window.innerWidth / 2 - 140, y: window.innerHeight / 2 - 60, selection: null })
+  }, [])
+
   const submitPrompt = (text: string) => {
     setBusy(true)
     setError(null)
-    transportRef.current?.send(buildPlanMessage(prompt?.selection ?? null, text))
-    // Keep the panel open in a working state; it closes when the mesh lands
-    // (transport 'mesh' handler) or re-enables on error.
+    send(buildPlanMessage(prompt?.selection ?? null, text))
   }
 
-  // Drag-to-resize the sidebar. Capture the start geometry on pointer-down and
-  // track on window so the drag survives the cursor leaving the thin handle.
+  // Keyboard: undo / redo / save. Reads the latest state via refs.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey)) return
+      const key = e.key.toLowerCase()
+      if (key === 'z' && !e.shiftKey) {
+        e.preventDefault()
+        undo()
+      } else if ((key === 'z' && e.shiftKey) || key === 'y') {
+        e.preventDefault()
+        redo()
+      } else if (key === 's') {
+        e.preventDefault()
+        saveFile()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [undo, redo, saveFile])
+
+  // Drag-to-resize the sidebar.
   const startResize = useCallback(
     (e: ReactPointerEvent<HTMLDivElement>) => {
       e.preventDefault()
@@ -142,13 +198,27 @@ export function App() {
       <header className="menubar">
         <span className="menubar-brand">Touch</span>
         <nav className="menubar-menus" aria-label="Main menu">
-          <button className="menubar-item" type="button" disabled>
-            File
+          <button className="menubar-item" type="button" onClick={addFeature}>
+            + Feature
+          </button>
+          <button className="menubar-item" type="button" onClick={undo} disabled={!doc.canUndo}>
+            Undo
+          </button>
+          <button className="menubar-item" type="button" onClick={redo} disabled={!doc.canRedo}>
+            Redo
           </button>
           <button className="menubar-item" type="button" onClick={() => setSettingsOpen(true)}>
             Settings
           </button>
         </nav>
+        <span className="menubar-doc">
+          {doc.name}
+          {doc.dirty && (
+            <span className="menubar-dirty" title="Unsaved changes">
+              ●
+            </span>
+          )}
+        </span>
       </header>
 
       <div className="body">
@@ -160,7 +230,14 @@ export function App() {
         {sidebarOpen && (
           <>
             <aside className="sidebar" style={{ width: sidebarWidth }}>
-              <FileTree />
+              <FileTree
+                files={files}
+                activeName={doc.name}
+                dirty={doc.dirty}
+                onOpen={openFile}
+                onNew={newFile}
+                onSave={saveFile}
+              />
             </aside>
             <div
               className="resizer"
