@@ -2,7 +2,18 @@
 # Secrets (F29): the dev Anthropic key lives SOPS-encrypted in
 # secrets.env.sops.yaml; the plaintext .env is gitignored and never committed.
 
-.PHONY: secrets-decrypt secrets-encrypt hooks codegen ci
+.PHONY: secrets-decrypt secrets-encrypt hooks codegen ci up down restart sidecar-status
+
+# Dev sidecar toggle — bring the WS backend up/down for the browser-dev UI at
+# https://nexus/touch (detached; survives the shell). See scripts/sidecar.sh.
+up:
+	@scripts/sidecar.sh up
+down:
+	@scripts/sidecar.sh down
+restart:
+	@scripts/sidecar.sh down; scripts/sidecar.sh up
+sidecar-status:
+	@scripts/sidecar.sh status
 
 # Generate protocol bindings from protocol/schema.json (the single source of truth):
 # pydantic models for the backend + TS types for the frontend (ADR-0005). Commit the output.
