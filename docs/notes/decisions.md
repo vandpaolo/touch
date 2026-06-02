@@ -640,3 +640,20 @@ either a note section or a decision here.
 - Q (C1, forced): T4 exit needs creating a cube from scratch (skipped T3 Max).
 - A: Folded into Day 6 as required scope (no-selection primary → box/cylinder/sphere); the FE gap is a prompt entry without a face click.
 - → docs/phases/phase-T4.md § Min + Day 6 + R2
+
+## 2026-06-01 — /pm-requirements (T4 re-scope: folder workspace)
+
+Resolving blocker 2026-06-01-folder-workspace-explorer.
+- Q: explorer model? → A: VS-Code/Cursor folder workspace. Open Folder → Explorer mirrors a folder 1:1; create/open `.touch` parts in it. F18 revised + bumped should→must; F10 revised to part save/open; F32 (Open Folder, files on the user's machine), F33 (activity rail: Explorer real, Search/Git/Extensions inert stubs for a future extensions story, Settings), F34 (top menu dropdowns), N13 (cross-mode file access). → 01-requirements.md
+- Q: file ownership? → A: frontend owns the folder; backend rebuilds from streamed op-history. The *mechanism* (File System Access API in browser / Electron native dialog / react-arborist + Codicons, built in-stack not copied) is deferred to /pm-architecture (kept out of requirements). → 01-requirements.md §F32 + /pm-architecture next
+- Q (roadmap): T14 (multi-file/folder model) + open-decision #5 (multi-doc) pulled forward? → A: T4 absorbs the folder Explorer + Open Folder + menus; editor tabs + the multi-doc model become the next phase (T14 pulled up). One /pm-roadmap touch to re-sequence.
+- Q (tabs timing, conflict resolved): → A: Explorer now, editor tabs next phase. F35 stays `should`/follow-on.
+
+## 2026-06-01 — /pm-architecture critic panel → revised ADR-0010
+
+Ran a 5-pass adversarial critic panel on the folder-workspace architecture; 4/5 returned "reconsider". Outcome — revised the design (ADR-0010 rewritten):
+- **File ownership flipped back to backend-owns-the-folder + frontend-owns-the-interaction** (user delegated the call; agreed BE is functionally correct). The sidecar lists/reads/writes the workspace tree over the WS and stays the single source of truth; `web/platform` provides only the folder *picker* (Electron native dialog → local sidecar; browser-dev a host folder). Same Open-Folder→1:1-tree UX, reuses the T4 backend, no FSA quirks / split-brain / O(history) opens. Electron desktop = a real local folder (files never leave the machine). Browser File System Access API (laptop folder in the tab) = deferred nicety.
+- **Hand-rolled recursive tree (~200 lines) + Codicons (MIT)** — dropped `react-arborist` (single-maintainer / React-19 risk; virtualization premature for shallow part-folders).
+- **State is multi-doc-ready now** — `Session` keys documents by id with per-document undo/redo + dirty; `web/doc-store` mirrors per-id; UI shows one active. Editor-tab strip ships next phase without re-architecting.
+- **Content-addressed rebuild cache** (hash of op-history prefix → STEP/mesh) → open/undo/redo/tab-switch O(1), not O(history).
+- → docs/adr/0010-workspace-and-file-ownership.md; 02-architecture.md; 02-classes.md; 02-data-model.md

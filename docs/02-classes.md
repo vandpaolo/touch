@@ -32,14 +32,15 @@ dependency rules.
 
 | Module | Responsibility | Public surface | Depends on (in) | Depends on (out) |
 |--------|----------------|----------------|-----------------|------------------|
-| `web/app` | Shell: three-panel layout owner + menu (F2); mounts every UI surface; app-level wiring (transport lifecycle, splash gating) | `App` component, `bootstrap(root)` | `web/main` (entry) | all UI components, web/transport, web/platform |
-| `web/platform` | Capability shim (N5): runtime detection (browser vs Electron) + native-surface adapters (file dialogs, OS-keychain) with browser fallbacks | `platform` object: `isElectron()`, `openFile()`, `saveFile()`, `keychain.*` | web/app, web/file-tree, web/settings | (Electron preload / `window.electron`) |
+| `web/app` | Shell (F2): layout owner; the **activity rail** (F33 — Explorer real, Search/Git/Extensions inert stubs, Settings pinned), the **top menu bar** (F34 — File/Edit/View/Help), and the **editor-tab strip** (F35, next phase); mounts every UI surface; app-level wiring | `App` component, `bootstrap(root)` | `web/main` (entry) | all UI components, web/workspace, web/transport, web/platform |
+| `web/platform` | Capability shim (N5): runtime detection + native-surface adapters. **Folder picker (F32, ADR-0010):** Electron native open-directory dialog (→ a path for the *local* sidecar); browser-dev picks a folder on the sidecar host. Also OS-keychain. **File I/O itself is the backend's**, not this shim's. | `platform` object: `isElectron()`, `pickFolder()`, `keychain.*` | web/app, web/workspace, web/settings | (Electron preload / `window.electron`) |
+| `web/workspace` | The opened workspace (ADR-0010): the active-part id + the lazily-loaded tree mirrored from the backend; drives file ops by sending commands over the WS (openFolder / listDir / open / save / new / rename / remove). Multi-doc-ready — keyed by part id, UI shows one active (editor tabs next phase) | `Workspace` store: `openFolder()`, `tree`, `openPart(path)`, `newPart`, `save`, `rename`, `remove` | web/app, web/file-tree | web/platform (picker), web/transport |
 | `web/viewport` | three.js scene, render loop, NX camera (F3) | `Viewport` class, `mount(canvas)` | web/app | three, web/picking, web/doc-store |
 | `web/picking` | raycast → triangle → face/edge id (F4, F5) | `Picker.pickAt(x, y) -> Selection \| null` | web/viewport, web/selection | three, web/doc-store |
 | `web/selection` | Selection state store (current sel + history of recent) | `SelectionStore` | web/picking, web/prompt | (none) |
 | `web/prompt` | Prompt panel anchored to selection; chat-thread for clarifications (F6, F7) | `PromptPanel` component | (root entry) | web/selection, web/transport |
 | `web/history-ui` | Undo/redo + history list (F9) | `HistoryView` component | (root entry) | web/transport, web/doc-store |
-| `web/file-tree` | VS-Code-like project tree (F10, F18) | `FileTree` component | (root entry) | web/transport |
+| `web/file-tree` | VS-Code/Cursor-style folder Explorer (F18): renders the workspace tree 1:1 (nested, collapsible), open/new/rename/delete a part. **Hand-rolled** recursive tree (~200 lines: rows, keyboard, lazy expand) + Codicons icon font (own dark theme) | `FileTree` component | web/app | web/workspace, Codicons |
 | `web/settings` | Settings panel: provider mode + creds + Claude Code detection (F13, F31) | `SettingsPanel` component | (root entry) | web/transport |
 | `web/cost-indicator` | Session cost display (F14) | `CostIndicator` component | (root entry) | web/transport |
 | `web/splash` | Cold-start splash until backend `ready` (F15) | `Splash` component | (root entry) | web/transport |
@@ -323,7 +324,9 @@ prompt must be identical.
 | **Provider mode** | The user's choice of LLM path: API (key in OS keychain) or Claude Code (subscription). |
 | **Browser-dev mode** | The frontend served via Vite to a browser tab pointed at a localhost sidecar — the developer's headless-Linux daily loop. |
 | **App shell** | `web/app` — the module that owns the three-panel VS-Code-like layout (F2) and mounts every UI surface. The renderer's composition root. |
-| **Capability shim** | `web/platform` — the single seam abstracting native surfaces (file dialogs, OS-keychain) so the identical renderer runs in both Electron and a plain browser tab (N5). The only module aware of which run mode it is in. |
+| **Capability shim** | `web/platform` — the single seam abstracting native surfaces (folder/file access, OS-keychain) so the identical renderer runs in both Electron and a plain browser tab (N5). The only module aware of which run mode it is in. |
+| **Workspace** | A folder on the user's machine, opened via File → Open Folder, holding the user's `.touch` parts (+ any other files); mirrored 1:1 in the Explorer. Frontend-owned (ADR-0010) — not a Touch-defined format, just an OS folder. |
+| **Part** | One `.touch` document (a `TouchDocument` / operation history) inside a Workspace — the unit the user opens, edits, and saves. |
 | **Spike** | A time-boxed prove-it-can-work prototype. The packaging spike (Electron + Python + OCP → `.exe`) is v0's phase 0. |
 
 ### Aggregates, entities, value objects
@@ -382,7 +385,9 @@ the TS side).
 | Rule | Enforced how |
 |---|---|
 | `web/app` may import any UI component + `web/transport` + `web/platform`; no module may import `web/app` (it is the shell root, mounted only by `web/main`) | `dependency-cruiser` |
-| `web/platform` is the only module that touches Electron preload / `window.electron`; UI components reach native surfaces (file dialogs, keychain) only via `web/platform` | grep guard + `dependency-cruiser` |
+| `web/platform` is the only module that touches Electron preload / `window.electron`; **workspace file I/O is the backend's** (over the WS), not the frontend's — `platform` only provides the folder *picker* (ADR-0010) | grep guard + `dependency-cruiser` |
+| `web/workspace` may import `web/platform` (picker) + `web/transport` (file commands); it is the workspace's single owner on the FE | `dependency-cruiser` |
+| `web/file-tree` may import `web/workspace` (+ the Codicons asset); it does not touch `web/platform` / `web/transport` directly (it goes through `web/workspace`) | `dependency-cruiser` |
 | `web/viewport` may import three.js, `web/picking`, `web/doc-store`; not `web/transport` directly | `dependency-cruiser` |
 | `web/picking` may import three.js + `web/doc-store`; not UI components or transport | `dependency-cruiser` |
 | `web/transport` is the only module that opens a `WebSocket` | grep guard |

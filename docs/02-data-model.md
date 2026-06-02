@@ -34,6 +34,19 @@ erDiagram
 
 ## Entities
 
+### Workspace (backend-owned filesystem; ADR-0010)
+
+**Purpose.** A folder, opened via File → Open Folder, that holds the user's
+`.touch` **parts** (plus any other files), mirrored 1:1 in the Explorer. It is
+**not a Touch-defined format** — just an OS directory. The **backend (sidecar)
+owns the filesystem**: it lists/reads/writes the tree, opens a part (load its
+history into the session) and saves. The **frontend owns the interaction**: the
+folder *picker* (Electron native dialog → the local sidecar; browser-dev a host
+folder) and the tree view, issuing file commands over the WS. A **Part** is one
+`.touch` file = one `TouchDocument` (below). In the Electron desktop build the
+folder is on the user's machine (files never leave it); in browser-dev it is on
+the sidecar host.
+
 ### TouchDocument (aggregate root)
 
 **Purpose.** The user's saved part — an ordered, append-only sequence of

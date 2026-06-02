@@ -202,6 +202,8 @@ executor work). One op at a time per session (queue + cancel token).
 | Frontend UI | React + TypeScript + Vite | Largest ecosystem for VS-Code-like layouts (panels, splits, trees); Vite for fast dev rebuilds in browser-tab mode |
 | 3D viewport | three.js (vanilla, not wrapped) | Direct control over camera, picking, BufferGeometry, materials — the precision a CAD viewport needs; ocp-vscode uses three.js too |
 | Camera controls | three.js `OrbitControls` rebound to NX-style (middle-mouse rotate, shift+middle pan, scroll zoom) | F3 |
+| Workspace / folder access | **Backend-owned** folder over the WS (the sidecar lists/reads/writes the tree); the FE folder *picker* lives in `web/platform` (Electron native dialog → the local sidecar; browser-dev picks a folder on the sidecar host) | One source of truth, reuses the T4 backend; Electron = a real local folder so files never leave the machine (ADR-0010, F32, N12/N13). Browser FSA laptop-folder = deferred nicety |
+| File explorer UI | **Hand-rolled** recursive tree (~200 lines: rows, keyboard, lazy expand) + Codicons (MIT icon font); our own dark theme | VS-Code/Cursor-style folder tree (F18/F33) built in-stack — no heavy tree dependency (critic panel: part-folders are shallow) and not a fork of VS Code |
 | Desktop shell | Electron + Python sidecar | F1, N4 — see [ADR-0009](./adr/0009-desktop-shell-electron-sidecar.md) |
 | Sidecar supervision | `child_process.spawn` (Electron main) + ready/exit signalling over stdout | Standard pattern; restart on exit drives F16 |
 | Packaging | `electron-builder` (Electron) + `PyInstaller` for the Python sidecar, both bundled into the installer | Standard pattern; the **packaging spike** is the v0 phase-0 unknown |
@@ -266,7 +268,8 @@ touch/                           # repo root (will be renamed from `maquette/`)
 │   ├── src/
 │   │   ├── main.tsx             # entry: bootstraps app
 │   │   ├── app/                 # shell: three-panel layout owner (F2)
-│   │   ├── platform/            # capability shim: browser vs Electron (N5)
+│   │   ├── platform/            # capability shim: browser vs Electron + folder access (N5, ADR-0010)
+│   │   ├── workspace/           # opened folder handle + tree + active part (ADR-0010)
 │   │   ├── viewport/
 │   │   ├── picking/
 │   │   ├── selection/
@@ -312,6 +315,7 @@ is the implementation chore tracked in the rename cascade.
 | N10 | Adapter determinism | `adapter` is a pure function `history → code`; snapshot tests in CI per op kind. |
 | N11 | Open source / MIT | `LICENSE` + GitHub-hosted code + public Releases. |
 | N12 | No accidental cloud | Only outgoing traffic is to `api.anthropic.com` (mode A) or to the local Claude Code process (mode B); no Touch-operated server in the loop for end users. |
+| N13 | Workspace file access across run modes | Backend owns the workspace filesystem (lists/reads/writes the folder tree over the WS); `web/platform` provides the folder *picker* — Electron native dialog → the *local* sidecar (files never leave the machine, N12); browser-dev opens a folder on the sidecar host. Laptop-folder-inside-the-browser (FSA) is a deferred nicety (ADR-0010). |
 
 ## Cross-cutting concerns
 
@@ -322,9 +326,12 @@ is the implementation chore tracked in the rename cascade.
 - **Logging.** Backend logs structured JSON to stdout (Electron main
   forwards / surfaces in dev console). Per-WS-message log line. No PII /
   no API keys ever logged.
-- **State.** Filesystem-as-state, like Maquette: each project is a
-  folder of `.touch` files; no DB. In-memory state in the backend is a
-  derived cache, rebuildable from the on-disk document.
+- **State.** Filesystem-as-state, like Maquette: a **workspace** is a
+  folder of `.touch` parts owned by the backend (ADR-0010); no DB. In-memory
+  state is a derived cache, rebuildable from the on-disk history. A
+  **content-addressed rebuild cache** (hash of the op-history prefix → STEP/mesh)
+  keeps open / undo / redo / tab-switch O(1) instead of O(history). Sessions
+  hold documents keyed by id (one active today; multi-doc-ready for editor tabs).
 - **Secrets.** See N9 / `keychain_bridge` / SOPS. The CI guard greps for
   obvious plaintext credentials in any commit diff.
 - **Sandboxing.** v0 trusts the LLM-emitted build123d code (Maquette's

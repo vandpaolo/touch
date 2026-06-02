@@ -94,6 +94,8 @@ From driving the first real click→chamfer round-trip:
 
 ## 2026-06-01 — T4 file explorer should mirror VS Code / Cursor
 
+> absorbed into docs/01-requirements.md (F18/F32/F33/F34) @ 2026-06-01
+
 The `.touch` file explorer (T4, F10/F18) should model the **VS Code / Cursor
 Explorer**: collapsible file/folder tree in the left sidebar (the Explorer panel
 the activity-bar icon already toggles), single-click to open a file, context
