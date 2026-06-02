@@ -62,3 +62,20 @@ Tick the box and link to where the answer landed once decided.
   OS keychain via preload) behind a thin **capability shim** so the identical
   FE runs in a plain browser tab without diverging from prod. Cheap from day
   one, painful to retrofit.
+
+## 2026-06-01 — T3 live-use feedback (planner UX → T5 inputs)
+
+From driving the first real click→chamfer round-trip:
+
+- **Required params must trigger a clarifying question, not an assumption.**
+  Saying just "chamfer" (no size) currently lets the LLM assume a value; the
+  user expects "how many mm?" instead. → F7 / T5. Implies a per-kind
+  required-params contract (chamfer: length; hole: diameter; …) that, when
+  unmet, makes the planner ASK rather than default. (Touch's `intent_validation`
+  per-kind contracts are the natural basis.)
+- **Don't silently substitute unsupported ops.** "make a hole" produced a
+  cylinder, because T3's planner offers only box/cylinder/sphere/chamfer, so the
+  LLM picks the nearest allowed kind. The planner should recognize an
+  unsupported intent and refuse/clarify ("I can't make holes yet") instead of
+  guessing wrong. → T5 clarification + the deferred modifier set
+  (hole/fillet/shell/pattern) in the focused Intent→Operation effort.

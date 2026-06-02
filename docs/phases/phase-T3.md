@@ -1,11 +1,11 @@
 ---
 id: T3
 title: Picking + click-to-prompt (first end-to-end round-trip)
-status: in_progress
+status: done
 started: 2026-06-01
-finished: null
-min_goal_met: null
-max_goal_met: null
+finished: 2026-06-01
+min_goal_met: true
+max_goal_met: false
 blocker: null
 depends_on: [T2]
 ---

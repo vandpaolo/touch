@@ -1,6 +1,6 @@
 ---
 project_status: building   # planning | building | shipped — Touch v0 in progress; T0 packaging spike kicked off 2026-05-30
-active_phase: T3   # started 2026-06-01 — picking + click-to-prompt (first end-to-end round-trip); see phase-T3.md
+active_phase: null   # T3 done 2026-06-01 (Min met, Max partial — see phase-T3-report.md); T4 (.touch doc + undo/redo) next
 ---
 
 # 03 — Roadmap
