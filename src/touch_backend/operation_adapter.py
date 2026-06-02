@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Callable, Sequence
+from typing import Any
 
 from touch_backend._generated.protocol import Operation
 from touch_backend.adapters import AdapterRefusal
@@ -26,7 +27,12 @@ def emit(history: Sequence[Operation]) -> str:
     if not history:
         raise AdapterRefusal(reason="document has no operations", where="export:empty")
 
-    lines = ["# build123d source for a Touch document", "from build123d import *", ""]
+    lines = [
+        "# build123d source for a Touch document",
+        "from build123d import *",
+        "from touch_backend.finder import resolve_face_containing",
+        "",
+    ]
     last_var = ""
     for operation in history:
         emitter = _DISPATCH.get(operation.kind)
@@ -36,7 +42,7 @@ def emit(history: Sequence[Operation]) -> str:
                 where=f"op:{operation.kind}",
             )
         var = "op_" + re.sub(r"\W", "_", operation.id)
-        lines.append(f"{var} = {emitter(operation)}")
+        lines.append(f"{var} = {emitter(operation, last_var)}")
         last_var = var
 
     lines.append(f'export_step({last_var}, "part.step")')
@@ -53,23 +59,52 @@ def _num(operation: Operation, key: str) -> float:
     return float(value)
 
 
-def _box(operation: Operation) -> str:
+def _box(operation: Operation, _prev: str) -> str:
     length = _num(operation, "length")
     width = _num(operation, "width")
     height = _num(operation, "height")
     return f"Box({length}, {width}, {height})"
 
 
-def _cylinder(operation: Operation) -> str:
+def _cylinder(operation: Operation, _prev: str) -> str:
     return f"Cylinder({_num(operation, 'radius')}, {_num(operation, 'height')})"
 
 
-def _sphere(operation: Operation) -> str:
+def _sphere(operation: Operation, _prev: str) -> str:
     return f"Sphere({_num(operation, 'radius')})"
 
 
-_DISPATCH: dict[str, Callable[[Operation], str]] = {
+def _contains_point(selection: Any) -> tuple[tuple[float, float, float], float]:
+    """Extract the (point, tol) of the selection's contains_point finder (the
+    chamfer target), falling back to the selection's own point."""
+    for predicate in selection.finder:
+        root = predicate.root
+        if getattr(root, "kind", None) == "contains_point":
+            return tuple(root.point_xyz.root), float(root.tol_mm)
+    return tuple(selection.point_xyz.root), 0.5
+
+
+def _chamfer(operation: Operation, prev_var: str) -> str:
+    if not prev_var:
+        raise AdapterRefusal(
+            reason="chamfer needs a base solid to modify", where="op:chamfer"
+        )
+    if operation.selection is None:
+        raise AdapterRefusal(
+            reason="chamfer requires a selected face", where="op:chamfer"
+        )
+    length = _num(operation, "length")
+    point, tol = _contains_point(operation.selection)
+    # Resolve the clicked face on the prior solid at run time, chamfer its edges.
+    return (
+        f"chamfer(resolve_face_containing({prev_var}, {point!r}, {tol}).edges(), "
+        f"length={length})"
+    )
+
+
+_DISPATCH: dict[str, Callable[[Operation, str], str]] = {
     "box": _box,
     "cylinder": _cylinder,
     "sphere": _sphere,
+    "chamfer": _chamfer,
 }

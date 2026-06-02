@@ -73,11 +73,13 @@ class Session:
         return MsgReady(type="ready", schema_version=SCHEMA_VERSION).model_dump_json()
 
     def demo_mesh(self) -> list[Response]:
-        """Dev-only (T2, config.demo_mesh): a connect-time cube so the frontend
-        has real backend geometry before the click->prompt flow exists. Built
-        through the real adapter->executor->tessellate path. Throwaway — remove
-        once T3 picking drives real operations."""
-        mesh = self._rebuild_mesh([_DEMO_OP])
+        """Dev-only (config.demo_mesh): seed the document with a connect-time
+        cube so the click->prompt flow has a real base solid to modify (a
+        chamfer needs a prior op). Built through the real
+        adapter->executor->tessellate path. Throwaway — removed once a proper
+        new-document / primary-feature flow lands."""
+        self.document.append(_DEMO_OP)
+        mesh = self._rebuild_mesh()
         return [mesh_frame_envelope(mesh).model_dump_json(), pack(mesh)]
 
     def handle(self, raw: str | bytes) -> list[Response]:

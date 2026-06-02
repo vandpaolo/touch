@@ -58,3 +58,72 @@ def test_missing_param_is_refused():
 def test_empty_history_is_refused():
     with pytest.raises(AdapterRefusal):
         operation_adapter.emit([])
+
+
+# --- chamfer (T3): resolve the clicked face, chamfer its edges ---------------
+
+
+def _chamfer_op(length=5, point=(0, 0, 20), op_id="ch1") -> Operation:
+    return Operation.model_validate(
+        {
+            "id": op_id,
+            "kind": "chamfer",
+            "params": {"length": length},
+            "selection": {
+                "target": "face",
+                "point_xyz": list(point),
+                "finder": [
+                    {"kind": "contains_point", "point_xyz": list(point), "tol_mm": 0.5}
+                ],
+                "face_id_at_capture": 0,
+            },
+            "prompt_text": "add a 5 mm chamfer here",
+            "conversation": [],
+            "created_at": "2026-06-01T00:00:00Z",
+        }
+    )
+
+
+def test_emit_chamfer_resolves_face_and_chamfers_edges():
+    code = operation_adapter.emit(
+        [_op("box", {"length": 40, "width": 40, "height": 40}, op_id="box1"), _chamfer_op()]
+    )
+    assert "from touch_backend.finder import resolve_face_containing" in code
+    assert "Box(40.0, 40.0, 40.0)" in code
+    assert "resolve_face_containing(op_box1, (0.0, 0.0, 20.0), 0.5).edges()" in code
+    assert "length=5.0" in code
+
+
+def test_emit_chamfer_is_deterministic():
+    history = [_op("box", {"length": 40, "width": 40, "height": 40}, op_id="b"), _chamfer_op()]
+    assert operation_adapter.emit(history) == operation_adapter.emit(history)
+
+
+def test_chamfer_without_selection_is_refused():
+    op = _chamfer_op()
+    op.selection = None
+    with pytest.raises(AdapterRefusal):
+        operation_adapter.emit([_op("box", {"length": 40, "width": 40, "height": 40}), op])
+
+
+def test_chamfer_as_first_op_is_refused():
+    with pytest.raises(AdapterRefusal):
+        operation_adapter.emit([_chamfer_op()])
+
+
+def test_chamfer_round_trip_executes_and_adds_faces(tmp_path):
+    from build123d import import_step
+
+    from touch_backend.agent.executor import Executor
+
+    code = operation_adapter.emit(
+        [_op("box", {"length": 40, "width": 40, "height": 40}, op_id="box1"), _chamfer_op()]
+    )
+    code_path = tmp_path / "code.py"
+    code_path.write_text(code, encoding="utf-8")
+    result = Executor(tmp_path, 30.0).execute(code_path)
+
+    assert result.step_path is not None, result.error
+    solid = import_step(result.step_path)
+    # A plain box has 6 faces; chamfering one face's 4 edges adds chamfer faces.
+    assert len(solid.faces()) > 6
