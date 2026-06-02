@@ -10,9 +10,20 @@ const LABEL: Record<ConnectionState, string> = {
   disconnected: 'Disconnected',
 }
 
-export function StatusBar({ connection }: { connection: ConnectionState }) {
+export function StatusBar({
+  connection,
+  busy = false,
+}: {
+  connection: ConnectionState
+  busy?: boolean
+}) {
   return (
     <footer className="statusbar" aria-label="Status bar">
+      {busy && (
+        <span className="statusbar-item statusbar-busy" data-testid="status-busy">
+          ⏳ working…
+        </span>
+      )}
       <span className="statusbar-item" data-testid="status-connection">
         <span className={`status-dot ${connection}`} aria-hidden="true">
           ●

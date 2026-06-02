@@ -44,6 +44,8 @@ export function App() {
   const [prompt, setPrompt] = useState<{ x: number; y: number; selection: Selection | null } | null>(
     null,
   )
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const viewportRef = useRef<HTMLDivElement>(null)
   const transportRef = useRef<Transport | null>(null)
 
@@ -77,9 +79,16 @@ export function App() {
     })
 
     const offs = [
-      transport.on('mesh', (m) => store.applyMesh(m)),
+      transport.on('mesh', (m) => {
+        store.applyMesh(m)
+        setBusy(false)
+      }),
       store.subscribe((s) => {
         if (s.mesh) viewport.setMesh(s.mesh)
+      }),
+      transport.on('error', (e) => {
+        setBusy(false)
+        setError(e.message)
       }),
       transport.on('open', () => setConnection('connected')),
       transport.on('ready', () => setConnection('connected')),
@@ -97,6 +106,8 @@ export function App() {
   }, [])
 
   const submitPrompt = (text: string) => {
+    setBusy(true)
+    setError(null)
     transportRef.current?.send(buildPlanMessage(prompt?.selection ?? null, text))
     setPrompt(null)
   }
@@ -163,7 +174,13 @@ export function App() {
         </main>
       </div>
 
-      <StatusBar connection={connection} />
+      <StatusBar connection={connection} busy={busy} />
+
+      {error && (
+        <div className="toast-error" role="alert" onClick={() => setError(null)}>
+          {error}
+        </div>
+      )}
 
       {prompt && (
         <PromptPanel

@@ -188,6 +188,27 @@ body {
   color: #ffb3b3;
 }
 
+.statusbar-busy {
+  margin-right: auto; /* push to the left edge of the status bar */
+}
+
+/* Error toast (structured backend errors, F21) */
+.toast-error {
+  position: fixed;
+  bottom: 36px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 30;
+  max-width: 60vw;
+  background: #5a1d1d;
+  color: #ffd5d5;
+  border: 1px solid #a33;
+  border-radius: 6px;
+  padding: 0.5rem 0.9rem;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
+  cursor: pointer;
+}
+
 /* Prompt panel (anchored at the click) */
 .prompt-panel {
   position: fixed;

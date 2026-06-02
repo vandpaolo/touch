@@ -14,9 +14,14 @@ type FinderHints = MsgMeshFrame['face_id_to_finder_hint']
 export function selectionFromHit(hit: PickHit, hints: FinderHints): Selection | null {
   const hint = hints[String(hit.faceTag)]
   if (!hint) return null
+  // Build the finder at the actual click point (interior to the face) rather
+  // than reusing the hint's anchor (a face corner, which resolves ambiguously
+  // across the 3 faces sharing it). The backend resolves this contains_point.
+  const point: [number, number, number] = [hit.point.x, hit.point.y, hit.point.z]
   return {
-    ...hint,
-    point_xyz: [hit.point.x, hit.point.y, hit.point.z],
+    target: hint.target,
+    point_xyz: point,
+    finder: [{ kind: 'contains_point', point_xyz: point, tol_mm: 0.5 }],
     face_id_at_capture: hit.faceTag,
   }
 }
