@@ -101,3 +101,26 @@ Explorer**: collapsible file/folder tree in the left sidebar (the Explorer panel
 the activity-bar icon already toggles), single-click to open a file, context
 actions for new / rename / (later) delete, the active file highlighted. Fits the
 VS-Code-lite shell already built in T2. Keep it familiar — same muscle memory.
+
+---
+
+- [ ] Q: face selection is brittle — a lot of actions fail with FinderError.
+      context: surfaced 2026-06-02 while testing the live editor. Many edit
+      actions died as an opaque "subprocess exited with code 1". Root cause:
+      the adapter re-resolves the clicked face from a 3D point via
+      `resolve_face_containing(solid, point, tol)`, which fails in two common
+      ways — clicking on/near an edge or corner → "ambiguous: N faces contain
+      point" (the point touches multiple faces); a pick that lands just off the
+      brep surface (mesh-vs-brep float gap, tol 0.5 mm) → "no face contains
+      point". So normal clicks near edges break. (A third, separate failure:
+      chamfer length larger than the geometry allows → build123d ValueError
+      "try a smaller length" — relates to the min-params/clarify-questions item
+      for T5/F7 already noted.)
+      mitigated now: the executor surfaces the real exception line instead of
+      the exit code, so the user at least sees *why* (T4, error observability).
+      real fix (T5 / finder phase): stop re-resolving from a 3D point. The FE
+      already knows the exact clicked face (faceTag → faceId → finder hint);
+      carry a stable face identifier through the selection so the backend
+      selects the clicked face directly instead of a lossy point-containment
+      lookup. Likely an ADR (selection / face-identity model). Out of scope for
+      T4 (scope-frozen) — re-open via /pm-blocker or sequence into T5.

@@ -11,7 +11,11 @@ import json
 from pathlib import Path
 from time import perf_counter
 
-from touch_backend.agent.executor import ExecutionResult, Executor
+from touch_backend.agent.executor import (
+    ExecutionResult,
+    Executor,
+    _last_exception_line,
+)
 
 _OK_SNIPPET = (
     "from build123d import Box, export_step\n"
@@ -70,7 +74,9 @@ def test_crash_writes_error_json_exit_12(tmp_path: Path):
 
     assert result.exit_code == 12
     assert result.step_path is None
-    assert result.error is not None
+    # The real exception is surfaced (not the opaque exit code) so the user
+    # learns *why* the build failed.
+    assert result.error == "RuntimeError: boom from generated code"
 
     error_path = tmp_path / "error.json"
     assert error_path.exists(), "error.json not written on crash (N6)"
@@ -114,3 +120,24 @@ def test_sigterm_ignoring_process_is_sigkilled(tmp_path: Path):
     # timeout (1s) + SIGKILL grace (2s) + margin; if SIGKILL had not reaped
     # the child, communicate() would block well past this bound.
     assert elapsed < 8, f"executor did not reap the runaway child (took {elapsed:.1f}s)"
+
+
+def test_last_exception_line_shortens_qualified_name():
+    stderr = (
+        "Traceback (most recent call last):\n"
+        '  File "code.py", line 4, in <module>\n'
+        "    op_2 = chamfer(...)\n"
+        "touch_backend.finder.FinderError: no face contains point (20.0, 0.0, 0.0)\n"
+    )
+    assert (
+        _last_exception_line(stderr)
+        == "FinderError: no face contains point (20.0, 0.0, 0.0)"
+    )
+
+
+def test_last_exception_line_keeps_bare_name_and_handles_empty():
+    assert _last_exception_line("ValueError: try a smaller length") == (
+        "ValueError: try a smaller length"
+    )
+    assert _last_exception_line("") is None
+    assert _last_exception_line(None) is None

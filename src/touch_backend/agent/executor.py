@@ -17,6 +17,7 @@ STEP), 13 timeout.
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -35,6 +36,22 @@ _STDERR_TAIL_CHARS = 4000
 
 _STEP_NAME = "part.step"
 _ERROR_NAME = "error.json"
+
+
+def _last_exception_line(stderr: str | None) -> str | None:
+    """The final line of a Python traceback — "SomeError: detail" — with any
+    module-qualified exception name shortened to its bare class. None if stderr
+    holds no usable line."""
+    if not stderr:
+        return None
+    lines = [ln.strip() for ln in stderr.strip().splitlines() if ln.strip()]
+    if not lines:
+        return None
+    last = lines[-1]
+    match = re.match(r"^([\w.]+)(:\s.*)$", last)
+    if match and "." in match.group(1):
+        return match.group(1).rsplit(".", 1)[-1] + match.group(2)
+    return last
 
 
 @dataclass(frozen=True)
@@ -81,7 +98,12 @@ class Executor:
         duration = perf_counter() - start
 
         if proc.returncode != 0:
-            reason = f"subprocess exited with code {proc.returncode}"
+            # Surface the real exception (e.g. "FinderError: no face contains
+            # point …") instead of the opaque exit code — the traceback tail is
+            # what tells the user *why* the build failed.
+            reason = _last_exception_line(stderr) or (
+                f"subprocess exited with code {proc.returncode}"
+            )
             self._write_error(reason, _EXIT_EXEC_FAILED, stderr)
             return ExecutionResult(None, reason, _EXIT_EXEC_FAILED, duration)
 

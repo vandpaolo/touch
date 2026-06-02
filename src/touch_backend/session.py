@@ -54,6 +54,7 @@ from touch_backend.adapters import AdapterRefusal
 from touch_backend.document import TouchDocument
 from touch_backend.frames import mesh_frame_envelope, pack
 from touch_backend.llm_client.base import LLMClient
+from touch_backend.mesh_cache import MeshCache
 
 SCHEMA_VERSION = 1
 _EXEC_TIMEOUT_S = 30.0
@@ -103,6 +104,7 @@ class Session:
         self._llm: LLMClient | None = None
         self._dirty = False
         self._redo: list[Operation] = []
+        self._mesh_cache = MeshCache()
 
     def ready(self) -> str:
         """The `ready` envelope sent once on connect (F15)."""
@@ -402,7 +404,7 @@ class Session:
             return [
                 self._error("rename_failed", "could not rename", where="renamePart")
             ]
-        out = [self._list_dir(self._rel(src.parent))]
+        out: list[Response] = [self._list_dir(self._rel(src.parent))]
         if dst.parent != src.parent:
             out.append(self._list_dir(self._rel(dst.parent)))
         return out
@@ -538,6 +540,10 @@ class Session:
         if history is None:
             history = self.document.history
         code = operation_adapter.emit(history)
+        key = self._mesh_cache.key(code)
+        cached = self._mesh_cache.get(key)
+        if cached is not None:
+            return cached
         with tempfile.TemporaryDirectory(prefix="touch-rebuild-") as tmp:
             out_dir = Path(tmp)
             code_path = out_dir / "code.py"
@@ -546,7 +552,9 @@ class Session:
             if result.step_path is None:
                 raise _GeometryError(result.error or "execution produced no solid")
             solid = import_step(result.step_path)
-        return tessellate(solid)
+        mesh = tessellate(solid)
+        self._mesh_cache.put(key, mesh)
+        return mesh
 
     @staticmethod
     def _error(code: str, message: str, where: str | None = None) -> str:

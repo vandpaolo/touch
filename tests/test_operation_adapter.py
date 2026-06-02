@@ -86,7 +86,10 @@ def _chamfer_op(length=5, point=(0, 0, 20), op_id="ch1") -> Operation:
 
 def test_emit_chamfer_resolves_face_and_chamfers_edges():
     code = operation_adapter.emit(
-        [_op("box", {"length": 40, "width": 40, "height": 40}, op_id="box1"), _chamfer_op()]
+        [
+            _op("box", {"length": 40, "width": 40, "height": 40}, op_id="box1"),
+            _chamfer_op(),
+        ]
     )
     assert "from touch_backend.finder import resolve_face_containing" in code
     assert "Box(40.0, 40.0, 40.0)" in code
@@ -95,7 +98,10 @@ def test_emit_chamfer_resolves_face_and_chamfers_edges():
 
 
 def test_emit_chamfer_is_deterministic():
-    history = [_op("box", {"length": 40, "width": 40, "height": 40}, op_id="b"), _chamfer_op()]
+    history = [
+        _op("box", {"length": 40, "width": 40, "height": 40}, op_id="b"),
+        _chamfer_op(),
+    ]
     assert operation_adapter.emit(history) == operation_adapter.emit(history)
 
 
@@ -103,7 +109,9 @@ def test_chamfer_without_selection_is_refused():
     op = _chamfer_op()
     op.selection = None
     with pytest.raises(AdapterRefusal):
-        operation_adapter.emit([_op("box", {"length": 40, "width": 40, "height": 40}), op])
+        operation_adapter.emit(
+            [_op("box", {"length": 40, "width": 40, "height": 40}), op]
+        )
 
 
 def test_chamfer_as_first_op_is_refused():
@@ -117,7 +125,10 @@ def test_chamfer_round_trip_executes_and_adds_faces(tmp_path):
     from touch_backend.agent.executor import Executor
 
     code = operation_adapter.emit(
-        [_op("box", {"length": 40, "width": 40, "height": 40}, op_id="box1"), _chamfer_op()]
+        [
+            _op("box", {"length": 40, "width": 40, "height": 40}, op_id="box1"),
+            _chamfer_op(),
+        ]
     )
     code_path = tmp_path / "code.py"
     code_path.write_text(code, encoding="utf-8")

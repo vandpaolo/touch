@@ -1,7 +1,7 @@
-// web/app — the shell (F2). Owns the VS-Code-like layout: menu bar (top),
-// activity bar + resizable sidebar (file explorer) + viewport host (centre),
-// status bar (bottom). Composition root: wires transport <-> doc-store <->
-// viewport and the document lifecycle (open/new/save/undo/redo, T4).
+// web/app — the shell (F2). VS-Code-like layout: menu bar (top), activity rail +
+// resizable Explorer (folder workspace) + viewport (centre), status bar (bottom).
+// Composition root: wires transport <-> doc-store <-> viewport <-> workspace
+// (ADR-0010 — backend owns files, FE owns the interaction).
 import {
   useCallback,
   useEffect,
@@ -12,22 +12,24 @@ import {
 import { DocStore, type DocState } from '../doc-store'
 import { SelectionStore, selectionFromHit } from '../selection'
 import { Transport, type TransportOptions } from '../transport'
+import { Workspace } from '../workspace'
+import { pickFolder } from '../platform'
 import { PromptPanel, buildPlanMessage } from '../prompt/PromptPanel.tsx'
-import type { Message, Selection } from '../protocol-types'
+import type { Selection } from '../protocol-types'
 import { FileTree } from '../file-tree/FileTree.tsx'
 import { Viewport } from '../viewport/Viewport.ts'
 import { ViewportHost } from '../viewport/ViewportHost.tsx'
 import { SettingsPanel } from '../settings/SettingsPanel.tsx'
 import { ActivityBar } from './ActivityBar.tsx'
+import { MenuBar, type MenuSpec } from './MenuBar.tsx'
 import { StatusBar, type ConnectionState } from './StatusBar.tsx'
 import './app.css'
 
 const SIDEBAR_MIN = 160
 const SIDEBAR_MAX = 480
 
-// When served over HTTPS (behind Caddy at /touch), connect to the WS via a
-// relative path (wss://<host>/touch/ws). On the localhost dev server, fall
-// back to the default ws://localhost:8765.
+// When served over HTTPS (behind Caddy at /touch), connect via a relative WS
+// path; on the localhost dev server fall back to ws://localhost:8765.
 function transportOpts(): TransportOptions {
   if (typeof window !== 'undefined' && window.location.protocol === 'https:') {
     const base = window.location.pathname.replace(/\/+$/, '')
@@ -56,18 +58,12 @@ export function App() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [doc, setDoc] = useState<DocState>(EMPTY_DOC)
-  const [files, setFiles] = useState<string[]>([])
+  const [ws, setWs] = useState<Workspace | null>(null)
 
   const viewportRef = useRef<HTMLDivElement>(null)
   const transportRef = useRef<Transport | null>(null)
-  const docRef = useRef<DocState>(doc)
-  docRef.current = doc
 
-  const send = useCallback((msg: Message) => {
-    transportRef.current?.send(msg)
-  }, [])
-
-  // Engine wiring: transport <-> doc-store <-> viewport. Mounted once.
+  // Engine wiring: transport <-> doc-store <-> viewport <-> workspace. Once.
   useEffect(() => {
     const container = viewportRef.current
     if (!container) return
@@ -77,7 +73,9 @@ export function App() {
     const store = new DocStore()
     const selection = new SelectionStore()
     const transport = new Transport(transportOpts())
+    const workspace = new Workspace(transport)
     transportRef.current = transport
+    setWs(workspace)
 
     viewport.onFaceClick((hit, screen) => {
       if (!hit) {
@@ -97,22 +95,19 @@ export function App() {
         store.applyMesh(m)
         viewport.setMesh(m)
         setBusy(false)
-        setPrompt(null) // the modification landed — close the prompt
+        setPrompt(null)
       }),
       transport.on('document', (d) => {
         store.applyDocument(d)
-        if (d.history.length === 0) viewport.clear() // new/undone-to-empty
+        if (d.history.length === 0) viewport.clear()
       }),
-      transport.on('fileList', (f) => setFiles(f.files)),
+      transport.on('dir', (d) => workspace.applyDir(d)),
       store.subscribe(setDoc),
       transport.on('error', (e) => {
         setBusy(false)
         setError(e.message)
       }),
-      transport.on('ready', () => {
-        setConnection('connected')
-        transport.send({ type: 'listFiles' })
-      }),
+      transport.on('ready', () => setConnection('connected')),
       transport.on('open', () => setConnection('connected')),
       transport.on('close', () => setConnection('disconnected')),
       transport.on('socketError', () => setConnection('disconnected')),
@@ -127,31 +122,50 @@ export function App() {
     }
   }, [])
 
-  // --- document actions ----------------------------------------------------
+  // --- actions -------------------------------------------------------------
 
-  const newFile = useCallback(() => send({ type: 'newDoc' }), [send])
-  const openFile = useCallback((name: string) => send({ type: 'open', name }), [send])
-  const undo = useCallback(() => send({ type: 'undo' }), [send])
-  const redo = useCallback(() => send({ type: 'redo' }), [send])
-  const saveFile = useCallback(() => {
-    const current = docRef.current.name
-    const suggested = current && current !== 'untitled' ? current : 'untitled'
-    const name = window.prompt('Save as:', suggested)
-    if (name) send({ type: 'save', name })
-  }, [send])
+  const openFolder = useCallback(() => {
+    const path = pickFolder()
+    if (path && ws) ws.openFolder(path)
+  }, [ws])
+
+  const newPart = useCallback(() => {
+    if (!ws?.isOpen()) {
+      setError('Open a folder first (File → Open Folder)')
+      return
+    }
+    const raw = window.prompt('New part name:', 'part.touch')
+    if (raw) ws.newPart(raw.endsWith('.touch') ? raw : `${raw}.touch`)
+  }, [ws])
+
+  const save = useCallback(() => {
+    if (!ws?.isOpen()) {
+      setError('Open a folder first (File → Open Folder)')
+      return
+    }
+    const active = ws.activePath()
+    if (active) {
+      ws.savePart(active)
+      return
+    }
+    const raw = window.prompt('Save part as:', 'part.touch')
+    if (raw) ws.savePart(raw.endsWith('.touch') ? raw : `${raw}.touch`)
+  }, [ws])
+
+  const undo = useCallback(() => transportRef.current?.send({ type: 'undo' }), [])
+  const redo = useCallback(() => transportRef.current?.send({ type: 'redo' }), [])
 
   const addFeature = useCallback(() => {
-    // Prompt with no selection → the planner emits a primary (create-from-scratch).
     setPrompt({ x: window.innerWidth / 2 - 140, y: window.innerHeight / 2 - 60, selection: null })
   }, [])
 
   const submitPrompt = (text: string) => {
     setBusy(true)
     setError(null)
-    send(buildPlanMessage(prompt?.selection ?? null, text))
+    transportRef.current?.send(buildPlanMessage(prompt?.selection ?? null, text))
   }
 
-  // Keyboard: undo / redo / save. Reads the latest state via refs.
+  // Keyboard: undo / redo / save.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!(e.ctrlKey || e.metaKey)) return
@@ -164,14 +178,13 @@ export function App() {
         redo()
       } else if (key === 's') {
         e.preventDefault()
-        saveFile()
+        save()
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [undo, redo, saveFile])
+  }, [undo, redo, save])
 
-  // Drag-to-resize the sidebar.
   const startResize = useCallback(
     (e: ReactPointerEvent<HTMLDivElement>) => {
       e.preventDefault()
@@ -193,24 +206,35 @@ export function App() {
     [sidebarWidth],
   )
 
+  const menus: MenuSpec[] = [
+    {
+      label: 'File',
+      items: [
+        { label: 'Open Folder…', onClick: openFolder },
+        { label: 'New Part…', onClick: newPart },
+        { label: 'Save', onClick: save, shortcut: 'Ctrl+S' },
+        { label: 'New feature (prompt)…', onClick: addFeature },
+      ],
+    },
+    {
+      label: 'Edit',
+      items: [
+        { label: 'Undo', onClick: undo, disabled: !doc.canUndo, shortcut: 'Ctrl+Z' },
+        { label: 'Redo', onClick: redo, disabled: !doc.canRedo, shortcut: 'Ctrl+Shift+Z' },
+      ],
+    },
+    {
+      label: 'View',
+      items: [{ label: sidebarOpen ? 'Hide Explorer' : 'Show Explorer', onClick: () => setSidebarOpen((o) => !o) }],
+    },
+    { label: 'Help', items: [{ label: 'About Touch', onClick: () => window.alert('Touch — AI-native 3D CAD editor (v0)') }] },
+  ]
+
   return (
     <div className="app">
       <header className="menubar">
         <span className="menubar-brand">Touch</span>
-        <nav className="menubar-menus" aria-label="Main menu">
-          <button className="menubar-item" type="button" onClick={addFeature}>
-            + Feature
-          </button>
-          <button className="menubar-item" type="button" onClick={undo} disabled={!doc.canUndo}>
-            Undo
-          </button>
-          <button className="menubar-item" type="button" onClick={redo} disabled={!doc.canRedo}>
-            Redo
-          </button>
-          <button className="menubar-item" type="button" onClick={() => setSettingsOpen(true)}>
-            Settings
-          </button>
-        </nav>
+        <MenuBar menus={menus} />
         <span className="menubar-doc">
           {doc.name}
           {doc.dirty && (
@@ -230,14 +254,7 @@ export function App() {
         {sidebarOpen && (
           <>
             <aside className="sidebar" style={{ width: sidebarWidth }}>
-              <FileTree
-                files={files}
-                activeName={doc.name}
-                dirty={doc.dirty}
-                onOpen={openFile}
-                onNew={newFile}
-                onSave={saveFile}
-              />
+              {ws && <FileTree ws={ws} onOpen={(p) => ws.openPart(p)} />}
             </aside>
             <div
               className="resizer"

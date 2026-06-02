@@ -25,7 +25,9 @@ class _CannedClient:
     def available(self) -> bool:
         return True
 
-    def complete(self, *, system: str, prompt: str, max_tokens: int = 2048) -> LLMResponse:
+    def complete(
+        self, *, system: str, prompt: str, max_tokens: int = 2048
+    ) -> LLMResponse:
         return LLMResponse(text=self._text)
 
 
@@ -34,7 +36,9 @@ def _face_selection() -> Selection:
         {
             "target": "face",
             "point_xyz": [0, 0, 20],
-            "finder": [{"kind": "contains_point", "point_xyz": [0, 0, 20], "tol_mm": 0.5}],
+            "finder": [
+                {"kind": "contains_point", "point_xyz": [0, 0, 20], "tol_mm": 0.5}
+            ],
             "face_id_at_capture": 3,
         }
     )
@@ -59,7 +63,13 @@ def test_chamfer_op_carries_the_fe_selection() -> None:
 
 
 def test_fenced_json_is_tolerated() -> None:
-    fenced = "Sure:\n```json\n" + json.dumps({"kind": "box", "params": {"length": 40, "width": 40, "height": 40}}) + "\n```"
+    fenced = (
+        "Sure:\n```json\n"
+        + json.dumps(
+            {"kind": "box", "params": {"length": 40, "width": 40, "height": 40}}
+        )
+        + "\n```"
+    )
     op = planner.plan(_CannedClient(fenced), "a 40 mm cube", None)
     assert op.kind == "box"
     assert op.selection is None

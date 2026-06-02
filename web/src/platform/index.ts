@@ -29,6 +29,16 @@ export function isElectron(): boolean {
   return bridge() !== undefined
 }
 
+/**
+ * Pick a workspace folder (ADR-0010). The backend owns the filesystem, so this
+ * only resolves *which* folder. Electron's native open-directory dialog lands
+ * later; for now browser-dev asks for a path on the sidecar host.
+ */
+export function pickFolder(): string | null {
+  if (typeof window === 'undefined') return null
+  return window.prompt('Open folder — path on the server:', '/srv/touch')
+}
+
 // Native surfaces. Backed by the Electron preload in prod; in browser-dev they
 // give a clear, intentional failure rather than silently diverging. The real
 // implementations land in their owning phases (keychain T6, file dialogs T9) —

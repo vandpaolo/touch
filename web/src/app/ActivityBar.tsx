@@ -1,41 +1,18 @@
-// web/app — activity bar (icon rail), VS-Code-style shell chrome owned by the
-// shell. Explorer toggles the sidebar; the gear opens Settings.
+// web/app — activity rail (F33), VS-Code-style. Explorer toggles the sidebar;
+// Search / Source-Control / Extensions are inert stubs reserved for a future
+// extensions story; Settings is pinned at the bottom. Codicons for the icons.
 
-function ExplorerIcon() {
+function Stub({ icon, label }: { icon: string; label: string }) {
   return (
-    <svg
-      width="22"
-      height="22"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.6"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
+    <button
+      type="button"
+      className="activity-item activity-stub"
+      title={`${label} — coming soon`}
+      aria-label={label}
+      disabled
     >
-      <path d="M14 3v5h5" />
-      <path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-    </svg>
-  )
-}
-
-function GearIcon() {
-  return (
-    <svg
-      width="22"
-      height="22"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.6"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <circle cx="12" cy="12" r="3" />
-      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-    </svg>
+      <i className={`codicon ${icon}`} aria-hidden="true" />
+    </button>
   )
 }
 
@@ -58,8 +35,11 @@ export function ActivityBar({
         aria-label="Explorer"
         aria-pressed={explorerActive}
       >
-        <ExplorerIcon />
+        <i className="codicon codicon-files" aria-hidden="true" />
       </button>
+      <Stub icon="codicon-search" label="Search" />
+      <Stub icon="codicon-source-control" label="Source Control" />
+      <Stub icon="codicon-extensions" label="Extensions" />
       <div className="activity-spacer" />
       <button
         type="button"
@@ -68,7 +48,7 @@ export function ActivityBar({
         title="Settings"
         aria-label="Settings"
       >
-        <GearIcon />
+        <i className="codicon codicon-settings-gear" aria-hidden="true" />
       </button>
     </div>
   )

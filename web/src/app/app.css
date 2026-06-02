@@ -1,5 +1,6 @@
 /* web/app — VS-Code-lite dark shell. Day 2 skeleton; resizable splits + polish
    are the Day-10 (Max) styling pass. Palette mirrors VS Code's dark theme. */
+@import '@vscode/codicons/dist/codicon.css';
 
 :root {
   color-scheme: dark;
@@ -391,4 +392,107 @@ body {
 }
 .settings-mode {
   color: var(--fg-dim);
+}
+
+/* Codicons + activity rail */
+.activitybar .codicon {
+  font-size: 20px;
+}
+.activity-stub {
+  color: var(--fg-dim);
+  opacity: 0.5;
+  cursor: default;
+}
+.activity-stub:hover {
+  color: var(--fg-dim);
+}
+.ft-action .codicon {
+  font-size: 15px;
+}
+
+/* Folder tree (Explorer) */
+.ws-tree {
+  padding-bottom: 0.5rem;
+}
+.ws-row {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  width: 100%;
+  background: transparent;
+  border: none;
+  color: var(--fg);
+  font: inherit;
+  text-align: left;
+  padding: 0.12rem 0.5rem 0.12rem 0;
+  cursor: pointer;
+}
+.ws-row:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+.ws-row.active {
+  background: rgba(255, 255, 255, 0.1);
+}
+.ws-row .codicon {
+  font-size: 15px;
+  flex: 0 0 auto;
+  color: var(--fg-dim);
+}
+.ws-chevron {
+  width: 14px;
+}
+.ws-chevron-blank {
+  visibility: hidden;
+}
+.ws-name {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Menu bar dropdowns */
+.menu {
+  position: relative;
+}
+.menu-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 40;
+  min-width: 210px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 0 0 6px 6px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
+  padding: 0.25rem 0;
+}
+.menu-entry {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+  width: 100%;
+  background: transparent;
+  border: none;
+  color: var(--fg);
+  font: inherit;
+  text-align: left;
+  padding: 0.3rem 0.75rem;
+  cursor: pointer;
+}
+.menu-entry:hover:not(:disabled) {
+  background: var(--accent);
+  color: #fff;
+}
+.menu-entry:disabled {
+  color: var(--fg-dim);
+  cursor: default;
+}
+.menu-shortcut {
+  color: var(--fg-dim);
+  font-size: 11px;
+}
+.menu-entry:hover:not(:disabled) .menu-shortcut {
+  color: #e6e6e6;
 }

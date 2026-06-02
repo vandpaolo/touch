@@ -8,6 +8,7 @@
 import type {
   Message,
   MsgConversationTurn,
+  MsgDir,
   MsgDocument,
   MsgError,
   MsgFileList,
@@ -133,6 +134,7 @@ interface TransportEvents {
   conversationTurn: MsgConversationTurn
   document: MsgDocument
   fileList: MsgFileList
+  dir: MsgDir
   mesh: MeshData
 }
 
@@ -243,6 +245,9 @@ export class Transport {
         break
       case 'fileList':
         this.emit('fileList', msg)
+        break
+      case 'dir':
+        this.emit('dir', msg)
         break
       default:
         // FE→BE message types echoed back, or unknown — ignore.

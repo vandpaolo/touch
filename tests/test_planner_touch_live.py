@@ -27,7 +27,9 @@ def _face_selection() -> Selection:
         {
             "target": "face",
             "point_xyz": [0, 0, 20],
-            "finder": [{"kind": "contains_point", "point_xyz": [0, 0, 20], "tol_mm": 0.5}],
+            "finder": [
+                {"kind": "contains_point", "point_xyz": [0, 0, 20], "tol_mm": 0.5}
+            ],
             "face_id_at_capture": 3,
         }
     )
@@ -36,7 +38,9 @@ def _face_selection() -> Selection:
 @pytest.mark.live
 @pytest.mark.skipif(not _available(), reason="no anthropic key available")
 def test_live_chamfer_planning() -> None:
-    op = plan(make_client("anthropic_api"), "add a 5 mm chamfer here", _face_selection())
+    op = plan(
+        make_client("anthropic_api"), "add a 5 mm chamfer here", _face_selection()
+    )
     assert op.kind == "chamfer"
     assert "length" in op.params
     # The selection came from the (mocked) frontend click, not the LLM.

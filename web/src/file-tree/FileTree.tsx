@@ -1,80 +1,114 @@
-// web/file-tree — the .touch project explorer (F10/F18), VS-Code/Cursor-style:
-// an Explorer header with New/Save actions and a flat list of files; click to
-// open, the active file highlighted with a dirty dot. Backend owns the files
-// (over WS); this is the view.
+// web/file-tree — the VS-Code/Cursor-style folder Explorer (F18). A hand-rolled
+// recursive tree over web/workspace (lazy expand), themed with Codicons. The
+// backend owns the files (ADR-0010); this just renders the tree + issues
+// open/new commands through the workspace store.
+import { useEffect, useReducer } from 'react'
+import { childPath, type Workspace } from '../workspace'
 
-function FileIcon() {
+function isTouch(name: string): boolean {
+  return name.endsWith('.touch')
+}
+
+function Row({
+  ws,
+  name,
+  path,
+  isDir,
+  depth,
+  onOpen,
+}: {
+  ws: Workspace
+  name: string
+  path: string
+  isDir: boolean
+  depth: number
+  onOpen: (path: string) => void
+}) {
+  const expanded = isDir && ws.isExpanded(path)
+  const active = !isDir && path === ws.activePath()
+  const fileIcon = isTouch(name) ? 'codicon-file-code' : 'codicon-file'
+
   return (
-    <svg
-      className="ft-icon"
-      width="15"
-      height="15"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.6"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M14 3v5h5" />
-      <path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-    </svg>
+    <>
+      <button
+        type="button"
+        className={`ws-row ${active ? 'active' : ''}`}
+        style={{ paddingLeft: 6 + depth * 12 }}
+        onClick={() => (isDir ? ws.toggle(path) : onOpen(path))}
+        title={name}
+      >
+        <i
+          className={`codicon ws-chevron ${
+            isDir ? (expanded ? 'codicon-chevron-down' : 'codicon-chevron-right') : 'ws-chevron-blank'
+          }`}
+          aria-hidden="true"
+        />
+        <i
+          className={`codicon ${isDir ? (expanded ? 'codicon-folder-opened' : 'codicon-folder') : fileIcon}`}
+          aria-hidden="true"
+        />
+        <span className="ws-name">{name}</span>
+      </button>
+      {isDir &&
+        expanded &&
+        (ws.entries(path) ?? []).map((e) => (
+          <Row
+            key={childPath(path, e.name)}
+            ws={ws}
+            name={e.name}
+            path={childPath(path, e.name)}
+            isDir={e.is_dir}
+            depth={depth + 1}
+            onOpen={onOpen}
+          />
+        ))}
+    </>
   )
 }
 
-export function FileTree({
-  files,
-  activeName,
-  dirty,
-  onOpen,
-  onNew,
-  onSave,
-}: {
-  files: string[]
-  activeName: string
-  dirty: boolean
-  onOpen: (name: string) => void
-  onNew: () => void
-  onSave: () => void
-}) {
+export function FileTree({ ws, onOpen }: { ws: Workspace; onOpen: (path: string) => void }) {
+  const [, rerender] = useReducer((x: number) => x + 1, 0)
+  useEffect(() => ws.subscribe(rerender), [ws])
+
+  const newPart = () => {
+    const raw = window.prompt('New part name:', 'part.touch')
+    if (!raw) return
+    ws.newPart(isTouch(raw) ? raw : `${raw}.touch`)
+  }
+
+  const root = ws.entries('')
+
   return (
-    <nav className="file-tree" data-testid="file-tree" aria-label="Project files">
+    <nav className="file-tree" data-testid="file-tree" aria-label="Explorer">
       <div className="panel-title">
         <span>Explorer</span>
-        <span className="ft-actions">
-          <button className="ft-action" type="button" title="New file" onClick={onNew}>
-            New
-          </button>
-          <button className="ft-action" type="button" title="Save (Ctrl+S)" onClick={onSave}>
-            Save
-          </button>
-        </span>
+        {ws.isOpen() && (
+          <span className="ft-actions">
+            <button className="ft-action" type="button" title="New part" onClick={newPart}>
+              <i className="codicon codicon-new-file" aria-hidden="true" />
+            </button>
+          </span>
+        )}
       </div>
-      <ul className="file-tree-list">
-        {files.length === 0 && <li className="file-tree-empty">No .touch files</li>}
-        {files.map((file) => {
-          const active = file === activeName
-          return (
-            <li key={file}>
-              <button
-                type="button"
-                className={`ft-file ${active ? 'active' : ''}`}
-                onClick={() => onOpen(file)}
-                aria-current={active ? 'true' : undefined}
-              >
-                <FileIcon />
-                <span className="ft-name">{file}</span>
-                {active && dirty && (
-                  <span className="ft-dirty" title="Unsaved changes" aria-label="unsaved">
-                    ●
-                  </span>
-                )}
-              </button>
-            </li>
-          )
-        })}
-      </ul>
+      {!ws.isOpen() ? (
+        <div className="file-tree-empty">No folder open — File → Open Folder</div>
+      ) : (
+        <div className="ws-tree">
+          {root === undefined && <div className="file-tree-empty">Loading…</div>}
+          {root && root.length === 0 && <div className="file-tree-empty">(empty folder)</div>}
+          {(root ?? []).map((e) => (
+            <Row
+              key={childPath('', e.name)}
+              ws={ws}
+              name={e.name}
+              path={childPath('', e.name)}
+              isDir={e.is_dir}
+              depth={0}
+              onOpen={onOpen}
+            />
+          ))}
+        </div>
+      )}
     </nav>
   )
 }
