@@ -13,11 +13,13 @@ export function buildPlanMessage(selection: Selection | null, promptText: string
 export function PromptPanel({
   x,
   y,
+  busy = false,
   onSubmit,
   onCancel,
 }: {
   x: number
   y: number
+  busy?: boolean
   onSubmit: (text: string) => void
   onCancel: () => void
 }) {
@@ -41,8 +43,10 @@ export function PromptPanel({
         placeholder="Describe the change… (e.g. add a 5 mm chamfer here)"
         value={text}
         rows={2}
+        disabled={busy}
         onChange={(e) => setText(e.target.value)}
         onKeyDown={(e) => {
+          if (busy) return
           if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault()
             submit()
@@ -53,12 +57,20 @@ export function PromptPanel({
         }}
       />
       <div className="prompt-actions">
-        <button type="button" className="prompt-btn prompt-cancel" onClick={onCancel}>
-          Cancel
-        </button>
-        <button type="button" className="prompt-btn prompt-submit" onClick={submit}>
-          Submit
-        </button>
+        {busy ? (
+          <span className="prompt-working" aria-live="polite">
+            <span className="prompt-spinner" aria-hidden="true" /> working…
+          </span>
+        ) : (
+          <>
+            <button type="button" className="prompt-btn prompt-cancel" onClick={onCancel}>
+              Cancel
+            </button>
+            <button type="button" className="prompt-btn prompt-submit" onClick={submit}>
+              Submit
+            </button>
+          </>
+        )}
       </div>
     </div>
   )

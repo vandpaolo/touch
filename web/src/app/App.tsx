@@ -82,6 +82,7 @@ export function App() {
       transport.on('mesh', (m) => {
         store.applyMesh(m)
         setBusy(false)
+        setPrompt(null) // the modification landed — close the prompt
       }),
       store.subscribe((s) => {
         if (s.mesh) viewport.setMesh(s.mesh)
@@ -109,7 +110,8 @@ export function App() {
     setBusy(true)
     setError(null)
     transportRef.current?.send(buildPlanMessage(prompt?.selection ?? null, text))
-    setPrompt(null)
+    // Keep the panel open in a working state; it closes when the mesh lands
+    // (transport 'mesh' handler) or re-enables on error.
   }
 
   // Drag-to-resize the sidebar. Capture the start geometry on pointer-down and
@@ -186,6 +188,7 @@ export function App() {
         <PromptPanel
           x={prompt.x}
           y={prompt.y}
+          busy={busy}
           onSubmit={submitPrompt}
           onCancel={() => setPrompt(null)}
         />
