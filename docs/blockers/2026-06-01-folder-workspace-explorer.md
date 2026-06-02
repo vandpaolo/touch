@@ -2,9 +2,9 @@
 id: 2026-06-01-folder-workspace-explorer
 phase: T4
 severity: soft
-status: open
+status: resolved
 discovered: 2026-06-01
-resolved: null
+resolved: 2026-06-01
 re_entry: both
 ---
 
@@ -87,4 +87,21 @@ Caveats to weigh in the redesign:
 
 ## Resolution
 
-<!-- filled when the redesign is locked and this blocker is resolved -->
+Resolved 2026-06-01. Both re-entry layers re-opened and locked:
+
+- **`/pm-requirements`** — F18 → Explorer mirrors the opened folder 1:1 (`must`);
+  added F32 (Open Folder), F33 (activity rail), F34 (menu bar), F35 (editor tabs
+  → T4b), N13 (cross-mode file access).
+- **`/pm-architecture` + a 5-pass critic panel** → **ADR-0010 (revised):
+  backend owns the workspace filesystem, frontend owns the interaction** (folder
+  picker + tree + WS file commands). The initial *frontend-owns-folder / FSA*
+  draft was rejected by the panel (FSA fragility, notional dev privacy,
+  three-copy split-brain, O(history) opens). Folded in: hand-rolled tree +
+  Codicons (no react-arborist), state multi-doc-ready (documents keyed by id),
+  content-addressed rebuild cache.
+- **`/pm-roadmap`** — T4 absorbs the folder Explorer + Open Folder + menus;
+  editor tabs become new phase **T4b**; T14 reduced to cross-file refs + project
+  settings.
+
+T4 resumes (`status: in_progress`); its sprint table is re-planned via
+`/pm-phase-plan T4`.
