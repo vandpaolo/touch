@@ -10,7 +10,10 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from 'react'
 import { DocStore } from '../doc-store'
+import { SelectionStore, selectionFromHit } from '../selection'
 import { Transport, type TransportOptions } from '../transport'
+import { PromptPanel, buildPlanMessage } from '../prompt/PromptPanel.tsx'
+import type { Selection } from '../protocol-types'
 import { FileTree } from '../file-tree/FileTree.tsx'
 import { Viewport } from '../viewport/Viewport.ts'
 import { ViewportHost } from '../viewport/ViewportHost.tsx'
@@ -38,7 +41,11 @@ export function App() {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [sidebarWidth, setSidebarWidth] = useState(240)
   const [connection, setConnection] = useState<ConnectionState>('connecting')
+  const [prompt, setPrompt] = useState<{ x: number; y: number; selection: Selection | null } | null>(
+    null,
+  )
   const viewportRef = useRef<HTMLDivElement>(null)
+  const transportRef = useRef<Transport | null>(null)
 
   // Engine wiring: transport -> doc-store -> viewport, plus the live
   // connection indicator. Mounted once; torn down on unmount.
@@ -49,7 +56,25 @@ export function App() {
     const viewport = new Viewport()
     viewport.mount(container)
     const store = new DocStore()
+    const selection = new SelectionStore()
     const transport = new Transport(transportOpts())
+    transportRef.current = transport
+
+    // Left-click a face → build a Selection from the mesh's finder hint, store
+    // it, show the selected-face highlight, and open the prompt panel anchored
+    // at the click. Empty click clears selection + closes the prompt.
+    viewport.onFaceClick((hit, screen) => {
+      if (!hit) {
+        selection.clear()
+        viewport.setSelectedFace(null)
+        setPrompt(null)
+        return
+      }
+      const sel = selectionFromHit(hit, store.getMesh()?.faceIdToFinderHint ?? {})
+      selection.set(sel)
+      viewport.setSelectedFace(hit.faceTag)
+      setPrompt({ x: screen.x, y: screen.y, selection: sel })
+    })
 
     const offs = [
       transport.on('mesh', (m) => store.applyMesh(m)),
@@ -66,9 +91,15 @@ export function App() {
     return () => {
       for (const off of offs) off()
       transport.close()
+      transportRef.current = null
       viewport.dispose()
     }
   }, [])
+
+  const submitPrompt = (text: string) => {
+    transportRef.current?.send(buildPlanMessage(prompt?.selection ?? null, text))
+    setPrompt(null)
+  }
 
   // Drag-to-resize the sidebar. Capture the start geometry on pointer-down and
   // track on window so the drag survives the cursor leaving the thin handle.
@@ -133,6 +164,15 @@ export function App() {
       </div>
 
       <StatusBar connection={connection} />
+
+      {prompt && (
+        <PromptPanel
+          x={prompt.x}
+          y={prompt.y}
+          onSubmit={submitPrompt}
+          onCancel={() => setPrompt(null)}
+        />
+      )}
 
       {settingsOpen && <SettingsPanel onClose={() => setSettingsOpen(false)} />}
     </div>

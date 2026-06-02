@@ -188,6 +188,60 @@ body {
   color: #ffb3b3;
 }
 
+/* Prompt panel (anchored at the click) */
+.prompt-panel {
+  position: fixed;
+  transform: translate(10px, 10px);
+  z-index: 20;
+  width: 280px;
+  background: var(--bg-panel);
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
+  padding: 0.5rem;
+}
+.prompt-input {
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+  background: var(--bg);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.4rem;
+  font: inherit;
+}
+.prompt-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.prompt-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+}
+.prompt-btn {
+  font: inherit;
+  padding: 0.3rem 0.7rem;
+  border-radius: 4px;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--fg);
+}
+.prompt-submit {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.prompt-submit:hover {
+  background: var(--accent-hover);
+}
+.prompt-cancel:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
 /* Settings overlay */
 .settings-overlay {
   position: fixed;
