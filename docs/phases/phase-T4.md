@@ -1,12 +1,12 @@
 ---
 id: T4
 title: Operation history + .touch document
-status: in_progress
+status: blocked
 started: 2026-06-01
 finished: null
 min_goal_met: null
 max_goal_met: null
-blocker: null
+blocker: blockers/2026-06-01-folder-workspace-explorer.md
 depends_on: [T3]
 ---
 
