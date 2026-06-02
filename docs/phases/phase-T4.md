@@ -1,11 +1,11 @@
 ---
 id: T4
 title: Operation history + .touch document + folder workspace
-status: in_progress
+status: done
 started: 2026-06-01
-finished: null
-min_goal_met: null
-max_goal_met: null
+finished: 2026-06-02
+min_goal_met: true
+max_goal_met: false
 blocker: null
 depends_on: [T3]
 ---
