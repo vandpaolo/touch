@@ -266,7 +266,7 @@ external libraries. No reverse arrows.
 | Tests | pytest | Standard |
 | Linting / formatting | ruff + ruff format | Single tool, fast |
 
-See [adr/0001-intent-as-pivot.md](./adr/0001-intent-as-pivot.md) for the core
+See [adr/0001-intent-as-pivot.md](../adr/0001-intent-as-pivot.md) for the core
 architectural decision.
 
 ## Repo layout (planned)

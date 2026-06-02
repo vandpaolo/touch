@@ -615,3 +615,14 @@ either a note section or a decision here.
 - Q: name + shape the F2 shell-owner and the N5 capability shim; fix the generated-protocol layout drift.
 - A: Added `web/app` (shell: three-panel layout owner, mounts every UI surface, app-level wiring; mounted only by `web/main`) and `web/platform` (capability shim: sole owner of Electron-preload/`window.electron`; native file dialogs + keychain with browser fallbacks). FE dep rules added (cruiser-enforced later — deferred per T2 P2). Fixed docs: generated pydantic lives at `src/touch_backend/_generated/` (not `protocol/generated/py/`); TS stays at `protocol/generated/ts/`; `web/main.ts`→`main.tsx`. No new ADR (both modules are direct consequences of the locked F2 + N5).
 - → docs/02-architecture.md (FE component view, responsibilities, repo tree, N5 row); docs/02-classes.md (module map, FE class diagram, bounded contexts, dep rules, test strategy, glossary)
+
+## 2026-06-01 — /pm-phase-plan (T3)
+- Q (C1/B1, modifier scope): T3's chamfer exit needs the deferred ADR-0008 modifier+finder work — how to scope?
+- A: Chamfer in T3, tightly — exactly one modifier (chamfer) + one finder predicate (contains_point). First round-trip is the real click→chamfer. Other modifiers (fillet/hole/shell/pattern) + richer finders stay deferred to the focused Intent→Operation effort.
+- → docs/phases/phase-T3.md § Min + R1
+- Q (B2/G1, chamfer target): clicking a FACE then "chamfer here" — chamfer applies to edges?
+- A: Selecting a face chamfers all edges bounding that face. Picking stays face-only this phase (no edge picking). Finder resolves contains_point → the face → its bounding edges → build123d chamfer.
+- → docs/phases/phase-T3.md § Days 5-6 + R2
+- Q (B3, planner): which planner for T3's NL→op?
+- A: Real AnthropicAPIClient with the dev .env/keychain key now; live verification in T3 (matches roadmap F22). The Settings UI to configure provider/credentials stays T6.
+- → docs/phases/phase-T3.md § Depends-on + R3
