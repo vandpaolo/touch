@@ -1,6 +1,6 @@
 ---
 id: T4
-title: Operation history + .touch document
+title: Operation history + .touch document + folder workspace
 status: in_progress
 started: 2026-06-01
 finished: null
@@ -10,98 +10,89 @@ blocker: null
 depends_on: [T3]
 ---
 
-# Phase T4 — Operation history + .touch document
+# Phase T4 — Operation history + `.touch` document + folder workspace
 
-- **Goal:** The document *is* the operation history. Persist it as a `.touch`
-  file, browse/open via a VS-Code/Cursor-style explorer, and undo/redo by
-  stepping the history — so geometry survives a refresh/restart (the source of
-  truth is the saved op history, not in-memory state).
+> *Re-scoped 2026-06-01 (blocker `2026-06-01-folder-workspace-explorer`, revised
+> via a 5-pass critic panel). Single-document persistence shipped (Days 1–9);
+> the explorer is now widened to a VS-Code-style **folder workspace** —
+> **backend owns the filesystem, frontend owns the interaction** (ADR-0010). One
+> part open at a time; editor tabs are T4b.*
+
+- **Goal:** The document *is* the operation history; persist parts in a
+  VS-Code-style **folder workspace** (Open Folder → tree mirrored 1:1), with
+  undo/redo from history — refresh-proof.
 
 ## Depends on
 
-- **T3 done** — the click→prompt→op→mesh round-trip; `session._handle_plan`
-  appends ops; `_rebuild_mesh` replays the history.
-- **ADR-0006** (`.touch` format) + **ADR-0008** (append-only history) +
-  **02-data-model.md** (TouchDocument fields).
-- **Architecture/classes** — BE `document`; FE `doc-store`, `file-tree`,
-  `history-ui`; the activity-bar Explorer + sidebar (stubbed in T2).
-- **Requirements** F8, F9, F10, F23, N7, N8 (recovery *foundation*; the
-  supervisor itself is T8).
-- The `out_root` project dir (`/srv/touch/` on the dev host).
+- **T3 done**; single-doc persistence foundation (Days 1–9 below) done.
+- **ADR-0006** (`.touch`), **ADR-0008** (append-only history), **ADR-0010**
+  (workspace / file ownership), `02-data-model.md` (Workspace, Part).
+- **Requirements** F8, F9, F10, F18, F23, F32, F33, F34, N7, N8, N13.
 
 ## Minimum deliverable
 
-- **Backend `document`**: full `TouchDocument` (schema_version, name,
-  description, parameters, history, created/modified, touch_version);
-  `save(path)` → canonical human-readable JSON; `load(path)` → validate +
-  a minimal `schema_version` migration helper (N7).
-- **Protocol**: new messages — `newDoc` / `open` / `save` / `listFiles` /
-  `undo` / `redo` (FE→BE), `fileList` + a `document` history-snapshot (BE→FE);
-  `make codegen` regenerates TS + pydantic.
-- **Backend `session`**: handle new/open/save/listFiles (file I/O under
-  `out_root`, **filenames sanitized** — no path traversal); undo pops + replays
-  + emits the new mesh, redo re-applies; every history change emits a `document`
-  snapshot.
-- **FE**: `doc-store` mirrors history + dirty from the snapshot; a
-  **VS-Code/Cursor-style file explorer** (list / open-on-click / new / rename,
-  active-file highlight) in the Explorer sidebar; **undo/redo** via keyboard
-  (Ctrl+Z / Ctrl+Shift+Z) + menu; **create-from-scratch** (a prompt with *no*
-  selection → a primary box/cylinder/sphere — the skipped T3 Max, now required);
-  save / save-as + a dirty indicator.
-- A new session keeps the **demo cube as the default canvas** (decided);
-  **New** creates an empty document and create-from-scratch seeds it
-  (`demo_mesh` stays on by default).
+- **Single-doc persistence (done):** `.touch` save/load + migration, undo/redo,
+  `document` snapshots, doc-store mirror.
+- **Folder workspace:** **File → Open Folder** → the Explorer mirrors the folder
+  **1:1** (backend-owned tree, lazy; ADR-0010); create / open / rename / delete
+  `.touch` parts; one part open at a time.
+- **Shell:** the **menu bar** (File/Edit/View/Help) + the **activity rail**
+  (Explorer real; Search/Git/Extensions inert stubs; Settings pinned), VS-Code
+  style, hand-rolled tree + Codicons.
+- **Create-from-scratch:** a no-selection prompt → a primary (box/cylinder/sphere).
 
 ## Maximum deliverable
 
-Also: viewport feedback at each undo step; replay-from-history positioned as the
-crash-recovery path (foreshadowing T8); delete in the tree; recent-files.
+Hand-rolled-tree polish (drag/keyboard niceties); the content-addressed rebuild
+cache shipped; viewport feedback per undo step; tree delete / recent-parts.
 
 ## Sprint / day breakdown
 
+**✅ Done — single-document foundation (Days 1–9, committed):** protocol base
+(+`newDoc`/`open`/`save`/`listFiles`/`undo`/`redo`/`fileList`/`document`);
+`document` save/load + migration; `session` lifecycle + undo/redo + snapshots
+(path-sanitized); FE doc-store mirror, the *flat* explorer (to be replaced),
+undo/redo shortcuts, save UX, create-from-scratch, busy/error. *Note: the flat
+backend `listFiles`/`open`/`save` stay as the non-FSA fallback (ADR-0010).*
+
+**Remaining — folder workspace:**
+
 | Day | Task | Output | Done when |
 |-----|------|--------|-----------|
-| 1 | Protocol: add `newDoc`/`open`/`save`/`listFiles`/`undo`/`redo` + `fileList`/`document` snapshot to `schema.json`; `make codegen`. | extended protocol. | `make codegen` regenerates TS + pydantic clean (no drift); both import. |
-| 2 | Backend `document` save/load: full fields; `save(path)` canonical JSON; `load(path)` + `schema_version` migration helper. | `document.save/load`. | Round-trip: build history → save → load → identical; a `schema_version`-bumped fixture migrates; tests. |
-| 3 | Backend `session` new/open/save/listFiles under `out_root`, **filename sanitized**. | doc lifecycle handlers. | Server test: save → `listFiles` shows it; open → rebuild + mesh + snapshot; a `../` filename is rejected. |
-| 4 | Backend `session` undo/redo: pop/re-apply history → rebuild → mesh + snapshot; redo stack cleared on a new op. | undo/redo handlers. | Server test: op → undo → prior mesh + shorter history; redo → restored; new op clears redo. |
-| 5 | FE `doc-store`: consume the `document` snapshot (history, name, dirty); expose to file-tree/history-ui. | doc-store mirror. | A snapshot updates doc-store; subscribers see history length + dirty + name; Vitest. |
-| 6 | FE create-from-scratch: a no-selection prompt entry (empty-canvas click / "+" / shortcut) → primary op (box/cylinder/sphere). | primary-create path. | On an empty doc, "a 40 mm cube" (no face click) builds + renders a cube. |
-| 7 | FE file explorer (VS-Code/Cursor style): list `.touch` under the project root, single-click open, new, rename; active-file highlight. | `web/file-tree`. | Tree lists files; click opens (geometry loads); new → empty doc; rename persists. |
-| 8 | FE undo/redo controls: Ctrl+Z / Ctrl+Shift+Z + Edit menu → `undo`/`redo`; viewport updates. | history-ui / shortcuts. | Undo/redo via keyboard + menu step the model both ways. |
-| 9 | FE save UX: Save / Save As (name), dirty indicator (title/tab dot); cleared on save, set on edit. | save UX. | Save writes the file; the dirty dot tracks edits/saves. |
-| 10 | Wire + exit verification (live): cube + chamfer → save → reopen → identical; undo→empty→redo. | verified round-trip. | The exit criteria below hold live in a browser tab. |
-| 11 (Max) | Viewport feedback per undo step; replay-as-recovery foreshadow; tree delete / recent files. | polish. | Each undo visibly steps geometry; (optional) delete + recent shipped. |
+| W1 | Protocol + backend workspace ops: `openFolder` (set root) + `listDir` (lazy folder tree) + part `open`/`save`/`new`/`rename`/`remove` by **workspace-relative path** (sanitized, contained to the root); `make codegen`. | workspace messages + BE handlers. | Server test: open a folder → tree listed; open a part by path → rebuild + snapshot; create/rename/remove reflected; `../`/absolute rejected. |
+| W2 | Backend refactor: `Session` keys documents by id (per-doc undo/redo + dirty; one active today) + a **content-addressed rebuild cache** (history-prefix hash → STEP/mesh). | multi-doc-ready session + cache. | Tests: per-doc undo state isolated; a repeated history rebuild is served from cache (no re-exec). |
+| W3 | FE `web/platform` `pickFolder()`: Electron native open-directory dialog (stub) + browser-dev host-folder pick (path entry). | folder picker seam. | Picking yields a workspace root that `openFolder` sends to the BE. |
+| W4 | FE `web/workspace` store: `openFolder` → lazily-loaded tree + active-part id; file commands over the WS; multi-doc-ready (keyed by id). | workspace store. | Opening a folder populates the tree from the BE; opening a part loads its geometry. |
+| W5 | FE **hand-rolled folder tree** + Codicons (replaces the flat list): nested collapsible rows, click-open, new/rename/delete, active highlight, dirty dot. | `web/file-tree`. | The Explorer mirrors the folder 1:1; create/open/rename a part via the tree. |
+| W6 | FE menu bar dropdowns (File/Edit/View/Help → Open Folder, New Part, Save, Undo/Redo, Settings) + activity-rail stubs (Search/Git/Extensions inert). | shell chrome. | Menus invoke the actions; the rail shows the (inert) stub icons + Explorer/Settings. |
+| W7 | Wire + **exit verification (live):** Open Folder → create a cube + chamfer part → it appears 1:1 in the Explorer → refresh → reopen → identical; undo→empty→redo. | verified workspace. | The exit criteria below hold live in a browser tab. |
+| W8 (Max) | Rebuild-cache wins visible (instant re-open); viewport feedback per undo; tree delete / recent-parts. | polish. | Re-opening a part is instant; undo visibly steps; (optional) delete + recent shipped. |
 
 ## Exit criteria
 
-- Model a cube + chamfer in a browser tab → **Save** → close/refresh → **Open**
-  the `.touch` → **identical** model (refresh-proof).
+- **File → Open Folder** → create a cube + chamfer part inside it → the Explorer
+  shows the folder **1:1** → refresh/close → reopen the folder → **identical**
+  model.
 - **Undo** back to empty → **Redo** to the full model → unchanged.
-- The `.touch` file is human-readable JSON carrying `schema_version` (N7); a
-  small edit diffs cleanly in git.
+- The `.touch` file is human-readable JSON carrying `schema_version` (N7).
 
 ## Known risks for this phase
 
-- **R1 — big phase (~11 days, at the cap).** Protocol extension + BE file I/O +
-  undo/redo + a real FE explorer + the create-from-scratch path. **Mitigation:**
-  tight Min, trimmed Max. (Push-back: split into T4a document/undo + T4b
-  explorer if it over-runs.)
-- **R2 — T4's exit needs the no-selection primary path** (the skipped T3 Max).
-  **Folded into Day 6** as required scope — the planner/adapter already handle a
-  None selection; the gap is the FE entry to prompt without a face click.
-- **R3 — file-I/O security.** Save/open take a user-supplied name; must be
-  sanitized to the `out_root` project dir (reject `..`/absolute paths — no
-  traversal; CLAUDE.md boundary rule). **Mitigation:** resolve + containment
-  check; a rejection test.
-- **R4 — demo cube stays the default canvas (decided).** The connect-time demo
-  cube remains the default starting point; **New** gives an empty doc. Undo-to-
-  empty still works (the demo cube is op[0] — undo pops chamfer→box→empty, redo
-  restores). `make up` keeps `demo_mesh` on. Watch: "open a file" must *replace*
-  the demo document cleanly, not merge.
-- **R5 — protocol churn.** Both ends regenerate; a codegen-drift guard + contract
-  tests keep them honest.
-- **R6 — undo cost.** Each undo replays the whole history (OCP rebuild per step);
-  fine for v0 histories, a caching concern later. Note, don't optimize now.
-- **R7 — explorer fidelity vs effort.** Match VS Code/Cursor *familiarity*
-  (tree, open, new, rename, active highlight) — not pixel-perfect chrome.
+- **R1 — still a large phase.** Foundation is done; the remaining 7 days span
+  protocol/back-end folder ops, a session refactor, and a real FE explorer +
+  shell. Editor tabs were split out to T4b to contain it.
+- **R2 — multi-doc-ready refactor (W2) touches working undo/redo.** Keying
+  `Session` documents by id risks regressing the green single-doc path.
+  **Mitigation:** keep the existing tests green; "one active document" is the
+  only live case until T4b.
+- **R3 — workspace path security.** Part paths are workspace-relative and must
+  stay contained to the opened root (reject `..`/absolute/escape). **Mitigation:**
+  resolve + containment check against the root; rejection tests.
+- **R4 — browser-dev folder pick is by-path** (no native dialog in a tab; FSA
+  laptop-folder is the deferred nicety, ADR-0010). **Mitigation:** a simple
+  path-entry/host-folder pick now; Electron native dialog later.
+- **R5 — rebuild cache correctness.** The cache key must be the exact op-history
+  prefix (params + selection) or stale geometry leaks. **Mitigation:** hash the
+  canonical emitted source / history JSON; test a cache hit equals a fresh build.
+- **R6 — explorer fidelity vs effort.** Match VS-Code/Cursor *familiarity* (tree,
+  open, new/rename, active highlight) with the hand-rolled tree — not pixel-perfect.
