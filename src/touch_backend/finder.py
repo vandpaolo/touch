@@ -59,16 +59,14 @@ def resolve_face(
     if entity_id is not None:
         faces = iter_faces(solid)
         if 0 <= entity_id < len(faces):
-            return _as_build123d_face(faces[entity_id])
+            target = faces[entity_id]
+            # Return the *contextful* build123d face (from solid.faces()), not a
+            # freshly-wrapped detached Face — its edges must trace back to the
+            # solid or build123d treats chamfer/fillet as a 2D op on a loose face.
+            for face in solid.faces():
+                if face.wrapped.IsSame(target):
+                    return face
     return resolve_face_containing(solid, point, tol_mm)
-
-
-def _as_build123d_face(topods_face: Any) -> Any:
-    """Wrap a raw ``TopoDS_Face`` as a build123d ``Face`` so ``.edges()`` etc.
-    work in the adapter's emitted code."""
-    from build123d import Face
-
-    return Face(topods_face)
 
 
 def resolve_face_containing(

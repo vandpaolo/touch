@@ -91,10 +91,21 @@ def test_emit_chamfer_resolves_face_and_chamfers_edges():
             _chamfer_op(),
         ]
     )
-    assert "from touch_backend.finder import resolve_face_containing" in code
+    assert "from touch_backend.finder import resolve_face" in code
     assert "Box(40.0, 40.0, 40.0)" in code
-    assert "resolve_face_containing(op_box1, (0.0, 0.0, 20.0), 0.5).edges()" in code
+    # id-first (ADR-0011): captured entity id, then point+tol as the fallback.
+    assert "resolve_face(op_box1, 0, (0.0, 0.0, 20.0), 0.5).edges()" in code
     assert "length=5.0" in code
+
+
+def test_emit_chamfer_without_captured_id_emits_none():
+    # No captured id → resolve_face(..., None, ...) falls back to the finder.
+    op = _chamfer_op()
+    op.selection.entity_id_at_capture = None
+    code = operation_adapter.emit(
+        [_op("box", {"length": 40, "width": 40, "height": 40}, op_id="box1"), op]
+    )
+    assert "resolve_face(op_box1, None, (0.0, 0.0, 20.0), 0.5).edges()" in code
 
 
 def test_emit_chamfer_is_deterministic():
@@ -138,3 +149,24 @@ def test_chamfer_round_trip_executes_and_adds_faces(tmp_path):
     solid = import_step(result.step_path)
     # A plain box has 6 faces; chamfering one face's 4 edges adds chamfer faces.
     assert len(solid.faces()) > 6
+
+
+def test_chamfer_with_edge_adjacent_point_still_builds(tmp_path):
+    # F36 money case: a corner point is ambiguous for contains_point (would
+    # raise "ambiguous: N faces"), but the captured id (0) resolves the face
+    # deterministically, so the chamfer builds end-to-end. A produced STEP (no
+    # subprocess error) proves it; we don't import it in-process — that would
+    # poison the OSMesa render test that sorts after this file.
+    from touch_backend.agent.executor import Executor
+
+    code = operation_adapter.emit(
+        [
+            _op("box", {"length": 40, "width": 40, "height": 40}, op_id="box1"),
+            _chamfer_op(point=(20, 20, 20)),  # a corner — ambiguous by point alone
+        ]
+    )
+    code_path = tmp_path / "code.py"
+    code_path.write_text(code, encoding="utf-8")
+    result = Executor(tmp_path, 30.0).execute(code_path)
+
+    assert result.step_path is not None, result.error

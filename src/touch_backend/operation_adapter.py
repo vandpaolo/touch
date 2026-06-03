@@ -30,7 +30,7 @@ def emit(history: Sequence[Operation]) -> str:
     lines = [
         "# build123d source for a Touch document",
         "from build123d import *",
-        "from touch_backend.finder import resolve_face_containing",
+        "from touch_backend.finder import resolve_face",
         "",
     ]
     last_var = ""
@@ -95,9 +95,11 @@ def _chamfer(operation: Operation, prev_var: str) -> str:
         )
     length = _num(operation, "length")
     point, tol = _contains_point(operation.selection)
-    # Resolve the clicked face on the prior solid at run time, chamfer its edges.
+    entity_id = operation.selection.entity_id_at_capture
+    # Resolve the clicked face on the prior solid at run time (id-first per
+    # ADR-0011; the point is the finder fallback), chamfer its edges.
     return (
-        f"chamfer(resolve_face_containing({prev_var}, {point!r}, {tol}).edges(), "
+        f"chamfer(resolve_face({prev_var}, {entity_id!r}, {point!r}, {tol}).edges(), "
         f"length={length})"
     )
 
