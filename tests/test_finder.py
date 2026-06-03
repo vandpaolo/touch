@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pytest
 
-from touch_backend.finder import FinderError, resolve_face_containing
+from touch_backend.finder import FinderError, resolve_face, resolve_face_containing
 
 
 def _cube():
@@ -35,3 +35,19 @@ def test_corner_point_is_ambiguous() -> None:
     # A corner is shared by three faces → not uniquely resolvable.
     with pytest.raises(FinderError):
         resolve_face_containing(_cube(), (20, 20, 20), tol_mm=0.5)
+
+
+def test_resolve_face_by_id_survives_ambiguous_point() -> None:
+    # The money case (F36): a corner point is ambiguous via contains_point, but
+    # the captured id resolves deterministically — no FinderError.
+    face = resolve_face(_cube(), 0, (20, 20, 20))
+    assert len(face.edges()) == 4  # a cube face
+
+
+def test_resolve_face_id_miss_falls_back_to_finder() -> None:
+    # Tier 2: an out-of-range id falls back to the geometric finder.
+    face = resolve_face(_cube(), 999, (0, 0, 20))
+    assert len(face.edges()) == 4
+    # Tier 3: id miss AND no face at the point → FinderError.
+    with pytest.raises(FinderError):
+        resolve_face(_cube(), 999, (0, 0, 100))

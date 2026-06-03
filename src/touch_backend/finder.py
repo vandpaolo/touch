@@ -22,6 +22,55 @@ class FinderError(Exception):
     """A finder did not resolve to exactly one entity (zero or ambiguous)."""
 
 
+def iter_faces(shape: Any) -> list[Any]:
+    """Faces of `shape` in canonical ``TopExp_Explorer`` order.
+
+    The single source of truth for face ids (ADR-0011): `tessellate` tags mesh
+    triangles by this same ordinal, so `face id i` here is the face the user
+    clicked. `shape` may be a build123d object or a raw ``TopoDS_Shape``.
+    """
+    from OCP.TopAbs import TopAbs_FACE
+    from OCP.TopExp import TopExp_Explorer
+    from OCP.TopoDS import TopoDS
+
+    shape = getattr(shape, "wrapped", shape)
+    faces = []
+    explorer = TopExp_Explorer(shape, TopAbs_FACE)
+    while explorer.More():
+        faces.append(TopoDS.Face_s(explorer.Current()))
+        explorer.Next()
+    return faces
+
+
+def resolve_face(
+    solid: Any,
+    entity_id: int | None,
+    point: tuple[float, float, float],
+    tol_mm: float = 0.5,
+) -> Any:
+    """Resolve the selected face on `solid`, tiered per ADR-0011.
+
+    ① `entity_id` (the within-session capture) indexes the canonical face list
+    deterministically — immune to edge/corner adjacency and mesh-vs-B-rep float
+    gaps. ② On a miss (id out of range, e.g. if a rebuild drifts), fall back to
+    the geometric finder (`contains_point`). ③ Zero/ambiguous there raises
+    ``FinderError`` → clarification.
+    """
+    if entity_id is not None:
+        faces = iter_faces(solid)
+        if 0 <= entity_id < len(faces):
+            return _as_build123d_face(faces[entity_id])
+    return resolve_face_containing(solid, point, tol_mm)
+
+
+def _as_build123d_face(topods_face: Any) -> Any:
+    """Wrap a raw ``TopoDS_Face`` as a build123d ``Face`` so ``.edges()`` etc.
+    work in the adapter's emitted code."""
+    from build123d import Face
+
+    return Face(topods_face)
+
+
 def resolve_face_containing(
     solid: Any,
     point: tuple[float, float, float],

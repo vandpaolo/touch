@@ -54,10 +54,10 @@ def tessellate(
     from OCP.BRep import BRep_Tool
     from OCP.BRepMesh import BRepMesh_IncrementalMesh
     from OCP.GeomLProp import GeomLProp_SLProps
-    from OCP.TopAbs import TopAbs_FACE, TopAbs_REVERSED
-    from OCP.TopExp import TopExp_Explorer
+    from OCP.TopAbs import TopAbs_REVERSED
     from OCP.TopLoc import TopLoc_Location
-    from OCP.TopoDS import TopoDS
+
+    from touch_backend.finder import iter_faces
 
     shape = getattr(solid, "wrapped", solid)
     BRepMesh_IncrementalMesh(shape, linear_deflection, False, angular_deflection, True)
@@ -68,14 +68,13 @@ def tessellate(
     face_tags: list[int] = []
     face_anchor: dict[int, tuple[float, float, float]] = {}
 
+    # Canonical face ordinal (ADR-0011): the resolver indexes this same order,
+    # so a mesh face tag == the face the user clicked. Skip faces with no
+    # triangulation, but the id still advances with the explorer order.
     loc = TopLoc_Location()
-    explorer = TopExp_Explorer(shape, TopAbs_FACE)
-    face_id = 0
-    while explorer.More():
-        face = TopoDS.Face_s(explorer.Current())
+    for face_id, face in enumerate(iter_faces(shape)):
         triangulation = BRep_Tool.Triangulation_s(face, loc)
         if triangulation is None:
-            explorer.Next()
             continue
 
         trsf = loc.Transformation()
@@ -111,9 +110,6 @@ def tessellate(
             tris.append((n1, n2, n3))
             face_tags.append(face_id)
 
-        face_id += 1
-        explorer.Next()
-
     return Mesh(
         version=MESH_VERSION,
         vertices=np.asarray(verts, dtype=np.float32).reshape(-1, 3),
@@ -121,6 +117,6 @@ def tessellate(
         indices=np.asarray(tris, dtype=np.uint32).reshape(-1, 3),
         face_tag_per_triangle=np.asarray(face_tags, dtype=np.uint32),
         edge_tag_per_segment=np.zeros((0,), dtype=np.uint32),
-        face_ids=list(range(face_id)),
+        face_ids=sorted(face_anchor),
         face_anchor=face_anchor,
     )
