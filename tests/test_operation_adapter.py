@@ -75,7 +75,7 @@ def _chamfer_op(length=5, point=(0, 0, 20), op_id="ch1") -> Operation:
                 "finder": [
                     {"kind": "contains_point", "point_xyz": list(point), "tol_mm": 0.5}
                 ],
-                "face_id_at_capture": 0,
+                "entity_id_at_capture": 0,
             },
             "prompt_text": "add a 5 mm chamfer here",
             "conversation": [],

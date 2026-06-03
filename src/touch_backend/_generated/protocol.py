@@ -218,7 +218,7 @@ class Target(StrEnum):
 
 class Selection(BaseModel):
     """
-    Identifies a face/edge/vertex such that identity survives history replay (ADR-0008).
+    Identifies a face/edge/vertex such that identity survives history replay (ADR-0008). Resolution is tiered (ADR-0011): entity_id_at_capture first (within-session), geometric finder fallback, else clarify.
     """
 
     model_config = ConfigDict(
@@ -227,7 +227,10 @@ class Selection(BaseModel):
     target: Target
     point_xyz: Point3
     finder: list[FinderPredicate] = Field(..., min_length=1)
-    face_id_at_capture: int | None = None
+    entity_id_at_capture: int | None = Field(
+        None,
+        description='Kernel-owned id (typed by target: face or edge) reported at click; the within-session primary resolver (ADR-0011). Was face_id_at_capture.',
+    )
 
 
 class Operation(BaseModel):

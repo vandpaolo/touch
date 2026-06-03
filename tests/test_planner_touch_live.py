@@ -30,7 +30,7 @@ def _face_selection() -> Selection:
             "finder": [
                 {"kind": "contains_point", "point_xyz": [0, 0, 20], "tol_mm": 0.5}
             ],
-            "face_id_at_capture": 3,
+            "entity_id_at_capture": 3,
         }
     )
 
@@ -45,4 +45,4 @@ def test_live_chamfer_planning() -> None:
     assert "length" in op.params
     # The selection came from the (mocked) frontend click, not the LLM.
     assert op.selection is not None
-    assert op.selection.face_id_at_capture == 3
+    assert op.selection.entity_id_at_capture == 3

@@ -137,7 +137,7 @@
     },
     "Selection": {
       "title": "Selection",
-      "description": "Identifies a face/edge/vertex such that identity survives history replay (ADR-0008).",
+      "description": "Identifies a face/edge/vertex such that identity survives history replay (ADR-0008). Resolution is tiered (ADR-0011): entity_id_at_capture first (within-session), geometric finder fallback, else clarify.",
       "type": "object",
       "properties": {
         "target": {"type": "string", "enum": ["face", "edge", "vertex"]},
@@ -147,7 +147,7 @@
           "items": {"$ref": "#/$defs/FinderPredicate"},
           "minItems": 1
         },
-        "face_id_at_capture": {"type": ["integer", "null"]}
+        "entity_id_at_capture": {"type": ["integer", "null"], "description": "Kernel-owned id (typed by target: face or edge) reported at click; the within-session primary resolver (ADR-0011). Was face_id_at_capture."}
       },
       "required": ["target", "point_xyz", "finder"],
       "additionalProperties": false

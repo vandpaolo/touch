@@ -22,7 +22,7 @@ export function selectionFromHit(hit: PickHit, hints: FinderHints): Selection | 
     target: hint.target,
     point_xyz: point,
     finder: [{ kind: 'contains_point', point_xyz: point, tol_mm: 0.5 }],
-    face_id_at_capture: hit.faceTag,
+    entity_id_at_capture: hit.faceTag,
   }
 }
 

@@ -17,7 +17,7 @@ _OPERATION = {
         "target": "face",
         "point_xyz": [0.0, 0.0, 0.0],
         "finder": [{"kind": "plane_normal", "axis": "+Z"}],
-        "face_id_at_capture": None,
+        "entity_id_at_capture": None,
     },
     "prompt_text": "a 50 mm cube",
     "conversation": [],

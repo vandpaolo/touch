@@ -39,7 +39,7 @@ def _face_selection() -> Selection:
             "finder": [
                 {"kind": "contains_point", "point_xyz": [0, 0, 20], "tol_mm": 0.5}
             ],
-            "face_id_at_capture": 3,
+            "entity_id_at_capture": 3,
         }
     )
 
@@ -56,7 +56,7 @@ def test_chamfer_op_carries_the_fe_selection() -> None:
     assert op.prompt_text == "add a 5 mm chamfer here"
     # The selection came from the frontend click, not the LLM.
     assert op.selection is not None
-    assert op.selection.face_id_at_capture == 3
+    assert op.selection.entity_id_at_capture == 3
     assert op.selection.finder[0].root.kind == "contains_point"
     assert op.id  # server-minted, non-empty
     assert op.created_at is not None

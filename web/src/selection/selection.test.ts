@@ -8,7 +8,7 @@ const hint: Selection = {
   target: 'face',
   point_xyz: [0, 0, 20],
   finder: [{ kind: 'contains_point', point_xyz: [0, 0, 20], tol_mm: 0.5 }],
-  face_id_at_capture: 3,
+  entity_id_at_capture: 3,
 }
 const hints: MsgMeshFrame['face_id_to_finder_hint'] = { '3': hint }
 
@@ -19,7 +19,7 @@ describe('selectionFromHit', () => {
     expect(sel).not.toBeNull()
     expect(sel?.target).toBe('face')
     expect(sel?.point_xyz).toEqual([1, 2, 20])
-    expect(sel?.face_id_at_capture).toBe(3)
+    expect(sel?.entity_id_at_capture).toBe(3)
     expect(sel?.finder).toHaveLength(1)
   })
 

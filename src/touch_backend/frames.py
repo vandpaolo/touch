@@ -47,7 +47,7 @@ def mesh_frame_envelope(mesh: Mesh) -> MsgMeshFrame:
                     "tol_mm": 0.5,
                 }
             ],
-            "face_id_at_capture": face_id,
+            "entity_id_at_capture": face_id,
         }
         for face_id in mesh.face_ids
     }

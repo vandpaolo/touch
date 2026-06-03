@@ -70,6 +70,47 @@ def test_migration_normalizes_old_version(tmp_path):
     assert loaded.history[0].kind == "box"
 
 
+def test_migration_renames_face_id_at_capture(tmp_path):
+    # v1 -> v2 (ADR-0011): a selection's face_id_at_capture becomes
+    # entity_id_at_capture. An old .touch must load (the new model rejects the
+    # old field), and the value must carry over.
+    old = {
+        "schema_version": 1,
+        "name": "v1part",
+        "history": [
+            {
+                "id": "c1",
+                "kind": "chamfer",
+                "params": {"length": 2.0},
+                "prompt_text": "chamfer",
+                "conversation": [],
+                "created_at": "2026-06-02T00:00:00Z",
+                "selection": {
+                    "target": "face",
+                    "point_xyz": [5.0, 0.0, 0.0],
+                    "finder": [
+                        {
+                            "kind": "contains_point",
+                            "point_xyz": [5.0, 0.0, 0.0],
+                            "tol_mm": 0.5,
+                        }
+                    ],
+                    "face_id_at_capture": 5,
+                },
+            }
+        ],
+    }
+    path = tmp_path / "v1.touch"
+    path.write_text(json.dumps(old))
+    loaded = TouchDocument.load(path)
+
+    assert loaded.schema_version == SCHEMA_VERSION
+    sel = loaded.history[0].selection
+    assert sel is not None
+    assert sel.entity_id_at_capture == 5
+    assert not hasattr(sel, "face_id_at_capture")
+
+
 def test_tolerates_newer_file_with_extra_fields(tmp_path):
     # N7: a newer minor that only adds fields still opens (extras ignored).
     newer = {

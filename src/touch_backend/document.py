@@ -16,7 +16,7 @@ from typing import Any
 
 from touch_backend._generated.protocol import Operation, Parameter
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 TOUCH_VERSION = "0.1.0"  # written into .touch files; wired to package metadata later
 
 
@@ -80,12 +80,20 @@ def _migrate(data: dict[str, Any]) -> dict[str, Any]:
     """Forward-only `.touch` migration (N7).
 
     Readers tolerate newer minor versions that only add fields (we read known
-    keys; extras are ignored). Older versions get per-version upgrades here —
-    none needed at v1 yet, but the seam is in place. Pre-`schema_version` files
-    (treated as v0) are normalised by `load`'s `.get` defaults.
+    keys; extras are ignored). Older versions get staged per-version upgrades.
+    Pre-`schema_version` files (treated as v0) are normalised by `load`'s `.get`
+    defaults.
     """
     version = int(data.get("schema_version", 0))
-    if version < SCHEMA_VERSION:
+    if version < 1:
         # v0 -> v1: nothing structural changed; load() fills missing fields.
-        data["schema_version"] = SCHEMA_VERSION
+        version = 1
+    if version < 2:
+        # v1 -> v2 (ADR-0011): Selection.face_id_at_capture -> entity_id_at_capture.
+        for op in data.get("history", []):
+            selection = op.get("selection")
+            if isinstance(selection, dict) and "face_id_at_capture" in selection:
+                selection["entity_id_at_capture"] = selection.pop("face_id_at_capture")
+        version = 2
+    data["schema_version"] = SCHEMA_VERSION
     return data

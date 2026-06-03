@@ -87,7 +87,7 @@ export interface MsgPlan {
   selection?: Selection | null;
 }
 /**
- * Identifies a face/edge/vertex such that identity survives history replay (ADR-0008).
+ * Identifies a face/edge/vertex such that identity survives history replay (ADR-0008). Resolution is tiered (ADR-0011): entity_id_at_capture first (within-session), geometric finder fallback, else clarify.
  */
 export interface Selection {
   target: "face" | "edge" | "vertex";
@@ -96,7 +96,10 @@ export interface Selection {
    * @minItems 1
    */
   finder: [FinderPredicate, ...FinderPredicate[]];
-  face_id_at_capture?: number | null;
+  /**
+   * Kernel-owned id (typed by target: face or edge) reported at click; the within-session primary resolver (ADR-0011). Was face_id_at_capture.
+   */
+  entity_id_at_capture?: number | null;
 }
 export interface PlaneNormalPredicate {
   kind: "plane_normal";

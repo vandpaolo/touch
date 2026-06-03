@@ -6,7 +6,7 @@ const selection: Selection = {
   target: 'face',
   point_xyz: [1, 2, 20],
   finder: [{ kind: 'contains_point', point_xyz: [1, 2, 20], tol_mm: 0.5 }],
-  face_id_at_capture: 3,
+  entity_id_at_capture: 3,
 }
 
 describe('buildPlanMessage', () => {
