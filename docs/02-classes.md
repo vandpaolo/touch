@@ -310,13 +310,19 @@ prompt must be identical.
 | **Parameter** | A named dimensioned scalar (`name`/`value`/`unit`) referenceable in an operation's `extras` build123d code; a value object held in `TouchDocument.parameters`. Carried over from Maquette. Immutable; `name` must be a valid, non-reserved Python identifier. |
 | **Selection** | The spatial context of an operation: target (face/edge/vertex) + point + a *finder*. |
 | **Finder** | A list of geometric predicates (plane-normal, contains-point, surface-type, of-feature, …) that re-identify a selection target after history replay. Replicad-inspired. |
+| **FinderPredicate** | One geometric predicate inside a Finder (e.g. `contains_point`, `plane_normal`, `surface_type`, `of_feature`). ANDed with the others; the matching topological entity satisfies all. |
+| **TopoEntity** | A resolved topological entity on the current Solid — a face, edge, or vertex — that a Selection resolves to (the return of `Selection.resolve` / `finder.resolve_face`). |
+| **FinderError** | The structured failure raised when resolution yields zero or more than one entity; routes to a ClarifyingQuestion rather than a silent wrong-entity guess (ADR-0008, ADR-0011). |
 | **Solid** | The current in-memory B-rep (OCP `TopoDS_Shape`) built from `Document.history`. Derived, disposable. |
 | **Mesh** | The tessellated geometry shipped over the WS to the FE for display + picking; carries per-face / per-edge IDs. |
 | **Face ID / Edge ID** | Kernel-owned integers identifying topological entities on the current solid; carried in the Mesh payload; session-stable, **not** persistent across edits (that's the finder's job). |
 | **Conversation** | The clarifying-question thread the planner can open when a prompt is ambiguous (F7). Preserved alongside the resulting operation. |
+| **ConversationState** | The *in-flight* clarification thread held transiently on the `Session` between turns (original selection + turns so far + attempt count); becomes the operation's recorded Conversation once resolved. |
+| **ConversationTurn** | One exchange in a Conversation (`from` user/assistant, `text`, `at`); the unit stored in `Operation.conversation` and rendered in the prompt chat thread. |
 | **ClarifyingQuestion** | The structured object the Planner returns *instead of* an `Operation` when a prompt is ambiguous (F7); carries the question `text`. The user's reply resumes planning; the resolved exchange is preserved as the operation's Conversation. |
 | **Session** | One open WS connection; holds one open document + the live derived state. |
 | **Planner** | The component that turns prompt + selection + conv state into either an `Operation` or a `ClarifyingQuestion`. |
+| **PlanResult** | The Planner's return type: the union `Operation | ClarifyingQuestion` (the op-or-question branch, F22). |
 | **LLMClient** | The Protocol abstracting the LLM call surface; two v0 implementations (Anthropic API, Claude Code). |
 | **Adapter** | A pure function `Document → build123d source code`. v0 only ships `build123d_target`. |
 | **Executor** | Runs the adapter's emitted code, returns the in-memory solid. |
