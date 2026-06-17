@@ -140,3 +140,31 @@ def test_redo_rebuilds_geometry(tmp_path):
     msgs = _send(s, {"type": "redo"})  # → box again, rebuilt
     assert len(_of_type(msgs, "document")["history"]) == 1
     assert any(m["type"] == "meshFrame" for m in msgs)
+
+
+# --- clarification branch (F7, T5 D5) ----------------------------------------
+
+
+class _ClarifyClient:
+    """Returns a chamfer with no length → the planner must ask, not guess."""
+
+    name = "mock"
+
+    def available(self) -> bool:
+        return True
+
+    def complete(self, *, system: str, prompt: str, max_tokens: int = 2048):
+        return LLMResponse(text=json.dumps({"kind": "chamfer", "params": {}}))
+
+
+def test_underspecified_plan_emits_conversation_turn(tmp_path):
+    s = Session(lambda: _ClarifyClient(), project_dir=tmp_path)
+    msgs = _send(s, {"type": "plan", "prompt_text": "chamfer this", "selection": None})
+
+    turn = _of_type(msgs, "conversationTurn")
+    assert turn["turn"]["from"] == "assistant"
+    assert "length" in turn["turn"]["text"].lower()
+    assert turn["question"]["question"]  # the structured ClarifyingQuestion
+    # nothing applied — no op, no mesh.
+    assert s.document.history == []
+    assert not any(m["type"] in ("op", "meshFrame") for m in msgs)

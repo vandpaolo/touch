@@ -16,15 +16,19 @@ import json
 import shutil
 import tempfile
 from collections.abc import Callable
+from datetime import UTC, datetime
 from pathlib import Path
 
 from pydantic import ValidationError
 
 from touch_backend import planner
 from touch_backend._generated.protocol import (
+    ClarifyingQuestion,
+    ConversationTurn,
     DirEntry,
     MsgApplyOp,
     MsgCancel,
+    MsgConversationTurn,
     MsgDir,
     MsgDocument,
     MsgError,
@@ -204,12 +208,18 @@ class Session:
 
     def _handle_plan(self, message: MsgPlan) -> list[Response]:
         try:
-            operation = planner.plan(
+            result = planner.plan(
                 self._client(), message.prompt_text, message.selection
             )
         except planner.PlannerError as exc:
             return [self._error("plan_failed", str(exc), where="plan")]
 
+        # The planner may ask instead of answering (F7). Full conversation
+        # state + resume + turn cap land in the next step; here we relay it.
+        if isinstance(result, ClarifyingQuestion):
+            return [self._clarify_message(result)]
+
+        operation = result
         self.document.append(operation)
         try:
             mesh = self._rebuild_mesh()
@@ -555,6 +565,17 @@ class Session:
         mesh = tessellate(solid)
         self._mesh_cache.put(key, mesh)
         return mesh
+
+    @staticmethod
+    def _clarify_message(question: ClarifyingQuestion) -> str:
+        """Wrap a planner ClarifyingQuestion as a conversationTurn for the FE (F7)."""
+        turn = ConversationTurn.model_validate(
+            {"from": "assistant", "text": question.question, "at": datetime.now(UTC)}
+        )
+        # by_alias: ConversationTurn.from_ must serialize as "from" on the wire.
+        return MsgConversationTurn(
+            type="conversationTurn", turn=turn, question=question
+        ).model_dump_json(by_alias=True)
 
     @staticmethod
     def _error(code: str, message: str, where: str | None = None) -> str:

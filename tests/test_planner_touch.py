@@ -12,7 +12,7 @@ import json
 import pytest
 
 from touch_backend import planner
-from touch_backend._generated.protocol import Operation, Selection
+from touch_backend._generated.protocol import ClarifyingQuestion, Operation, Selection
 from touch_backend.llm_client.base import LLMResponse
 
 
@@ -89,3 +89,49 @@ def test_invalid_kind_raises() -> None:
     client = _CannedClient(json.dumps({"kind": "not_a_kind", "params": {}}))
     with pytest.raises(planner.PlannerError):
         planner.plan(client, "x", None)
+
+
+# --- F7: op-or-question branch (T5 D5) ---------------------------------------
+
+
+def test_chamfer_without_size_asks_instead_of_guessing() -> None:
+    # The money case: no length given → ask, do NOT invent one.
+    client = _CannedClient(json.dumps({"kind": "chamfer", "params": {}}))
+    result = planner.plan(client, "chamfer this", _face_selection())
+
+    assert isinstance(result, ClarifyingQuestion)
+    assert "length" in result.question.lower()
+    assert result.attempt == 1
+
+
+def test_box_missing_a_dimension_asks() -> None:
+    client = _CannedClient(json.dumps({"kind": "box", "params": {"length": 40}}))
+    result = planner.plan(client, "a box 40 long", None)
+
+    assert isinstance(result, ClarifyingQuestion)
+    # width and height are still missing.
+    assert "width" in result.question and "height" in result.question
+
+
+def test_vague_prompt_returns_llm_clarify() -> None:
+    client = _CannedClient(json.dumps({"clarify": "What would you like to make?"}))
+    result = planner.plan(client, "do something", None)
+
+    assert isinstance(result, ClarifyingQuestion)
+    assert result.question == "What would you like to make?"
+
+
+def test_attempt_is_carried_into_the_question() -> None:
+    client = _CannedClient(json.dumps({"kind": "chamfer", "params": {}}))
+    result = planner.plan(client, "chamfer", _face_selection(), attempt=3)
+
+    assert isinstance(result, ClarifyingQuestion)
+    assert result.attempt == 3
+
+
+def test_complete_op_still_returns_operation() -> None:
+    client = _CannedClient(
+        json.dumps({"kind": "box", "params": {"length": 10, "width": 10, "height": 10}})
+    )
+    result = planner.plan(client, "a 10 mm cube", None)
+    assert isinstance(result, Operation)
