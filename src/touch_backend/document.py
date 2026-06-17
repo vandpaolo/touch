@@ -44,7 +44,11 @@ class TouchDocument:
             "name": self.name,
             "description": self.description,
             "parameters": [p.model_dump(mode="json") for p in self.parameters],
-            "history": [op.model_dump(mode="json") for op in self.history],
+            # by_alias: an op's conversation turns must persist `from`, not
+            # `from_`, so they reload (ConversationTurn aliases `from`).
+            "history": [
+                op.model_dump(mode="json", by_alias=True) for op in self.history
+            ],
             "created_at": self.created_at,
             "modified_at": self.modified_at,
             "touch_version": self.touch_version,

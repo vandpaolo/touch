@@ -16,6 +16,7 @@ import json
 import shutil
 import tempfile
 from collections.abc import Callable
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -52,6 +53,7 @@ from touch_backend._generated.protocol import (
     MsgSavePart,
     MsgUndo,
     Operation,
+    Selection,
     TouchProtocol,
 )
 from touch_backend.adapters import AdapterRefusal
@@ -75,6 +77,26 @@ class _DocError(Exception):
 # FE->BE control messages still stubbed (Cancel=T8, Rebuild=T8, ExportStep=T7,
 # ApplyOp=later). `plan` + the document/undo/redo messages are handled.
 _STUBBED_MESSAGES = (MsgApplyOp, MsgCancel, MsgRebuild, MsgExportStep)
+
+_MAX_CLARIFY_TURNS = 3  # cap the clarification loop (F7); config-tunable later
+
+
+@dataclass
+class _Conversation:
+    """In-flight clarification thread (F7): the original click context plus the
+    turns so far. Exists only between a question and its resolution."""
+
+    selection: Selection | None
+    prompt_text: str
+    turns: list[ConversationTurn] = field(default_factory=list)
+    attempts: int = 1
+
+
+def _assistant_turn(text: str) -> ConversationTurn:
+    return ConversationTurn.model_validate(
+        {"from": "assistant", "text": text, "at": datetime.now(UTC)}
+    )
+
 
 Response = str | bytes
 
@@ -109,6 +131,7 @@ class Session:
         self._dirty = False
         self._redo: list[Operation] = []
         self._mesh_cache = MeshCache()
+        self._conv: _Conversation | None = None
 
     def ready(self) -> str:
         """The `ready` envelope sent once on connect (F15)."""
@@ -161,6 +184,8 @@ class Session:
     def _dispatch(self, message: object) -> list[Response]:
         if isinstance(message, MsgPlan):
             return self._handle_plan(message)
+        if isinstance(message, MsgConversationTurn):
+            return self._handle_conversation_turn(message)
         if isinstance(message, MsgNewDoc):
             return self._handle_new()
         if isinstance(message, MsgOpen):
@@ -214,12 +239,62 @@ class Session:
         except planner.PlannerError as exc:
             return [self._error("plan_failed", str(exc), where="plan")]
 
-        # The planner may ask instead of answering (F7). Full conversation
-        # state + resume + turn cap land in the next step; here we relay it.
+        # The planner may ask instead of answering (F7): open a clarification
+        # thread that the user's reply (a conversationTurn) resumes.
         if isinstance(result, ClarifyingQuestion):
+            self._conv = _Conversation(
+                selection=message.selection,
+                prompt_text=message.prompt_text,
+                turns=[_assistant_turn(result.question)],
+                attempts=1,
+            )
             return [self._clarify_message(result)]
 
-        operation = result
+        self._conv = None  # a clean op cancels any stale thread
+        return self._apply_operation(result)
+
+    def _handle_conversation_turn(self, message: MsgConversationTurn) -> list[Response]:
+        """A user reply (F7): resume planning with the thread; cap the loop."""
+        if self._conv is None:
+            return [
+                self._error(
+                    "no_conversation",
+                    "no clarification is in progress",
+                    where="conversationTurn",
+                )
+            ]
+        conv = self._conv
+        conv.turns.append(message.turn)  # the user's reply
+        conv.attempts += 1
+        if conv.attempts > _MAX_CLARIFY_TURNS:
+            self._conv = None
+            return [
+                self._error(
+                    "clarify_exhausted",
+                    f"gave up after {_MAX_CLARIFY_TURNS} clarification turns",
+                    where="conversationTurn",
+                )
+            ]
+        try:
+            result = planner.plan(
+                self._client(),
+                conv.prompt_text,
+                conv.selection,
+                attempt=conv.attempts,
+                conversation=conv.turns,
+            )
+        except planner.PlannerError as exc:
+            return [self._error("plan_failed", str(exc), where="plan")]
+
+        if isinstance(result, ClarifyingQuestion):
+            conv.turns.append(_assistant_turn(result.question))
+            return [self._clarify_message(result)]
+
+        self._conv = None
+        return self._apply_operation(result)
+
+    def _apply_operation(self, operation: Operation) -> list[Response]:
+        """Append an operation, rebuild geometry, emit op + snapshot + mesh."""
         self.document.append(operation)
         try:
             mesh = self._rebuild_mesh()
@@ -233,7 +308,8 @@ class Session:
         self._redo = []  # a new op invalidates the redo stack
         self._dirty = True
         return [
-            MsgOp(type="op", operation=operation).model_dump_json(),
+            # by_alias: the op's conversation turns serialize `from`, not `from_`.
+            MsgOp(type="op", operation=operation).model_dump_json(by_alias=True),
             self._snapshot(),
             mesh_frame_envelope(mesh).model_dump_json(),
             pack(mesh),
@@ -508,7 +584,7 @@ class Session:
             dirty=self._dirty,
             can_undo=len(self.document.history) > 0,
             can_redo=len(self._redo) > 0,
-        ).model_dump_json()
+        ).model_dump_json(by_alias=True)  # history ops' turns -> `from`, not `from_`
 
     def _snapshot_with_mesh(self, *, where: str) -> list[Response]:
         """Emit the document snapshot + the re-meshed geometry (or just the

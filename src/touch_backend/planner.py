@@ -16,7 +16,12 @@ from typing import Any
 
 from pydantic import ValidationError
 
-from touch_backend._generated.protocol import ClarifyingQuestion, Operation, Selection
+from touch_backend._generated.protocol import (
+    ClarifyingQuestion,
+    ConversationTurn,
+    Operation,
+    Selection,
+)
 from touch_backend.llm_client.base import LLMClient
 
 # Required numeric params per operation kind. A missing one triggers a
@@ -71,16 +76,19 @@ def plan(
     selection: Selection | None = None,
     *,
     attempt: int = 1,
+    conversation: list[ConversationTurn] | None = None,
 ) -> Operation | ClarifyingQuestion:
     """Turn a prompt (+ optional selection) into a structured Operation, or a
     ClarifyingQuestion (F7) when the request is ambiguous or under-specified.
 
     The LLM supplies `{kind, params}` or `{clarify}`; the server owns
     id/timestamp/selection. `attempt` is the conversation turn count (the
-    session caps it).
+    session caps it); `conversation` is the clarification thread so far — fed to
+    the LLM as context and recorded on the resulting Operation.
     """
     response = client.complete(
-        system=PLANNER_SYSTEM, prompt=_build_prompt(prompt_text, selection)
+        system=PLANNER_SYSTEM,
+        prompt=_build_prompt(prompt_text, selection, conversation),
     )
     data = _extract_json(response.text)
 
@@ -101,13 +109,14 @@ def plan(
         return ClarifyingQuestion(question=_ask_for(kind, missing), attempt=attempt)
 
     sel = selection.model_dump(mode="json") if selection is not None else None
+    turns = [t.model_dump(mode="json", by_alias=True) for t in (conversation or [])]
     payload = {
         "id": uuid.uuid4().hex,
         "kind": kind,
         "params": params,
         "selection": sel,
         "prompt_text": prompt_text,
-        "conversation": [],
+        "conversation": turns,
         "created_at": datetime.now(UTC).isoformat(),
     }
     try:
@@ -151,8 +160,17 @@ def _ask_for(kind: str, missing: list[str]) -> str:
     return f"What {names} (in mm) should the {kind} have?"
 
 
-def _build_prompt(prompt_text: str, selection: Selection | None) -> str:
-    if selection is None:
-        return prompt_text
-    context = selection.model_dump_json()
-    return f"{prompt_text}\n\nSelection context (the clicked face):\n{context}"
+def _build_prompt(
+    prompt_text: str,
+    selection: Selection | None,
+    conversation: list[ConversationTurn] | None = None,
+) -> str:
+    parts = [prompt_text]
+    if conversation:
+        thread = "\n".join(f"{t.from_}: {t.text}" for t in conversation)
+        parts.append(f"Conversation so far:\n{thread}")
+    if selection is not None:
+        parts.append(
+            f"Selection context (the clicked face):\n{selection.model_dump_json()}"
+        )
+    return "\n\n".join(parts)

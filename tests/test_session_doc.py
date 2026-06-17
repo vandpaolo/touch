@@ -168,3 +168,69 @@ def test_underspecified_plan_emits_conversation_turn(tmp_path):
     # nothing applied — no op, no mesh.
     assert s.document.history == []
     assert not any(m["type"] in ("op", "meshFrame") for m in msgs)
+
+
+_FACE_SEL = {
+    "target": "face",
+    "point_xyz": [0, 0, 20],
+    "finder": [{"kind": "contains_point", "point_xyz": [0, 0, 20], "tol_mm": 0.5}],
+    "entity_id_at_capture": 0,
+}
+
+
+def _user_reply(text: str) -> dict:
+    return {
+        "type": "conversationTurn",
+        "turn": {"from": "user", "text": text, "at": "2026-06-03T00:00:00Z"},
+    }
+
+
+class _AskThenAnswerClient:
+    """First call asks (chamfer, no length); the reply resolves it (length 5)."""
+
+    name = "mock"
+
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def available(self) -> bool:
+        return True
+
+    def complete(self, *, system: str, prompt: str, max_tokens: int = 2048):
+        self.calls += 1
+        params = {} if self.calls == 1 else {"length": 5}
+        return LLMResponse(text=json.dumps({"kind": "chamfer", "params": params}))
+
+
+def test_clarify_then_reply_applies_op_and_records_thread(tmp_path):
+    s = Session(lambda: _AskThenAnswerClient(), project_dir=tmp_path)
+    s.document.append(_box_op())  # a base solid to chamfer
+
+    asked = _send(s, {"type": "plan", "prompt_text": "chamfer", "selection": _FACE_SEL})
+    assert _of_type(asked, "conversationTurn")  # it asked
+
+    msgs = _send(s, _user_reply("5 mm"))  # the reply resolves it
+    op = _of_type(msgs, "op")["operation"]
+    assert op["kind"] == "chamfer"
+    assert op["params"] == {"length": 5}
+    # the clarification thread is recorded on the op (F7).
+    froms = [t["from"] for t in op["conversation"]]
+    assert "assistant" in froms and "user" in froms
+    assert any(m["type"] == "meshFrame" for m in msgs)
+    assert len(s.document.history) == 2  # box + chamfer
+
+
+def test_clarify_caps_at_max_turns(tmp_path):
+    s = Session(lambda: _ClarifyClient(), project_dir=tmp_path)  # always asks
+    s.document.append(_box_op())
+    _send(s, {"type": "plan", "prompt_text": "chamfer", "selection": _FACE_SEL})  # a=1
+    _send(s, _user_reply("uh"))  # a=2, asks
+    _send(s, _user_reply("um"))  # a=3, asks
+    msgs = _send(s, _user_reply("er"))  # a=4 > 3 → exhausted
+
+    assert _of_type(msgs, "error")["code"] == "clarify_exhausted"
+
+
+def test_reply_without_a_conversation_errors(tmp_path):
+    msgs = _send(_session(tmp_path), _user_reply("hello?"))
+    assert _of_type(msgs, "error")["code"] == "no_conversation"
