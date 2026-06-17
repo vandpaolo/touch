@@ -59,6 +59,9 @@ export function App() {
   const [error, setError] = useState<string | null>(null)
   const [doc, setDoc] = useState<DocState>(EMPTY_DOC)
   const [ws, setWs] = useState<Workspace | null>(null)
+  // Clarification thread (F7): non-empty means the prompt panel is mid-dialogue,
+  // so a submit sends a user reply (conversationTurn) rather than a new plan.
+  const [thread, setThread] = useState<{ from: 'assistant' | 'user'; text: string }[]>([])
 
   const viewportRef = useRef<HTMLDivElement>(null)
   const transportRef = useRef<Transport | null>(null)
@@ -87,6 +90,7 @@ export function App() {
       const sel = selectionFromHit(hit, store.getMesh()?.faceIdToFinderHint ?? {})
       selection.set(sel)
       viewport.setSelectedFace(hit.faceTag)
+      setThread([]) // a fresh click starts a fresh prompt, not a reply
       setPrompt({ x: screen.x, y: screen.y, selection: sel })
     })
 
@@ -95,16 +99,24 @@ export function App() {
         store.applyMesh(m)
         viewport.setMesh(m)
         setBusy(false)
+        setThread([]) // op applied — the dialogue (if any) is resolved
         setPrompt(null)
       }),
       transport.on('document', (d) => {
         store.applyDocument(d)
         if (d.history.length === 0) viewport.clear()
       }),
+      // The planner asked a clarifying question (F7): keep the panel open as a
+      // chat thread; the user's reply resumes planning.
+      transport.on('conversationTurn', (m) => {
+        setBusy(false)
+        setThread((cur) => [...cur, { from: 'assistant', text: m.turn.text }])
+      }),
       transport.on('dir', (d) => workspace.applyDir(d)),
       store.subscribe(setDoc),
       transport.on('error', (e) => {
         setBusy(false)
+        setThread([])
         setError(e.message)
       }),
       transport.on('ready', () => setConnection('connected')),
@@ -156,14 +168,31 @@ export function App() {
   const redo = useCallback(() => transportRef.current?.send({ type: 'redo' }), [])
 
   const addFeature = useCallback(() => {
+    setThread([])
     setPrompt({ x: window.innerWidth / 2 - 140, y: window.innerHeight / 2 - 60, selection: null })
   }, [])
 
   const submitPrompt = (text: string) => {
+    const t = transportRef.current
+    if (!t) return
     setBusy(true)
     setError(null)
-    transportRef.current?.send(buildPlanMessage(prompt?.selection ?? null, text))
+    if (thread.length > 0) {
+      // mid-clarification: reply with a user conversation turn (F7).
+      t.send({
+        type: 'conversationTurn',
+        turn: { from: 'user', text, at: new Date().toISOString() },
+      })
+      setThread((cur) => [...cur, { from: 'user', text }])
+    } else {
+      t.send(buildPlanMessage(prompt?.selection ?? null, text))
+    }
   }
+
+  const cancelPrompt = useCallback(() => {
+    setThread([])
+    setPrompt(null)
+  }, [])
 
   // Keyboard: undo / redo / save.
   useEffect(() => {
@@ -283,8 +312,9 @@ export function App() {
           x={prompt.x}
           y={prompt.y}
           busy={busy}
+          thread={thread}
           onSubmit={submitPrompt}
-          onCancel={() => setPrompt(null)}
+          onCancel={cancelPrompt}
         />
       )}
 
