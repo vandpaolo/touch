@@ -47,10 +47,10 @@ shaped. Priority field uses `must` / `should` / `could`.
 | F19 | The backend runs as a **localhost WebSocket server** on a configurable port. The **same protocol** is consumed by the Electron renderer (prod) and a browser tab (dev). | Pointing a plain browser at `http://localhost:<port>/` and launching the wrapped `.exe` produce a functionally identical app, against the same backend. | must |
 | F20 | The backend **tessellates** the current B-rep model with **per-face IDs and per-edge IDs encoded into the mesh data** (faces as a triangle→face-id mapping; edges as polyline segments tagged with an edge-id); the frontend uses those IDs for face **and edge** selection (F5, F37). | After any geometry update, the streamed mesh contains a triangle→face-id mapping **and** an edge-segment→edge-id mapping the frontend can use without further backend calls. | must |
 | F21 | The backend accepts **structured operations** defined by the `Intent` operation schema. Unknown / malformed ops are rejected with a **structured error** (typed payload), never a raw Python traceback to the UI. | Sending an invalid op yields a structured error event; no traceback string appears in any frontend-visible message. | must |
-| F22 | An **LLM Planner** (Anthropic Claude) converts `{prompt + selection context + conversation state}` into either a structured operation or a clarifying question. | Mocked-client tests assert both branches (op / question) of the planner output land cleanly. Live integration verifies one of each on the mini-PC flow. | must |
+| F22 | An **LLM Planner** converts `{prompt + selection context + conversation state}` into either a structured operation or a clarifying question. *(Revised 2026-06-04: the planner is now the **optional no-account fallback** brain for quick click-to-prompt; the primary brain is the user's own Claude Code over MCP — F42/F43.)* | Mocked-client tests assert both branches (op / question); the fallback path produces a recognized-template layer with no Claude Code login. | should |
 | F23 | The current model is **rebuildable from the operation history alone**. Live in-memory state is a *derived cache*; the `.touch` history is the source of truth. | Killing the backend, restarting, and replaying the in-memory history reproduces the same model deterministically (F16, N8). | must |
 | F24 | The **build123d adapter** is a pure function `operation history → build123d source code`; same input → byte-identical output. | Adapter snapshot tests: emit twice, diff empty (N10). | must |
-| F31 | The backend has a **pluggable LLM-client abstraction** with two v0 implementations: (a) **Anthropic API** (`anthropic.Anthropic`, using the user's API key from the OS keychain — F13a); (b) **Claude Code** (`claude-agent-sdk` driving the user's locally-installed Claude Code under their Pro/Max subscription — F13b). The planner accepts either through the same interface; the active client is chosen at session start from Settings. | A `LLMClient` Protocol exists in code; both implementations satisfy it and pass the same contract test. The mini-PC flow succeeds end-to-end with each client. The Settings UI hides Claude Code mode when Claude Code isn't installed or authed. | must |
+| F31 | The **fallback planner** (F22) has a pluggable LLM-client abstraction; its v0 implementation is the **Anthropic API** (`anthropic.Anthropic`, key from the OS keychain). **Correction (2026-06-04):** the earlier "Claude Code mode via `claude-agent-sdk` under the subscription" is **dropped** — the Agent SDK now requires a paid API key (OAuth restricted to Claude Code + claude.ai, Feb 2026), so it is *not* a token-free path. **The token-free Claude Code path is MCP (F42), not the SDK.** | A `LLMClient` Protocol exists; the Anthropic-API fallback satisfies it and passes the contract test. The token-free agent path is delivered via the MCP server (F41/F42), not an in-process SDK client. | should |
 | F36 | When an operation targets a **selected entity**, the backend resolves it to **exactly the entity the user clicked**, deterministically — using the frontend-captured face/entity identity (F20) as the within-session disambiguator, with the geometric **finder** (R2) as the durable, re-derivable description. Resolution must survive **edge/corner-adjacent clicks** (the picked point touches several faces) and **picks that land slightly off the B-rep surface** (mesh-vs-brep float gap), and must not fail on a click the frontend visibly highlighted as selectable. | A click that highlights a face — including one near an edge or corner — always resolves to that face when an op is applied: no "ambiguous: N faces contain point" or "no face contains point" on a normally-selectable click. A regression test exercises edge-adjacent and just-off-surface picks and asserts deterministic resolution. | must |
 
 ### C. Distribution & repository
@@ -69,6 +69,25 @@ shaped. Priority field uses `must` / `should` / `could`.
 | F29 | The developer's Claude API key is stored **SOPS-encrypted in the repo** (`secrets.env.sops.yaml`) per the **nexus-ops `secrets.md`** standard; decrypted at dev time to a gitignored `.env` using the host's age key. The current plaintext `.env` (carried from Maquette) is migrated to SOPS as an explicit early-roadmap task. | No plaintext key in any committed file; `sops -d secrets.env.sops.yaml > .env` produces a working dev `.env` on the host; pre-commit hook (or CI guard) blocks any plaintext `.env` from being committed. | must |
 | F30 | The dev-host backend's working directory (test runs, scratch `.touch` files, ad-hoc exports) lives under **`/srv/touch/`** per the **nexus-ops `storage.md`** standard. | The default backend `out_root` config on the dev host resolves to `/srv/touch/`; running locally writes there. | should |
 
+### E. Agent integration & Layer Stack (pivot — 2026-06-04)
+
+> Locked in `00-vision.md` + `notes/decisions.md` (2026-06-04). Touch becomes a
+> CAD IDE the user drives with their **own Claude Code** over **MCP**; a part is
+> a build123d **Layer Stack**. These build on the shipped v0 editor (T0–T5).
+
+| ID | Requirement | Acceptance criterion | Priority |
+|----|-------------|----------------------|----------|
+| F38 | A part is a **Layer Stack** — an ordered list of **layers**, each a build123d code block that transforms the previous solid (`solid_N = f_N(solid_{N-1})`). The stack rebuilds by deterministic ordered re-execution from clean state, with per-layer content-addressed caching. **Append-only in v0** (add / delete-last / undo; no re-edit of earlier layers). | Building a part records one layer per edit; re-running the stack reproduces it deterministically; an unchanged layer prefix is served from cache (no re-exec). | must |
+| F39 | **Layers are clickable** — Touch computes which layer created/last-modified each face & edge (provenance, baked into the F20 ids). Clicking a face highlights its owning layer; hovering a layer highlights its faces. | Click a face → its layer is highlighted in the Layer Stack panel; hover a layer → its faces highlight in the viewport. Holds after a chamfer/boolean that splits or merges faces. | must |
+| F40 | **Recognized templates** — layers matching a known op pattern (box, cylinder, sphere, chamfer — the v0 vocabulary) render as **editable parametric cards**; every other layer renders as a **code card** (view/edit build123d). | A chamfer layer shows an editable length param; a freeform gearbox layer shows as a code card. Recognition matches only known templates (no general code decompilation). | should |
+| F41 | An **MCP server** exposes Touch's geometry as tools: query model/state, get current selection, render-to-image, add/edit/reorder/delete layer. Every mutating tool returns `{ok|error, render thumbnail, validity check, downstream delta + finder-rebind warnings}`. | An MCP client lists the tools and drives a full build (add layer → render → query) against the live document; mutating-tool results carry the structured envelope. | must |
+| F42 | The user drives Touch with their **own Claude Code over MCP** — on their **subscription, with zero Anthropic API tokens billed** (see N14). Touch never proxies or embeds anyone else's Claude account. | Point a Claude Code (subscription/OAuth, no API key) at Touch's MCP and build a part; no API-token usage is incurred (network/billing inspection). | must |
+| F43 | **One brain, two surfaces.** A persistent **side-panel main thread** (the project's brain of record) handles whole-part intent; **positional click-to-prompt** spawns an **ephemeral subagent from the main thread** carrying spatial context, which does the local edit and **summarizes one line back**. The built-in planner (F22) is demoted to an **optional no-account fallback**. | Macro instructions run in the side panel; a face-click opens a positional prompt whose result lands as a one-line summary in the main thread; the main thread retains project context across both. | must |
+| F44 | The backend holds **one shared live document** that the viewport and the agent both act on; the layer stack is **versioned**, and every mutation is **compare-and-swap** against its expected revision (reject → re-plan) so the two surfaces can't corrupt each other on stale state. | A scripted concurrent edit from two clients on a stale revision is rejected (not silently applied); the viewport reflects agent edits live and vice-versa. | must |
+| F45 | A selected entity is expressed as a **finder reference** (re-derivable geometric predicate + captured id), **never a raw positional index**. Touch injects a **positional context packet** (selection + owning layer + finder ref + picked point/normal + 1-ring + touchable params) on a click, and a **macro context packet** (param table + compact layer outline + bbox + units) for whole-part work. | Generated layer code references geometry via finder helpers (lint flags raw `.faces()[i]`); the injected packet differs by surface; a click resolves to one entity, re-resolved at apply. | must |
+| F46 | The geometry **executor is workspace-confined** — runs cwd=workspace, no secrets in env, network off by default, the existing timeout, and a soft import-lint warning on `os`/`socket`/`subprocess`. It is a **single chokepoint** so a real OS sandbox can replace it later, gated on opening untrusted parts. | The executor cannot write outside the workspace or reach the network in normal runs; the sandbox level is one swappable component. (In-process Python restriction is a nudge, not a security boundary — documented.) | must |
+| F47 | **Claude Code embedded in the app** (milestone 2): launch + login from Touch, a right-side **agent panel** (custom chat with geometry-aware tool-call cards + inline renders) over the same MCP, with the two-way selection bridge. | On a packaged build, sign in to Claude inside Touch and run the agent-path benchmark in the in-app panel (no external terminal). | should |
+
 ## Non-functional requirements
 
 | ID | NFR | Target | Verification |
@@ -86,6 +105,9 @@ shaped. Priority field uses `must` / `should` / `could`.
 | N11 | **Open source.** Source is MIT-licensed; release artefacts are public. | `LICENSE` + public repo + public Releases. |
 | N12 | **No accidental cloud dependency.** Touch runs entirely from the user's machine + the Claude API; no Touch-operated server is required for end users. | Network inspection: end-user traffic goes to `api.anthropic.com` and nowhere else. |
 | N13 | **Workspace file access across run modes.** Open-Folder (F32) works in browser-dev (Chromium, over HTTPS) and the Electron desktop build; workspace files stay on the user's machine (reinforces N12 — no server upload), with the local backend rebuilding geometry from streamed op-history. Non-supporting browsers degrade gracefully. | Open a folder → create/save a part → refresh → reopen → identical, exercised in a Chromium browser and the Electron build. |
+| N14 | **Zero-API-token agent path.** When driven by the user's own Claude Code over MCP (F42), Touch incurs **no Anthropic API token cost** — usage is against the user's subscription only. | Drive Touch from a subscription/OAuth Claude Code (no API key in env) and complete the agent-path benchmark; billing/network inspection shows no API-token usage. |
+| N15 | **Context efficiency / no memory-stack bloat.** The agent's working context references model state **by id** (compact layer manifest), pulls full layer source/renders **on demand**, uses **render thumbnails** (not auto-attached every turn), and keeps a byte-stable system-prompt + tool-list prefix (prompt-cache friendly). Conversation does not grow unbounded over a long session. | On a ≥20-edit session, per-turn input tokens stay roughly flat (not O(layers)); prompt-cache read-hits are non-zero; renders are sent only on demand. |
+| N16 | **Live-document consistency.** Concurrent edits from the viewport and the agent never corrupt the layer stack; compare-and-swap on a versioned stack (F44) rejects stale-revision mutations. | A race test issuing two edits against the same stale revision results in one applied + one rejected-and-replanned, never a corrupted stack. |
 
 ## User stories
 
@@ -186,12 +208,13 @@ sequenceDiagram
 - **OpenCascade B-rep kernel** via the OCP Python wrapper (re-used from
   Maquette).
 - **Frontend tech is web** (HTML/CSS/JS + three.js for the viewport).
-- **Anthropic Claude** is the only LLM provider in v0, but reachable via
-  **two paths** (F31): the Anthropic API (user's own key) *and* Claude
-  Code under the user's Pro/Max subscription (via `claude-agent-sdk`).
-  The client is abstracted behind a Protocol so adding a third path
-  (Vertex AI / Bedrock / another provider) is cheap; no
-  provider-agnostic layer beyond what F31 needs.
+- **Two intelligence paths** *(revised 2026-06-04)*: (a) the **primary
+  brain** is the user's **own Claude Code, over MCP** (F41/F42) — their
+  subscription, no API tokens; the MCP port is agent-neutral, so any
+  MCP-capable agent works. (b) a **fallback planner** (F22) calls the
+  **Anthropic API** with the user's key (F31), abstracted behind a Protocol.
+  *(The earlier `claude-agent-sdk` subscription path is dropped — it now
+  needs a paid API key; see F31.)*
 - **Windows is the v0 distribution target** for the `.exe`. macOS / Linux
   desktop builds are later milestones.
 - **`.touch` is JSON**, schema-versioned, the source-of-truth document
@@ -207,11 +230,14 @@ sequenceDiagram
 - **LLM consistency.** Claude reliably emits valid structured operations
   for v0 (similar to Maquette's planner reliability, with selection
   context as an added grounding signal).
-- **Claude Code Agent SDK is stable enough.** The `claude-agent-sdk`
-  interface (and the `claude -p` CLI as a fallback) remains workable for
-  programmatic, non-interactive use through v0. If it churns, the
-  pluggable abstraction lets Touch fall back to API-only without
-  rewriting the planner.
+- **MCP + Claude Code subscription path holds** *(revised 2026-06-04)*. A
+  local **MCP server** driven by the user's own Claude Code works on the
+  subscription with no API tokens, streams parseable events for a custom
+  panel, and returns images the agent can see — **spike-verified 2026-06-04**
+  (claude 2.1.132, FastMCP stdio). Risk that Anthropic changes policy / MCP
+  surface is tracked as R14; the built-in API planner (F22) is the fallback.
+  *(The prior `claude-agent-sdk` subscription assumption is retired — it now
+  requires a paid API key.)*
 - **Native bulk tessellation** via OCP / `ocp_tessellate` is performant
   enough for interactive use (research-supported; not yet benchmarked at
   Touch's interactive cadence).
@@ -242,4 +268,8 @@ sequenceDiagram
 | R9 | **`.touch` schema evolution** breaks older files. | low | med | `schema_version` field (F10, N7); migration helpers per minor bump. |
 | R10 | **GitHub Releases pipeline** for Windows builds is fiddly to set up. | low | low | Standard CI pattern; many Electron+Python apps document this. Manual builds as a fallback for the first release. |
 | R11 | **Operation kind not supported** by build123d/OCP for a prompt a friend tries. | med | med | Extras/escape-hatch carries over from Maquette (raw build123d as a relief valve, marked best-effort). |
-| R12 | **Claude Code mode friction** — `claude-agent-sdk` churns mid-v0, or non-technical friends can't install/login to Claude Code → the subscription path is broken or unused. | med | low | Pluggable client abstraction (F31) means Anthropic-API mode is always the no-extra-install default; Claude Code mode is detected and hidden in Settings when unavailable. Touch ships clear in-app guidance for the install+login path; SDK pinned to a tested version in `pyproject.toml`. |
+| R12 | **Claude Code mode friction** — `claude-agent-sdk` churns mid-v0, or non-technical friends can't install/login to Claude Code → the subscription path is broken or unused. | med | low | *(Superseded 2026-06-04 by the MCP pivot — the SDK path is dropped; see F31 correction + R14.)* Anthropic-API mode remains the no-extra-install fallback (F22/F31). |
+| R13 | **Agent-authored code is the executable document** — the agent writes build123d that Touch runs; it can be non-manifold / wrong-face (reliability) or, for an untrusted `.touch` from someone else, hostile (RCE). | high | high | Per-layer render-and-validate feedback (F41 envelope: manifold check + thumbnail); recognized-template / finder-reference model (F40/F45); **workspace-confined executor** (F46) with a real OS sandbox before opening untrusted parts. Append-only v0 limits blast radius. |
+| R14 | **Dependence on Claude Code / MCP + subscription limits** — Anthropic changes policy, the MCP surface shifts, or subscription usage caps bite an agentic CAD loop. | med | med | Built-in planner (F22) is a no-account fallback; the engine stays provider-neutral (MCP is a standard port, any MCP agent works); context-efficiency (N15) keeps tokens-per-edit low. Feasibility already spike-verified (2026-06-04). |
+| R15 | **Context bloat ("memory stacks")** — feeding every click + render + tool result into one conversation degrades the agent. | med | high | Main thread + ephemeral positional subagents that summarize back (F43); backend-canonical, id-referenced context, thumbnails-on-demand (N15). |
+| R16 | **Topological naming on re-edit/reorder** — editing or reordering an earlier layer breaks higher layers' references. | med | high (when attempted) | **Deferred:** v0 is append-only (F38), which sidesteps it. Re-edit/reorder is a later phase needing a reference-re-resolution subsystem (finder re-evaluation + break detection + disambiguation). |
