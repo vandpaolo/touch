@@ -226,6 +226,49 @@ the per-triangle face IDs the frontend uses for picking (F20).
 **Invariants:** `face_tag_per_triangle.length === indices.length / 3`.
 All IDs reference faces/edges that exist in `Session.current_solid`.
 
+### Layer (entity — pivot, ADR-0012)
+
+**Purpose.** One edit in a part: a build123d code block that transforms the
+previous solid into the next (`solid_N = f_N(solid_{N-1})`). The unit of
+modularity — hoverable, clickable, individually undoable. Owned by `layer_stack`.
+
+**Fields:**
+- `id: str` — stable layer id.
+- `source: str` — the build123d code for this layer (the canonical authoring
+  medium; a *recognized template* is just source that matches a known pattern).
+- `kind: "template" | "code"` — `template` ⇒ recognised (parametric card,
+  params extractable); `code` ⇒ freeform (code card).
+- `params: dict | None` — for a recognised template, the editable parameters.
+- `selection: Selection | None` — for entity-targeted layers (the finder
+  reference; never a raw index, ADR-0011/0015).
+- `input_hash`, `output_hash: str` — content-addressed cache keys (the fold
+  reuses `mesh_cache`).
+- `provenance: { created_by: set[layer_id], last_modified_by: set[layer_id] }`
+  **per face/edge** of the resulting solid — computed by geometric diff
+  (`provenance` module), baked into the Mesh ids so clicks map to a layer (F39).
+
+**Invariants:** a layer returns exactly one valid, non-empty solid (validated at
+the `executor` boundary); selections resolve via finder references; provenance
+is a **set** (booleans fuse faces → multi-owner).
+
+### LayerStack (aggregate — pivot, ADR-0012/0013)
+
+**Purpose.** The active part: an ordered list of `Layer`s plus the derived live
+solid/mesh. Replaces "the document is an op history" for the pivot (the op
+history survives *inside* `template` layers). One shared instance per active
+part (ADR-0013).
+
+**Fields:**
+- `layers: list[Layer]` — ordered; append-only in v0 (add / delete-last / undo).
+- `revision: int` — **monotonic version**; bumped on every accepted mutation.
+- `solid` / `mesh` — derived cache of the stack at `revision` (rebuildable by
+  the fold; per-layer cached).
+
+**Invariants:** deterministic ordered re-execution from clean state (no hidden
+state between layers); every mutation is **compare-and-swap** against the
+caller's expected `revision` (stale → rejected, N16); a single backend executor
+is the only writer.
+
 ### FinderPredicate (value object — union type)
 
 **Variants** (extensible):

@@ -193,6 +193,32 @@ executor work). One op at a time per session (queue + cancel token).
 | `config` (BE) | env / file / overrides; resolves `out_root` (default `/srv/touch/` on nexus, sane fallback elsewhere) | secrets |
 | `keychain_bridge` (BE) | `keyring`-based read/write of the user's Claude API key (F13, N9) | LLM calls (consumed by `llm_client`) |
 
+## Pivot additions — Layer Stack + MCP (2026-06-04)
+
+> Formalises the Claude-Code/MCP pivot (ADRs 0012–0016). These components extend
+> the existing engine (`tessellate`, `finder`, `executor`, `mesh_cache`, WS
+> `server`, FE `viewport`/`picking`) — they do not replace it. The "brain"
+> changes: from an in-process planner to the **user's own Claude Code over MCP**,
+> with the structured planner kept only as an optional fallback.
+
+| Component | Container | Responsibility | Delivers |
+|---|---|---|---|
+| `layer_stack` (BE) | backend | The active part as an ordered list of **layers** (build123d code blocks); deterministic ordered re-execution (fold) + per-layer content cache (via `mesh_cache`); **versioned** with compare-and-swap; append-only v0 | F38, F44, N16 |
+| `provenance` (BE) | backend | Per-layer face/edge **attribution** by geometric diff (`created_by` / `last_modified_by` sets), baked into the F20 mesh ids → clickable layers | F39 |
+| `templates` (BE) | backend | Recognise known op patterns (box/cylinder/sphere/chamfer) → editable parametric cards; else code card. Exact-match only (no decompilation) | F40 |
+| `mcp_server` (BE, separate stdio proc) | backend edge | Claude-Code-spawned MCP server; forwards to the running backend over the WS protocol; tools (query/select/render-to-image/list/get/add/edit/reorder/delete layer); mutating tools return `{ok|error, thumbnail, validity, downstream-delta}`; agent-neutral port | F41, F42, N14 |
+| `context_packets` (BE) | backend | Build the **positional** vs **macro** context packets (selection + finder ref + picked point + 1-ring + params / param-table + layer outline) injected for the agent | F45, N15 |
+| `executor` (BE, hardened) | backend | Run a layer's build123d **workspace-confined** (cwd=workspace, no secrets, network off, soft import-lint); single chokepoint for a future OS sandbox | F46 |
+| fallback `planner` (BE) | backend | Optional no-account brain for quick click-to-prompt (Anthropic-API); emits recognized-template layers | F22, F31 |
+| `web/agent-panel` (FE) | frontend | Right-side custom chat over MCP: streaming, geometry-aware tool-call cards, inline renders; spawns positional subagents on click; selection bridge | F43, F47 |
+| `web/layer-stack` (FE) | frontend | The Layer Stack panel (feature tree): parametric cards (recognized) / code cards; click-layer ↔ highlight faces | F39, F40 |
+
+**Two surfaces, one brain (ADR-0015):** the agent panel's **main thread** is the
+project brain of record; a **positional click** spawns an ephemeral subagent
+*from* the main thread (carrying a positional packet) that does the local edit
+and summarizes back. Both surfaces act on the one shared `layer_stack` (ADR-0013)
+via the `mcp_server`.
+
 ## Tech stack
 
 | Concern | Choice | Why |
@@ -319,6 +345,9 @@ is the implementation chore tracked in the rename cascade.
 | N11 | Open source / MIT | `LICENSE` + GitHub-hosted code + public Releases. |
 | N12 | No accidental cloud | Only outgoing traffic is to `api.anthropic.com` (mode A) or to the local Claude Code process (mode B); no Touch-operated server in the loop for end users. |
 | N13 | Workspace file access across run modes | Backend owns the workspace filesystem (lists/reads/writes the folder tree over the WS); `web/platform` provides the folder *picker* — Electron native dialog → the *local* sidecar (files never leave the machine, N12); browser-dev opens a folder on the sidecar host. Laptop-folder-inside-the-browser (FSA) is a deferred nicety (ADR-0010). |
+| N14 | Zero-API-token agent path | The agent is the user's **own Claude Code over MCP** (`mcp_server`, ADR-0014) — subscription auth, no API key in the loop; the only Anthropic traffic is Claude Code's own (not Touch's). The fallback planner (mode A) is the only token-billing path and is optional. |
+| N15 | Context efficiency / no memory-stack bloat | Backend (`layer_stack`) is canonical; the agent gets a compact manifest + references layers by id (`list_layers` returns ids+summary+thumbnail, not code); `render_view` thumbnails are on-demand; positional clicks run as ephemeral subagents that summarize back (ADR-0015). Byte-stable system-prompt + tool list → prompt-cache hits. |
+| N16 | Live-document consistency | One shared active document (ADR-0013); the `layer_stack` is versioned and every mutation is compare-and-swap'd against its expected revision (reject → re-plan). A single backend executor is the only writer. |
 
 ## Cross-cutting concerns
 

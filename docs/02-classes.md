@@ -28,6 +28,11 @@ dependency rules.
 | `touch_backend.pricing` | Token → USD cost lookup | `price(model, tokens) -> float`, `Tokens`, `ModelPrice` | planner, session, llm_client | stdlib |
 | `touch_backend.config` | env / config-file / overrides merge | `Config`, `load(...)` | server, session | python-dotenv, tomllib |
 | `touch_backend.keychain_bridge` | `keyring` wrapper for OS-keychain read/write of the Claude API key | `get_anthropic_key()`, `set_anthropic_key(k)`, `clear()` | llm_client.anthropic_api | keyring |
+| `touch_backend.layer_stack` (pivot) | The active part as an ordered list of `Layer`s; deterministic fold + per-layer cache; **versioned** + compare-and-swap; append-only v0 (ADR-0012/0013) | `LayerStack`, `Layer`, `add_layer(code, expect_rev)`, `delete_last(expect_rev)`, `rebuild()`, `revision` | session, mcp_server | executor, provenance, templates, mesh_cache |
+| `touch_backend.provenance` (pivot) | Per-face/edge attribution by geometric diff → `created_by`/`last_modified_by` sets, baked into the Mesh ids (F39, ADR-0012) | `attribute(prev_solid, next_solid) -> ProvenanceMap` | layer_stack, tessellate | finder, OCP |
+| `touch_backend.templates` (pivot) | Recognise known op patterns (box/cylinder/sphere/chamfer) → parametric card; else code card. Exact-match only (F40) | `recognize(layer) -> Template | None` | layer_stack | intent |
+| `touch_backend.mcp_server` (pivot) | Claude-Code-spawned stdio MCP server; forwards to the running backend over the WS protocol; geometry tools; structured mutating-tool envelope (ADR-0014) | `tools: get_model_state/get_selection/render_view/list_layers/get_layer/add_layer/edit_layer/reorder_layer/delete_layer` | (Claude Code) | server (WS client), context_packets |
+| `touch_backend.context_packets` (pivot) | Build the **positional** vs **macro** context packets injected for the agent (F45, ADR-0015) | `positional(selection) -> dict`, `macro(stack) -> dict` | mcp_server, session | layer_stack, finder |
 
 ### Frontend (TypeScript — `web/src/`)
 
@@ -335,6 +340,13 @@ prompt must be identical.
 | **Workspace** | A folder on the user's machine, opened via File → Open Folder, holding the user's `.touch` parts (+ any other files); mirrored 1:1 in the Explorer. Frontend-owned (ADR-0010) — not a Touch-defined format, just an OS folder. |
 | **Part** | One `.touch` document (a `TouchDocument` / operation history) inside a Workspace — the unit the user opens, edits, and saves. |
 | **Spike** | A time-boxed prove-it-can-work prototype. The packaging spike (Electron + Python + OCP → `.exe`) is v0's phase 0. |
+| **Layer** | One edit in a part — a build123d code block transforming the previous solid (`solid_N = f_N(solid_{N-1})`); the clickable/undoable unit (ADR-0012). |
+| **Layer Stack** | The active part: an ordered list of `Layer`s + the derived solid/mesh; versioned, compare-and-swap, append-only v0 (ADR-0012/0013). |
+| **Recognized template / code layer** | A layer whose source matches a known op pattern renders as an editable *parametric card* (template); everything else as a *code card* (code layer) (F40). |
+| **Provenance** | The per-face/edge attribution (`created_by`/`last_modified_by` sets) computed by geometric diff per layer, baked into the Mesh ids so a click maps to its layer (F39). |
+| **MCP server** | The agent ⇄ live-app boundary: a Claude-Code-spawned stdio process exposing Touch's geometry as tools; also the extensibility port (FEM/CAM/extensions later) (ADR-0014). |
+| **Context packet** | The structured context Touch injects for the agent — *positional* (selection + finder ref + picked point + 1-ring + params) vs *macro* (param table + layer outline + bbox) (F45, ADR-0015). |
+| **Stack revision** | The monotonic version of the Layer Stack; mutations carry their expected revision and are compare-and-swap'd (N16, ADR-0013). |
 
 ### Aggregates, entities, value objects
 

@@ -1,8 +1,17 @@
 # 0007 — Pluggable LLM client + Claude Code subscription path
 
-- **Status:** Accepted
+- **Status:** Partially superseded (2026-06-04) — see note.
 - **Date:** 2026-05-29
 - **Deciders:** vandpaolo
+
+> **Note (2026-06-04, pivot):** the "Claude Code via `claude-agent-sdk` under the
+> user's subscription" path in this ADR is **retired**. The Agent SDK now
+> requires a paid API key (OAuth restricted to Claude Code + claude.ai, Feb
+> 2026), so it is **not** a token-free subscription path. The token-free path is
+> **MCP** — the user's own Claude Code drives Touch over an MCP server
+> ([ADR-0014](./0014-mcp-boundary.md)). The *pluggable client + Anthropic-API
+> path* in this ADR survives, but now backs only the **optional fallback
+> planner** (F22/F31), not the primary brain.
 
 ## Context
 
