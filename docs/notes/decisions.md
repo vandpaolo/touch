@@ -657,3 +657,78 @@ Ran a 5-pass adversarial critic panel on the folder-workspace architecture; 4/5 
 - **State is multi-doc-ready now** — `Session` keys documents by id with per-document undo/redo + dirty; `web/doc-store` mirrors per-id; UI shows one active. Editor-tab strip ships next phase without re-architecting.
 - **Content-addressed rebuild cache** (hash of op-history prefix → STEP/mesh) → open/undo/redo/tab-switch O(1), not O(history).
 - → docs/adr/0010-workspace-and-file-ownership.md; 02-architecture.md; 02-classes.md; 02-data-model.md
+
+## 2026-06-04 — conversation: pivot to a Claude-Code-driven CAD IDE ("Touch as the port between CAD and LLMs")
+
+A direction-setting brainstorm (full decision board worked through one-by-one).
+Research + a throwaway spike (claude 2.1.132, subscription/OAuth, a FastMCP
+stdio server) confirmed the feasibility BEFORE these decisions: stream-json in/out
+for a custom panel, --mcp-config, tool-call loop, and the agent SEEING a render
+returned by an MCP tool — all on the subscription, zero API tokens. Spike lives
+in /tmp/touch-spike (throwaway). Locked decisions:
+
+- **Vision** — open-source, standalone CAD IDE; the user's OWN Claude Code is the
+  brain via MCP; FEM/CAM + third-party extensions are future *workbenches over the
+  MCP boundary*, not build123d. (Reframes vision from "friend installs an .exe and
+  types" toward "the CAD IDE you point your own coding agent at".)
+- **Authoring = the Layer Stack** — a part is free build123d; each edit is a
+  *layer* (code block transforming the previous solid). The layer is the
+  hoverable/clickable/reorderable unit. Clickability comes from *computed
+  provenance* (geometric diff per layer → which layer made each face, baked into
+  the existing per-face/edge mesh ids), NOT from decompiling code into ops (general
+  build123d→ops is impossible). Structured T3–T5 ops survive as *recognized
+  templates* (parametric cards); everything else is a code card. Reliability spine:
+  deterministic ordered re-execution from clean state + per-layer content-addressed
+  cache (reuse the mesh cache). Durability rules: selections via finder/datum
+  helpers, fail-loud on ambiguous selection, lint raw positional `.faces()[i]`.
+  (Four parallel evaluator agents converged "sound-with-changes"; central risk =
+  topological naming, mitigated by append-only v0.)
+- **Why MCP if it's all build123d** — MCP is not how Claude writes code; it's how
+  Claude touches the LIVE app: current selection, render-as-eyes, kernel queries,
+  live layer-stack mutation w/ undo. It's also the extensibility port (FEM/CAM/
+  extensions). build123d is the geometry layer; FEM/CAM *consume* the solid, so
+  pure-build123d for geometry is correct (and OCC aligns with the open FEM/CAM
+  ecosystem). Don't over-abstract the document now.
+- **Session coordination** — ONE shared live document in the backend; viewport +
+  agent act on the same part. (Evolve Session from strictly per-connection; the
+  deferred T4b multi-doc refactor pulled in. v0 = one part open at a time.)
+- **MCP placement** — a separate stdio process Claude Code spawns, forwarding to
+  the running backend over the existing WS protocol; thin adapter, not a 2nd engine.
+- **Two brains** — keep BOTH: the built-in T5 planner (quick click-to-prompt, no
+  login, emits recognized-template layers) AND Claude Code (power agent). Both emit
+  layers into the one shared stack.
+- **Apply model** — live-apply + undo; explicit confirm only for destructive ops.
+- **Agent panel UI** — right-side, VS-Code-Claude style. Left = Explorer + a Layer
+  Stack panel (the feature tree). Center = viewport with 3D/code editor-tab views.
+  Two-way selection bridge (click face → highlight owning layer + drop a context
+  chip into the agent input; click layer → highlight its faces; agent has
+  get_selection). MCP tools (from the eval): list_layers (ids+summary+thumbnail,
+  not code), get_layer, add_layer, edit_layer, render(scope), reorder, delete_layer,
+  get_selection — every mutation returns {error|success, thumbnail, manifold check,
+  downstream-delta + finder-rebind warnings}. Prefer append; edit_layer is the
+  risky exception. Keep layer code out of context (reference by id) to protect the
+  prompt cache. One semantic op per layer.
+- **Recognized-template scope (v0)** — box, cylinder, sphere, chamfer (the existing
+  vocabulary); grow later.
+- **Re-edit/reorder earlier layers** — DEFERRED; append-only v0 (+ delete-last +
+  undo). The reference-re-resolution subsystem (toponaming) is a later phase.
+- **Executor sandboxing** — START workspace-confined + lightweight: subprocess
+  cwd=workspace, no secrets in env, network off by default, existing timeout, soft
+  import-lint warning on os/socket/subprocess. Make the Executor the single
+  chokepoint so a REAL OS sandbox (bubblewrap/landlock/sandbox-exec/container,
+  network-deny, fs-confined) slots in later, gated on "open an untrusted part /
+  run an extension". In-process Python sandboxing is a speed bump, not a wall.
+- **v0 sequencing** — MCP-FIRST: backend Layer Stack + shared doc + MCP server,
+  driven from the user's EXISTING Claude Code (validate the loop, usable
+  immediately) → THEN embed Claude + the right-side panel (Path A).
+- **Deferred decisions** — CLI packaging (bundle `claude` vs require it) → decide
+  at the embed milestone; open-source license + public repo → decide before going
+  public.
+
+Correction to existing design: F31/ADR-0007 assumed a "Claude Code mode via
+claude-agent-sdk under the subscription" — research shows the Agent SDK now
+requires a paid API key (OAuth restricted to Claude Code + claude.ai, Feb 2026),
+so the token-free path is MCP, not the SDK. To reconcile in the architecture pass.
+
+- → feeds /pm-vision, /pm-requirements, /pm-architecture (new ADRs: Layer Stack
+  authoring; session coordination; MCP boundary; two-brain; sandboxing), /pm-roadmap.
