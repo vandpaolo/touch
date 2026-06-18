@@ -732,3 +732,59 @@ so the token-free path is MCP, not the SDK. To reconcile in the architecture pas
 
 - → feeds /pm-vision, /pm-requirements, /pm-architecture (new ADRs: Layer Stack
   authoring; session coordination; MCP boundary; two-brain; sandboxing), /pm-roadmap.
+
+## 2026-06-04 — conversation/context architecture (4-agent analysis) — locked
+
+Resolves "one Claude Code conversation vs two / memory-stacks bloat". Four
+parallel evaluator agents (topology, context/memory, CAD context-packet,
+routing) converged. Locked model: **one brain (the user's Claude Code),
+reached via two surfaces; the backend Layer Stack is the source of truth.**
+
+- **Topology** — a persistent **main thread = the side panel** (the project
+  brain of record) that **spawns ephemeral positional subagents** for
+  click-to-prompt (Claude Code subagent/Task mechanic). Subagents spawn *from
+  the main thread* (so the main conversation keeps project context/history),
+  run with isolated context seeded by a positional packet, do the local edit,
+  and **summarize ONE line back** to the parent. The "click → discuss → accept
+  → implement" bubble is a scoped sub-session. NOT one giant conversation
+  (bloats), NOT two independent persistent brains (divergence).
+- **Built-in T5 planner** — demoted from co-equal brain to an **optional
+  no-account fallback** (keep cheaply or drop later). Claude Code is the brain
+  for both surfaces. ("Both can be a thing" was about the two *surfaces*, not
+  two LLM brains.)
+- **Context/memory (the worry, solved)** — backend is canonical; the
+  conversation references state **by id**. Agent holds a compact layer
+  *manifest*, pulls full code/renders **on demand**. **Renders = thumbnails,
+  on demand** (never auto-attached every turn — the #1 bloat; images ~1.6–4.8K
+  tokens). Click context enters as a small structured packet, not raw data.
+  Scoped click-threads collapse to a one-line summary. Keep the system prompt +
+  MCP tool list byte-stable for prompt-cache hits. Subscription currency =
+  tokens-per-edit → id-referencing + thumbnail-gating keep it low.
+- **Two distinct context packets** — *positional*: selection-anchored (entity
+  kind+id, owning layer, a **finder reference**, picked point + normal, surface
+  type, 1-ring neighbors, touchable params, units, stack revision). *macro*:
+  part-overview (param table, compact layer-stack outline, part bbox, units,
+  recent selection) — NO picked point / no 1-ring. Across both: inject **finder
+  references, never raw indices**; picked-point+normal is the disambiguator.
+- **Routing & consistency** — surface chosen by the **act** (clicked geometry →
+  positional; typed in panel → macro), not by asking the user. Both surfaces
+  are **stateless views over a versioned backend**: every edit bumps a
+  layer-stack revision; mutations carry their expected revision and are
+  **compare-and-swap'd** (reject → re-plan) → no stale-context races. A local
+  edit **self-implements only if it's a leaf append** (top layer, no
+  shared-param mutation); otherwise it **escalates** to macro for placement.
+  Macro always receives a one-line feed of every accepted edit. **Single
+  backend executor** = one code path, one place to enforce stack invariants.
+- **Click resolves to a stable entity id** (re-resolved at accept, fail loud if
+  it vanished) — never a frozen screen coordinate.
+
+Caveat surfaced: Claude Code subagents are single-shot from the parent's view,
+so a multi-turn interactive refine *inside* a click bubble isn't natively a
+parent-visible resumable loop — implement the bubble as a short subagent run
+(it may take a few autonomous turns) or a harness-managed `--resume` sub-session
+with a turn cap (reuse F7's cap). To validate in the MCP-first spike.
+
+- → feeds /pm-architecture (ADRs: conversation topology + context model;
+  routing/consistency = versioned layer stack + CAS; two context packets) and
+  /pm-requirements (the two surfaces; finder-reference selection). Refines the
+  2026-06-04 pivot entry above (two brains → one brain, two surfaces).
