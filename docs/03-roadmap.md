@@ -41,27 +41,32 @@ gantt
     title Touch phases (ordering only — not calendar dates)
     dateFormat  YYYY-MM-DD
     axisFormat  %m-%d
-    section v0 (POC)
-    Phase T0   Packaging spike            :pT0, 2026-06-01, 5d
-    Phase T1a  Engine rename + salvage    :pT1a, after pT0, 3d
-    Phase T1b  Server + protocol skeleton :pT1b, after pT1a, 4d
-    Phase T2   Frontend skeleton          :pT2, after pT1b, 5d
-    Phase T3   Picking + click-to-prompt  :pT3, after pT2, 6d
-    Phase T4   .touch + folder workspace  :pT4, after pT3, 5d
-    Phase T5   Clarify + face resolution  :pT5, after pT4, 4d
-    Phase T5b  Edge identity + targeting  :pT5b, after pT5, 3d
-    Phase T4b  Editor tabs / multi-doc    :pT4b, after pT5b, 4d
-    Phase T6   Settings + provider modes  :pT6, after pT4b, 4d
+    section v0 editor (done)
+    Phase T0   Packaging spike            :done, pT0, 2026-06-01, 5d
+    Phase T1a  Engine rename + salvage    :done, pT1a, after pT0, 3d
+    Phase T1b  Server + protocol skeleton :done, pT1b, after pT1a, 4d
+    Phase T2   Frontend skeleton          :done, pT2, after pT1b, 5d
+    Phase T3   Picking + click-to-prompt  :done, pT3, after pT2, 6d
+    Phase T4   .touch + folder workspace  :done, pT4, after pT3, 5d
+    Phase T5   Clarify + face resolution  :done, pT5, after pT4, 4d
+    section v0 Claude-Code pivot (new critical path)
+    Phase TP1  Layer Stack backend        :pTP1, after pT5, 6d
+    Phase TP2  MCP server (MCP-first)     :pTP2, after pTP1, 5d
+    Phase TP3  Embed Claude Code panel    :pTP3, after pTP2, 6d
+    section v0 finish
+    Phase T6   Settings (fallback + CC detect) :pT6, after pTP3, 3d
     Phase T7   Exports (STEP/STL/3MF)     :pT7, after pT6, 2d
     Phase T8   Cost / splash / crash UX   :pT8, after pT7, 3d
-    Phase T9   File tree + polish         :pT9, after pT8, 3d
+    Phase T5b  Edge targeting (in Layer Stack) :pT5b, after pT8, 3d
+    Phase T4b  Editor tabs / multi-doc    :pT4b, after pT5b, 4d
+    Phase T9   File tree + polish         :pT9, after pT4b, 3d
     Phase T10  POC verify + v0 release    :pT10, after pT9, 3d
     section v0.1
     Phase T11  Evaluator                  :pT11, after pT10, 5d
     Phase T12  Schema-v2a edge/hole       :pT12, after pT11, 5d
     Phase T13  Auto-update + signed CI    :pT13, after pT12, 3d
     Phase T14  Multi-file project model   :pT14, after pT13, 3d
-    Phase T15  Parametric history edit    :pT15, after pT14, 6d
+    Phase T15  Re-edit layers + OS sandbox :pT15, after pT14, 6d
 ```
 
 Gantt is ordering only — no calendar dates committed.
@@ -222,6 +227,72 @@ Gantt is ordering only — no calendar dates committed.
   that face with no finder error.
 - **Delivers:** F7, F22, F36.
 - **Plan:** [phase-T5.md](phases/phase-T5.md)
+
+---
+
+> **Claude-Code / MCP pivot (2026-06-04).** After T5, the critical path becomes
+> the pivot — Touch turns into a CAD IDE driven by the user's own Claude Code
+> over MCP, with a build123d **Layer Stack** (vision §rewrite, requirements §E
+> F38–F47, ADRs 0012–0016). The previously-planned T6–T15 / T4b / T5b are
+> **re-sequenced after the pivot** (ids unchanged); some are reshaped (settings
+> reduced to the fallback planner + Claude Code detection; T5b folds into the
+> Layer Stack model; T12 schema-v2a edge/hole is largely subsumed since
+> hole/extrude arrive as code layers; T15 becomes re-edit-layers + the OS
+> sandbox). Sequencing is **MCP-first, then embed.**
+
+### Phase TP1 — Layer Stack backend
+
+- **Goal:** Refactor authoring to the **Layer Stack** — a part is an ordered
+  list of build123d layers, clickable via computed provenance, held as one
+  shared versioned live document.
+- **Min:** Layers + deterministic ordered re-execution (fold) + per-layer
+  content cache; **provenance** → clickable layers (F39); **recognized
+  templates** (box/cylinder/sphere/chamfer) as parametric cards, else code cards
+  (F40); **one shared live document** + versioned stack + compare-and-swap
+  (F44/N16); **workspace-confined executor** (F46); selection as **finder
+  references** (F45); append-only.
+- **Max:** robust provenance through booleans/fillets; a richer recognized-
+  template set; the FE Layer Stack panel polish.
+- **Exit criterion:** build a part as a stack including a freeform **code
+  layer**; click a face → its owning layer highlights and vice-versa; undo/redo
+  per layer; reopen → identical; a stale-revision mutation is rejected.
+- **Delivers:** F38, F39, F40, F44, F45, F46, N16.
+- **Plan:** [phase-TP1.md](phases/phase-TP1.md)
+
+### Phase TP2 — MCP server + agent loop (MCP-first)
+
+- **Goal:** Expose Touch's geometry over an **MCP server** the user's **own
+  Claude Code** drives — validate the full agent loop on the subscription, no
+  API tokens, before embedding.
+- **Min:** MCP server with the geometry tools (query/select/render-to-image/
+  list/get/add/edit/reorder/delete layer) + the structured mutating envelope,
+  forwarding to the live backend (F41); **positional + macro context packets**
+  (F45/N15); driven from the user's **existing** Claude Code (F42); the agent
+  **sees renders** and self-corrects.
+- **Max:** downstream-delta / finder-rebind warnings; thumbnail + context
+  tuning; multi-edit batching; usage/quota surfacing.
+- **Exit criterion (the agent-path benchmark):** point your own Claude Code at
+  Touch → "build a part with an extrusion, a hole, and a chamfer" (positional +
+  macro) → it builds via MCP, sees renders, appears live in the viewport —
+  **entirely on the subscription, zero API tokens** (N14).
+- **Delivers:** F41, F42, F43 (agent loop), N14, N15.
+- **Plan:** [phase-TP2.md](phases/phase-TP2.md)
+
+### Phase TP3 — Embed Claude Code panel
+
+- **Goal:** Bring the agent **inside Touch** — launch + login + a right-side
+  agent panel + the Layer Stack panel, over the same MCP.
+- **Min:** launch/detect/login Claude Code from the app; **right-side agent
+  panel** (streaming chat, geometry-aware tool-call cards, inline renders);
+  positional click **spawns a subagent from the main thread** that summarizes
+  back; **Layer Stack panel** (parametric / code cards); the **two-way
+  selection bridge**.
+- **Max:** the "discuss → accept → implement" click bubble; quota meter; panel
+  polish.
+- **Exit criterion:** the agent-path benchmark runs **inside Touch's own panel**
+  on a packaged build, signed in (no external terminal).
+- **Delivers:** F43, F47.
+- **Plan:** [phase-TP3.md](phases/phase-TP3.md)
 
 ### Phase T5b — Edge identity + edge targeting
 
@@ -404,9 +475,13 @@ max sketched here for sequencing only.
 
 - A **hosted / browser** version of Touch — the FE already runs in a
   browser; deployment + auth + multi-user storage are the new pieces.
-- **Compute services** (FEA / multibody / dynamics / control /
-  optimization) as separate Python services exchanging STEP/mesh with
-  Touch's editor — does NOT change the editor↔engine coupling.
+- **Third-party extensions over the MCP port** (ADR-0014) — the agent-neutral
+  geometry tools become a plug-in surface others can extend; "extension authors"
+  are a named secondary audience in the vision.
+- **FEM / CAM (and other compute) as MCP workbenches** — separate Python
+  services that *consume* the geometry (STEP/mesh) and expose their own tool-set
+  over the same MCP boundary; build123d/OCC aligns with the open FEM/CAM
+  ecosystem (FreeCAD FEM/CAM, gmsh). Does NOT change the editor↔engine coupling.
 - Conversational *multi-prompt session* refinement before commit (Maquette's
   planned phase-8 idea, now mostly subsumed by the live click-converse
   loop but a "what-if" mode could earn its place).
