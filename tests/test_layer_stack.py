@@ -6,6 +6,8 @@ and one real build123d subprocess run proving the emitted script is runnable.
 
 from __future__ import annotations
 
+import hashlib
+
 import pytest
 
 from touch_backend.agent.executor import Executor
@@ -15,23 +17,38 @@ from touch_backend.layer_stack import (
     LayerStackError,
     emit,
 )
+from touch_backend.mesh_cache import MeshCache
 
 # A multi-line freeform code layer: proves verbatim inlining + module-scope
 # threading of `body` (a through-hole drilled into the previous solid).
 _CODE_LAYER = "inner = Cylinder(3.0, 50.0)\nbody = body - inner"
 
 
-def _box_code_stack() -> LayerStack:
-    return LayerStack(
-        layers=[
-            Layer.from_template(
-                "box",
-                {"length": 20, "width": 20, "height": 20, "centered": True},
-                id="L0",
-            ),
-            Layer.from_code(_CODE_LAYER, id="L1"),
-        ]
+def _box_layer() -> Layer:
+    return Layer.from_template(
+        "box",
+        {"length": 20, "width": 20, "height": 20, "centered": True},
+        id="L0",
     )
+
+
+def _box_only_stack() -> LayerStack:
+    return LayerStack(layers=[_box_layer()])
+
+
+def _box_code_stack() -> LayerStack:
+    return LayerStack(layers=[_box_layer(), Layer.from_code(_CODE_LAYER, id="L1")])
+
+
+class _CountingBuilder:
+    """Fake `build(source) -> mesh`: records sources, returns a fresh mesh per call."""
+
+    def __init__(self) -> None:
+        self.sources: list[str] = []
+
+    def __call__(self, source: str) -> object:
+        self.sources.append(source)
+        return object()
 
 
 # ---------- model ---------------------------------------------------------
@@ -142,3 +159,120 @@ def test_emitted_script_actually_builds(tmp_path):
     assert result.exit_code == 0
     assert result.step_path is not None
     assert result.step_path.exists() and result.step_path.stat().st_size > 0
+
+
+# ---------- fold + per-layer cache (Day 2) --------------------------------
+
+
+def test_rebuild_builds_on_miss_then_serves_from_cache():
+    cache, builder, stack = MeshCache(), _CountingBuilder(), _box_code_stack()
+
+    first = stack.rebuild(build=builder, cache=cache)
+    assert first.cache_hit is False
+    assert first.executed_layers == 2
+    assert len(builder.sources) == 1  # one subprocess for the whole stack
+
+    second = stack.rebuild(build=builder, cache=cache)
+    assert second.cache_hit is True
+    assert second.executed_layers == 0
+    assert second.mesh is first.mesh
+    assert len(builder.sources) == 1  # no re-exec on an unchanged rebuild
+
+
+def test_unchanged_prefix_is_served_from_cache():
+    cache, builder = MeshCache(), _CountingBuilder()
+
+    _box_only_stack().rebuild(build=builder, cache=cache)  # caches the [box] prefix
+    _box_code_stack().rebuild(build=builder, cache=cache)  # caches [box, code]
+    assert len(builder.sources) == 2
+
+    # Revisiting the earlier [box] state (e.g. undo) is served, no re-exec.
+    revisit = _box_only_stack().rebuild(build=builder, cache=cache)
+    assert revisit.cache_hit is True
+    assert len(builder.sources) == 2
+
+
+def test_first_dirty_is_the_resume_point():
+    cache, builder = MeshCache(), _CountingBuilder()
+    _box_only_stack().rebuild(build=builder, cache=cache)  # [box] prefix now cached
+
+    # Appending the code layer: box is clean, the code layer is first dirty.
+    result = _box_code_stack().rebuild(build=builder, cache=cache)
+    assert result.cache_hit is False
+    assert result.first_dirty == 1
+
+    # Nothing cached → the whole stack is dirty from layer 0.
+    fresh = _box_code_stack().rebuild(build=_CountingBuilder(), cache=MeshCache())
+    assert fresh.first_dirty == 0
+
+
+def test_rebuild_runs_each_layer_source_once():
+    builder = _CountingBuilder()
+    _box_code_stack().rebuild(build=builder, cache=MeshCache())
+    built = builder.sources[0]
+    assert built.count("body = Box(") == 1
+    assert built.count(_CODE_LAYER) == 1
+
+
+def test_rebuild_assigns_chained_deterministic_hashes():
+    stack = _box_code_stack()
+    stack.rebuild(build=_CountingBuilder(), cache=MeshCache())
+
+    base = hashlib.sha256(b"").hexdigest()
+    assert stack.layers[0].input_hash == base
+    assert stack.layers[0].output_hash is not None
+    # the chain links: layer N's input is layer N-1's output
+    assert stack.layers[1].input_hash == stack.layers[0].output_hash
+
+    # an independently built equivalent stack chains to identical hashes
+    other = _box_code_stack()
+    other.rebuild(build=_CountingBuilder(), cache=MeshCache())
+    assert [layer.output_hash for layer in other.layers] == [
+        layer.output_hash for layer in stack.layers
+    ]
+
+
+def test_rebuild_empty_stack_rejected():
+    with pytest.raises(LayerStackError, match="empty stack"):
+        LayerStack().rebuild(build=_CountingBuilder(), cache=MeshCache())
+
+
+class _RealBuilder:
+    """Real `build(source) -> Mesh`: Executor subprocess + import_step + tessellate.
+
+    OCP-touching imports stay inside the call (the OSMesa lazy-import discipline,
+    auto-memory `render-backend`).
+    """
+
+    def __init__(self, root) -> None:
+        self.root = root
+        self.calls = 0
+
+    def __call__(self, source: str):
+        from build123d import import_step
+
+        from touch_backend.tessellate import tessellate
+
+        self.calls += 1
+        run_dir = self.root / f"build{self.calls}"
+        run_dir.mkdir()
+        code_path = run_dir / "code.py"
+        code_path.write_text(source, encoding="utf-8")
+        result = Executor(out_dir=run_dir, timeout_s=60).execute(code_path)
+        assert result.step_path is not None, result.error
+        return tessellate(import_step(result.step_path))
+
+
+def test_rebuild_produces_a_real_mesh_and_caches_it(tmp_path):
+    from touch_backend.tessellate import Mesh
+
+    cache, builder, stack = MeshCache(), _RealBuilder(tmp_path), _box_code_stack()
+
+    first = stack.rebuild(build=builder, cache=cache)
+    assert isinstance(first.mesh, Mesh)
+    assert first.cache_hit is False
+    assert builder.calls == 1
+
+    second = stack.rebuild(build=builder, cache=cache)
+    assert second.cache_hit is True
+    assert builder.calls == 1  # served from cache, no second subprocess

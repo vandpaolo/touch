@@ -30,10 +30,16 @@ selection-scoped emission land in later days. Append-only in v0 (ADR-0012).
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Literal
+import hashlib
+from collections.abc import Callable
+from dataclasses import dataclass, field, replace
+from typing import TYPE_CHECKING, Literal
 
 from touch_backend._generated.protocol import Selection
+from touch_backend.mesh_cache import MeshCache
+
+if TYPE_CHECKING:
+    from touch_backend.tessellate import Mesh
 
 LayerKind = Literal["template", "code"]
 Template = Literal["box", "cylinder", "sphere", "chamfer"]
@@ -50,6 +56,27 @@ _EXPORT = f'export_step({_BODY}, "part.step")'
 
 class LayerStackError(Exception):
     """A layer could not be built or a stack could not be emitted."""
+
+
+# Content address of the empty input solid — the input_hash of the first layer.
+_BASE_HASH = hashlib.sha256(b"").hexdigest()
+
+
+@dataclass(frozen=True)
+class RebuildResult:
+    """Outcome of folding the stack to a tessellated mesh."""
+
+    mesh: Mesh
+    revision: int
+    cache_hit: bool
+    # Index of the first layer whose cumulative result was not already cached
+    # (the fold's resume point); None on a full cache hit. `executed_layers` is
+    # 0 on a hit and len(layers) on a miss — v0 rebuilds the whole stack from
+    # clean state on any miss so a given state has one canonical face ordering
+    # (the within-session capture, ADR-0011); the cache makes revisiting any
+    # previously-built state (undo / redo / reopen) free.
+    first_dirty: int | None
+    executed_layers: int
 
 
 @dataclass(frozen=True)
@@ -114,6 +141,58 @@ class LayerStack:
 
     layers: list[Layer] = field(default_factory=list)
     revision: int = 0
+
+    def rebuild(
+        self, *, build: Callable[[str], Mesh], cache: MeshCache
+    ) -> RebuildResult:
+        """Fold the stack to a tessellated mesh, content-addressed cache in front.
+
+        `build(source) -> Mesh` is the geometry step (the Executor subprocess +
+        tessellate, injected so this module stays OCP-free and unit-testable).
+        A rebuild whose emitted source is already cached returns instantly with
+        no `build` call; otherwise the whole stack is built once (each layer's
+        code runs exactly once) and the result cached.
+        """
+        if not self.layers:
+            raise LayerStackError("empty stack: nothing to build")
+        self._assign_hashes()
+        source = emit(self)
+        key = MeshCache.key(source)
+        cached = cache.get(key)
+        if cached is not None:
+            return RebuildResult(cached, self.revision, True, None, 0)
+        first_dirty = self._first_dirty(cache)
+        mesh = build(source)
+        cache.put(key, mesh)
+        return RebuildResult(mesh, self.revision, False, first_dirty, len(self.layers))
+
+    def _assign_hashes(self) -> None:
+        """Populate each layer's chained ``(input_hash, output_hash)``.
+
+        A layer's output is a pure function of its input solid + its source, so
+        ``output_hash = H(input_hash, source)`` and the next layer's input is
+        this output. The chain is the per-layer content address the fold and
+        provenance (Day 3) key on.
+        """
+        prev = _BASE_HASH
+        rehashed: list[Layer] = []
+        for layer in self.layers:
+            digest = hashlib.sha256(f"{prev}\n{layer.source}".encode()).hexdigest()
+            rehashed.append(replace(layer, input_hash=prev, output_hash=digest))
+            prev = digest
+        self.layers = rehashed
+
+    def _first_dirty(self, cache: MeshCache) -> int:
+        """Index of the first layer whose cumulative prefix isn't cached.
+
+        Probes each prefix's emitted-source key against the cache; the first
+        gap is the fold's resume point. All-cached returns ``len(layers)``.
+        """
+        for k in range(1, len(self.layers) + 1):
+            prefix = LayerStack(self.layers[:k])
+            if cache.get(MeshCache.key(emit(prefix))) is None:
+                return k - 1
+        return len(self.layers)
 
 
 def emit(stack: LayerStack) -> str:
