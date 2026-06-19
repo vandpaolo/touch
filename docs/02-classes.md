@@ -28,6 +28,7 @@ dependency rules.
 | `touch_backend.pricing` | Token → USD cost lookup | `price(model, tokens) -> float`, `Tokens`, `ModelPrice` | planner, session, llm_client | stdlib |
 | `touch_backend.config` | env / config-file / overrides merge | `Config`, `load(...)` | server, session | python-dotenv, tomllib |
 | `touch_backend.keychain_bridge` | `keyring` wrapper for OS-keychain read/write of the Claude API key | `get_anthropic_key()`, `set_anthropic_key(k)`, `clear()` | llm_client.anthropic_api | keyring |
+| `touch_backend.mesh_cache` | Content-addressed rebuild cache (built T4, ADR-0010): hash of the op-history / layer-source prefix → rebuilt STEP + Mesh, so open / undo / redo / tab-switch and the `layer_stack` fold are O(1), not O(history). Reused by TP1 as the per-layer fold cache (keyed on `(input_hash, source)`) | `MeshCache`, `get(key)`, `put(key, value)` | document, layer_stack | hashlib, stdlib |
 | `touch_backend.layer_stack` (pivot) | The active part as an ordered list of `Layer`s; deterministic fold + per-layer cache; **versioned** + compare-and-swap; append-only v0 (ADR-0012/0013) | `LayerStack`, `Layer`, `add_layer(code, expect_rev)`, `delete_last(expect_rev)`, `rebuild()`, `revision` | session, mcp_server | executor, provenance, templates, mesh_cache |
 | `touch_backend.provenance` (pivot) | Per-face/edge attribution by geometric diff → `created_by`/`last_modified_by` sets, baked into the Mesh ids (F39, ADR-0012) | `attribute(prev_solid, next_solid) -> ProvenanceMap` | layer_stack, tessellate | finder, OCP |
 | `touch_backend.templates` (pivot) | Recognise known op patterns (box/cylinder/sphere/chamfer) → parametric card; else code card. Exact-match only (F40) | `recognize(layer) -> Template | None` | layer_stack | intent |
@@ -332,6 +333,7 @@ prompt must be identical.
 | **Adapter** | A pure function `Document → build123d source code`. v0 only ships `build123d_target`. |
 | **Executor** | Runs the adapter's emitted code, returns the in-memory solid. |
 | **Tessellate** | OCP-native bulk tessellation with per-face ID tagging. |
+| **Mesh cache** / `mesh_cache` | Content-addressed rebuild cache (ADR-0010): a hash of the op-history / layer-source prefix maps to the rebuilt STEP + Mesh, making open / undo / redo / tab-switch and the Layer Stack fold O(1) instead of O(history). Built in T4; reused by TP1 as the per-layer fold cache (keyed on `(input_hash, source)`). |
 | **Sidecar** | The Python backend process, supervised by Electron main in prod. |
 | **Provider mode** | The user's choice of LLM path: API (key in OS keychain) or Claude Code (subscription). |
 | **Browser-dev mode** | The frontend served via Vite to a browser tab pointed at a localhost sidecar — the developer's headless-Linux daily loop. |
@@ -346,6 +348,7 @@ prompt must be identical.
 | **Provenance** | The per-face/edge attribution (`created_by`/`last_modified_by` sets) computed by geometric diff per layer, baked into the Mesh ids so a click maps to its layer (F39). |
 | **MCP server** | The agent ⇄ live-app boundary: a Claude-Code-spawned stdio process exposing Touch's geometry as tools; also the extensibility port (FEM/CAM/extensions later) (ADR-0014). |
 | **Context packet** | The structured context Touch injects for the agent — *positional* (selection + finder ref + picked point + 1-ring + params) vs *macro* (param table + layer outline + bbox) (F45, ADR-0015). |
+| **1-ring** | The immediate adjacency neighbourhood of a selected entity — the faces/edges sharing a boundary with it. Included in the *positional* context packet (not the macro one) so the agent knows what surrounds a click without a kernel round-trip (ADR-0015). |
 | **Stack revision** | The monotonic version of the Layer Stack; mutations carry their expected revision and are compare-and-swap'd (N16, ADR-0013). |
 
 ### Aggregates, entities, value objects

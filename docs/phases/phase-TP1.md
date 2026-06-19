@@ -1,8 +1,8 @@
 ---
 id: TP1
 title: Layer Stack backend
-status: planned
-started: null
+status: in_progress
+started: 2026-06-19
 finished: null
 min_goal_met: null
 max_goal_met: null
