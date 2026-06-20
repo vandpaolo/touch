@@ -41,6 +41,9 @@ class Mesh:
     edge_tag_per_segment: np.ndarray  # uint32 (L,)
     face_ids: list[int] = field(default_factory=list)
     face_anchor: dict[int, tuple[float, float, float]] = field(default_factory=dict)
+    # Per-face provenance (layer attribution, F39), keyed by the same face id;
+    # populated by `provenance.bake` after a rebuild. Empty until baked.
+    face_provenance: dict[int, Any] = field(default_factory=dict)
 
 
 def tessellate(
