@@ -58,6 +58,18 @@ class LayerStackError(Exception):
     """A layer could not be built or a stack could not be emitted."""
 
 
+class StaleRevisionError(LayerStackError):
+    """A mutation's expected revision didn't match the stack head (CAS reject, N16).
+
+    The caller re-reads the head and re-plans; the stack is left untouched.
+    """
+
+    def __init__(self, expected: int, head: int) -> None:
+        self.expected = expected
+        self.head = head
+        super().__init__(f"stale revision: expected {expected}, head is {head}")
+
+
 # Content address of the empty input solid — the input_hash of the first layer.
 _BASE_HASH = hashlib.sha256(b"").hexdigest()
 
@@ -141,6 +153,37 @@ class LayerStack:
 
     layers: list[Layer] = field(default_factory=list)
     revision: int = 0
+
+    def add_layer(self, layer: Layer, *, expect_rev: int) -> int:
+        """Append a layer (compare-and-swap on `expect_rev`); return the new revision.
+
+        Append-only (ADR-0012): the layer goes on the top of the stack. Rejects
+        with `StaleRevisionError` if the head has moved since the caller read it
+        (N16), leaving the stack untouched. The caller builds the `Layer`
+        (classifying code vs template via `templates.recognize`).
+        """
+        self._cas(expect_rev)
+        self.layers = [*self.layers, layer]
+        self.revision += 1
+        return self.revision
+
+    def delete_last(self, *, expect_rev: int) -> Layer:
+        """Remove and return the top layer (compare-and-swap on `expect_rev`).
+
+        The only deletion in v0 (append-only); rejects a stale revision (N16) or
+        an empty stack without mutating.
+        """
+        self._cas(expect_rev)
+        if not self.layers:
+            raise LayerStackError("delete_last on an empty stack")
+        *rest, removed = self.layers
+        self.layers = rest
+        self.revision += 1
+        return removed
+
+    def _cas(self, expect_rev: int) -> None:
+        if expect_rev != self.revision:
+            raise StaleRevisionError(expect_rev, self.revision)
 
     def rebuild(
         self, *, build: Callable[[str], Mesh], cache: MeshCache

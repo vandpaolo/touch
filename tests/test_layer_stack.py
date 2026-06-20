@@ -15,6 +15,7 @@ from touch_backend.layer_stack import (
     Layer,
     LayerStack,
     LayerStackError,
+    StaleRevisionError,
     emit,
 )
 from touch_backend.mesh_cache import MeshCache
@@ -276,3 +277,83 @@ def test_rebuild_produces_a_real_mesh_and_caches_it(tmp_path):
     second = stack.rebuild(build=builder, cache=cache)
     assert second.cache_hit is True
     assert builder.calls == 1  # served from cache, no second subprocess
+
+
+# ---------- versioned mutations + compare-and-swap (Day 5) ----------------
+
+
+def _code(id: str) -> Layer:
+    return Layer.from_code("body = body.rotate(Axis.Z, 45)", id=id)
+
+
+def test_add_layer_appends_and_bumps_revision():
+    stack = _box_only_stack()
+    assert stack.revision == 0
+
+    new_rev = stack.add_layer(_code("L1"), expect_rev=0)
+    assert new_rev == 1
+    assert stack.revision == 1
+    assert [layer.id for layer in stack.layers] == ["L0", "L1"]
+
+
+def test_add_layer_stale_revision_rejected_without_mutating():
+    stack = _box_only_stack()
+    stack.add_layer(_code("L1"), expect_rev=0)  # head is now 1
+    before = list(stack.layers)
+
+    with pytest.raises(StaleRevisionError) as exc:
+        stack.add_layer(_code("L2"), expect_rev=0)  # stale
+    assert exc.value.expected == 0 and exc.value.head == 1
+
+    # Rejected mutation left the stack exactly as it was — no corruption (N16).
+    assert stack.revision == 1
+    assert stack.layers == before
+
+
+def test_concurrent_edits_on_same_revision_one_wins():
+    """Two surfaces plan against revision 0; one applies, one is rejected (N16)."""
+    stack = _box_only_stack()
+    head = stack.revision
+
+    applied = stack.add_layer(_code("from-viewport"), expect_rev=head)
+    assert applied == 1
+
+    with pytest.raises(StaleRevisionError):
+        stack.add_layer(_code("from-agent"), expect_rev=head)
+
+    # Exactly one edit landed; the loser re-plans against the new head.
+    assert [layer.id for layer in stack.layers] == ["L0", "from-viewport"]
+    assert stack.revision == 1
+
+
+def test_delete_last_removes_top_and_bumps_revision():
+    stack = _box_only_stack()
+    stack.add_layer(_code("L1"), expect_rev=0)
+
+    removed = stack.delete_last(expect_rev=1)
+    assert removed.id == "L1"
+    assert [layer.id for layer in stack.layers] == ["L0"]
+    assert stack.revision == 2
+
+
+def test_delete_last_stale_revision_rejected():
+    stack = _box_only_stack()
+    stack.add_layer(_code("L1"), expect_rev=0)
+    with pytest.raises(StaleRevisionError):
+        stack.delete_last(expect_rev=0)
+    assert [layer.id for layer in stack.layers] == ["L0", "L1"]
+    assert stack.revision == 1
+
+
+def test_delete_last_on_empty_stack_rejected():
+    with pytest.raises(LayerStackError, match="empty stack"):
+        LayerStack().delete_last(expect_rev=0)
+
+
+def test_add_then_delete_round_trips_to_same_layers():
+    stack = _box_only_stack()
+    stack.add_layer(_code("L1"), expect_rev=0)
+    stack.delete_last(expect_rev=1)
+    # Append-only undo (delete-last) returns the layer set; revision keeps climbing.
+    assert [layer.id for layer in stack.layers] == ["L0"]
+    assert stack.revision == 2
