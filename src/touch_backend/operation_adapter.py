@@ -49,6 +49,23 @@ def emit(history: Sequence[Operation]) -> str:
     return "\n".join(lines) + "\n"
 
 
+def rhs(operation: Operation, prev_var: str) -> str:
+    """The build123d right-hand side for one operation, threading `prev_var`.
+
+    The per-op core of `emit`, exposed so the Layer Stack bridge
+    (`layer_bridge`) can build a layer's source from the same, proven emitters —
+    keeping bridged geometry byte-identical to the op-history path. Raises
+    `AdapterRefusal` (never crashes) on an unsupported kind.
+    """
+    emitter = _DISPATCH.get(operation.kind)
+    if emitter is None:
+        raise AdapterRefusal(
+            reason=f"unsupported operation kind {operation.kind!r} (v0 adapter)",
+            where=f"op:{operation.kind}",
+        )
+    return emitter(operation, prev_var)
+
+
 def _num(operation: Operation, key: str) -> float:
     value = operation.params.get(key)
     if not isinstance(value, (int, float)) or isinstance(value, bool):

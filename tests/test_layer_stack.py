@@ -107,6 +107,7 @@ def test_emit_full_script_is_exactly_shaped():
     source = emit(_box_code_stack())
     expected = (
         "from build123d import *\n"
+        "from touch_backend.finder import resolve_face\n"
         "\n"
         "# layer L0 (template:box)\n"
         "body = Box(20.0, 20.0, 20.0, "

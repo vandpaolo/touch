@@ -610,37 +610,44 @@ class Session:
         ]
 
     def _rebuild_mesh(self, history: list[Operation] | None = None):
-        """Build the solid from an operation history and tessellate it.
+        """Build the solid for the current history and tessellate it.
 
-        Real geometry path (adapter -> subprocess executor -> tessellate). OCP /
-        build123d are imported lazily — importing them at module top poisons
-        VTK-OSMesa for the in-process render test (auto-memory `render-backend`);
-        the heavy OCP build itself runs in the Executor *subprocess*.
+        The live geometry document is the Layer Stack (ADR-0012/0013): the
+        op-history is bridged to a `LayerStack` and folded through
+        `LayerStack.rebuild`, which content-addresses the cache (undo/redo/reopen
+        revisits are free). Geometry stays byte-identical to the op path — the
+        bridge reuses the same emitters (`layer_bridge`). The op-history remains
+        the wire/undo/redo truth this phase (bridge approach, TP1 Day 6).
         """
-        from build123d import import_step
-
-        from touch_backend import operation_adapter
-        from touch_backend.agent.executor import Executor
-        from touch_backend.tessellate import tessellate
+        from touch_backend import layer_bridge
 
         if history is None:
             history = self.document.history
-        code = operation_adapter.emit(history)
-        key = self._mesh_cache.key(code)
-        cached = self._mesh_cache.get(key)
-        if cached is not None:
-            return cached
+        stack = layer_bridge.layers_from_history(history)
+        return stack.rebuild(build=self._build_solid_mesh, cache=self._mesh_cache).mesh
+
+    def _build_solid_mesh(self, source: str):
+        """Run emitted build123d source → STEP → tessellated mesh (the fold's
+        geometry step injected into `LayerStack.rebuild`).
+
+        OCP / build123d are imported lazily — importing them at module top
+        poisons VTK-OSMesa for the in-process render test (auto-memory
+        `render-backend`); the heavy OCP build runs in the Executor *subprocess*.
+        """
+        from build123d import import_step
+
+        from touch_backend.agent.executor import Executor
+        from touch_backend.tessellate import tessellate
+
         with tempfile.TemporaryDirectory(prefix="touch-rebuild-") as tmp:
             out_dir = Path(tmp)
             code_path = out_dir / "code.py"
-            code_path.write_text(code, encoding="utf-8")
+            code_path.write_text(source, encoding="utf-8")
             result = Executor(out_dir, _EXEC_TIMEOUT_S).execute(code_path)
             if result.step_path is None:
                 raise _GeometryError(result.error or "execution produced no solid")
             solid = import_step(result.step_path)
-        mesh = tessellate(solid)
-        self._mesh_cache.put(key, mesh)
-        return mesh
+        return tessellate(solid)
 
     @staticmethod
     def _clarify_message(question: ClarifyingQuestion) -> str:

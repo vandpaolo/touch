@@ -50,7 +50,10 @@ Template = Literal["box", "cylinder", "sphere", "chamfer"]
 # `.touch` migration).
 _BODY = "body"
 
-_PREAMBLE = "from build123d import *"
+# Selection-scoped layers (a chamfer that targets a finder-resolved face) emit
+# `resolve_face(...)`, so the preamble imports it unconditionally (matching the
+# T0-T5 operation adapter). It is import-cheap — OCP loads lazily inside it.
+_PREAMBLE = "from build123d import *\nfrom touch_backend.finder import resolve_face"
 _EXPORT = f'export_step({_BODY}, "part.step")'
 
 
