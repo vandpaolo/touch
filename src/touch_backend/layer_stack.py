@@ -279,6 +279,27 @@ def emit(stack: LayerStack) -> str:
     return "\n\n".join(sections) + "\n"
 
 
+def emit_layerwise(stack: LayerStack) -> str:
+    """Like `emit`, but also export each layer's intermediate solid to
+    ``body_{i}.step`` (Day 9).
+
+    Provenance needs the solid *after every layer* (`solid_0 … solid_N`) to diff
+    adjacent pairs; one subprocess run produces them all, plus the final
+    ``part.step``. Used by the live rebuild to bake layer attribution into the
+    mesh; not used for caching (the cache keys on `emit`).
+    """
+    if not stack.layers:
+        raise LayerStackError("empty stack: nothing to emit")
+    sections = [_PREAMBLE]
+    for index, layer in enumerate(stack.layers):
+        header = f"# layer {layer.id} ({layer.kind}"
+        header += f":{layer.template})" if layer.template else ")"
+        export = f'export_step({_BODY}, "body_{index}.step")'
+        sections.append(f"{header}\n{layer.source.strip()}\n{export}")
+    sections.append(_EXPORT)
+    return "\n\n".join(sections) + "\n"
+
+
 # ---------- layer-native (de)serialization (Day 7) ------------------------
 
 

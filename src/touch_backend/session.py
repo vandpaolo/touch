@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import json
 import shutil
-import tempfile
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -59,15 +58,12 @@ from touch_backend._generated.protocol import (
 from touch_backend.adapters import AdapterRefusal
 from touch_backend.document import TouchDocument
 from touch_backend.frames import mesh_frame_envelope, pack
+from touch_backend.live_build import GeometryError as _GeometryError
 from touch_backend.llm_client.base import LLMClient
 from touch_backend.mesh_cache import MeshCache
 
 SCHEMA_VERSION = 1
 _EXEC_TIMEOUT_S = 30.0
-
-
-class _GeometryError(Exception):
-    """The emitted code failed to produce a solid."""
 
 
 class _DocError(Exception):
@@ -613,41 +609,25 @@ class Session:
         """Build the solid for the current history and tessellate it.
 
         The live geometry document is the Layer Stack (ADR-0012/0013): the
-        op-history is bridged to a `LayerStack` and folded through
-        `LayerStack.rebuild`, which content-addresses the cache (undo/redo/reopen
-        revisits are free). Geometry stays byte-identical to the op path — the
-        bridge reuses the same emitters (`layer_bridge`). The op-history remains
-        the wire/undo/redo truth this phase (bridge approach, TP1 Day 6).
+        op-history is bridged to a `LayerStack`, folded through
+        `LayerStack.rebuild` (content-addressed cache → undo/redo/reopen revisits
+        are free). The geometry build is provenance-aware (`live_build`): it bakes
+        per-layer attribution into the mesh so a clicked face maps to its layer
+        (F39). The op-history remains the wire/undo/redo truth this phase.
         """
-        from touch_backend import layer_bridge
+        from touch_backend import layer_bridge, live_build
 
         if history is None:
             history = self.document.history
         stack = layer_bridge.layers_from_history(history)
-        return stack.rebuild(build=self._build_solid_mesh, cache=self._mesh_cache).mesh
 
-    def _build_solid_mesh(self, source: str):
-        """Run emitted build123d source → STEP → tessellated mesh (the fold's
-        geometry step injected into `LayerStack.rebuild`).
+        # The build ignores the (cache-key) source and rebuilds from the stack
+        # so it can export per-layer solids for provenance; the cache still keys
+        # on emit(stack), so revisits return the provenance-baked mesh.
+        def build(_source: str):
+            return live_build.build_mesh(stack, timeout_s=_EXEC_TIMEOUT_S)
 
-        OCP / build123d are imported lazily — importing them at module top
-        poisons VTK-OSMesa for the in-process render test (auto-memory
-        `render-backend`); the heavy OCP build runs in the Executor *subprocess*.
-        """
-        from build123d import import_step
-
-        from touch_backend.agent.executor import Executor
-        from touch_backend.tessellate import tessellate
-
-        with tempfile.TemporaryDirectory(prefix="touch-rebuild-") as tmp:
-            out_dir = Path(tmp)
-            code_path = out_dir / "code.py"
-            code_path.write_text(source, encoding="utf-8")
-            result = Executor(out_dir, _EXEC_TIMEOUT_S).execute(code_path)
-            if result.step_path is None:
-                raise _GeometryError(result.error or "execution produced no solid")
-            solid = import_step(result.step_path)
-        return tessellate(solid)
+        return stack.rebuild(build=build, cache=self._mesh_cache).mesh
 
     @staticmethod
     def _clarify_message(question: ClarifyingQuestion) -> str:

@@ -17,6 +17,7 @@ from touch_backend.layer_stack import (
     LayerStackError,
     StaleRevisionError,
     emit,
+    emit_layerwise,
 )
 from touch_backend.mesh_cache import MeshCache
 
@@ -145,6 +146,14 @@ def test_emit_chamfer_template_is_all_edges():
 def test_emit_empty_stack_rejected():
     with pytest.raises(LayerStackError, match="empty stack"):
         emit(LayerStack())
+
+
+def test_emit_layerwise_exports_each_intermediate_solid():
+    source = emit_layerwise(_box_code_stack())
+    assert 'export_step(body, "body_0.step")' in source
+    assert 'export_step(body, "body_1.step")' in source
+    assert 'export_step(body, "part.step")' in source  # final still produced
+    assert _CODE_LAYER in source  # layer bodies still present
 
 
 # ---------- runnable (real build123d subprocess) --------------------------
