@@ -35,14 +35,8 @@ def emit(history: Sequence[Operation]) -> str:
     ]
     last_var = ""
     for operation in history:
-        emitter = _DISPATCH.get(operation.kind)
-        if emitter is None:
-            raise AdapterRefusal(
-                reason=f"unsupported operation kind {operation.kind!r} (v0 adapter)",
-                where=f"op:{operation.kind}",
-            )
         var = "op_" + re.sub(r"\W", "_", operation.id)
-        lines.append(f"{var} = {emitter(operation, last_var)}")
+        lines.append(f"{var} = {rhs(operation, last_var)}")
         last_var = var
 
     lines.append(f'export_step({last_var}, "part.step")')

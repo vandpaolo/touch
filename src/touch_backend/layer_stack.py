@@ -268,15 +268,7 @@ def emit(stack: LayerStack) -> str:
     formatted by explicit key. The fold (Day 2) re-uses this for partial
     rebuilds; for now it always emits the full stack.
     """
-    if not stack.layers:
-        raise LayerStackError("empty stack: nothing to emit")
-    sections = [_PREAMBLE]
-    for layer in stack.layers:
-        header = f"# layer {layer.id} ({layer.kind}"
-        header += f":{layer.template})" if layer.template else ")"
-        sections.append(f"{header}\n{layer.source.strip()}")
-    sections.append(_EXPORT)
-    return "\n\n".join(sections) + "\n"
+    return _emit(stack, per_layer_export=False)
 
 
 def emit_layerwise(stack: LayerStack) -> str:
@@ -288,14 +280,23 @@ def emit_layerwise(stack: LayerStack) -> str:
     ``part.step``. Used by the live rebuild to bake layer attribution into the
     mesh; not used for caching (the cache keys on `emit`).
     """
+    return _emit(stack, per_layer_export=True)
+
+
+def _layer_header(layer: Layer) -> str:
+    suffix = f":{layer.template})" if layer.template else ")"
+    return f"# layer {layer.id} ({layer.kind}{suffix}"
+
+
+def _emit(stack: LayerStack, *, per_layer_export: bool) -> str:
     if not stack.layers:
         raise LayerStackError("empty stack: nothing to emit")
     sections = [_PREAMBLE]
     for index, layer in enumerate(stack.layers):
-        header = f"# layer {layer.id} ({layer.kind}"
-        header += f":{layer.template})" if layer.template else ")"
-        export = f'export_step({_BODY}, "body_{index}.step")'
-        sections.append(f"{header}\n{layer.source.strip()}\n{export}")
+        block = f"{_layer_header(layer)}\n{layer.source.strip()}"
+        if per_layer_export:
+            block += f'\nexport_step({_BODY}, "body_{index}.step")'
+        sections.append(block)
     sections.append(_EXPORT)
     return "\n\n".join(sections) + "\n"
 
