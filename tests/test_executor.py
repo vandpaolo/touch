@@ -14,7 +14,9 @@ from time import perf_counter
 from touch_backend.agent.executor import (
     ExecutionResult,
     Executor,
+    _import_lint,
     _last_exception_line,
+    _scrub_env,
 )
 
 _OK_SNIPPET = (
@@ -141,3 +143,74 @@ def test_last_exception_line_keeps_bare_name_and_handles_empty():
     )
     assert _last_exception_line("") is None
     assert _last_exception_line(None) is None
+
+
+# --- workspace confinement (F46, ADR-0016) ---------------------------------
+
+
+def test_network_is_disabled(tmp_path: Path):
+    code_path = _write_code(
+        tmp_path, "import socket\nsocket.create_connection(('localhost', 9))\n"
+    )
+    result = Executor(out_dir=tmp_path, timeout_s=60).execute(code_path)
+    assert result.exit_code == 12
+    assert "network is disabled" in (result.error or "")
+
+
+def test_write_outside_the_workspace_is_blocked(tmp_path: Path):
+    escape = tmp_path.parent / "touch_escape.txt"
+    code_path = _write_code(tmp_path, f"open({str(escape)!r}, 'w').write('x')\n")
+    result = Executor(out_dir=tmp_path, timeout_s=60).execute(code_path)
+    assert result.exit_code == 12
+    assert "write outside the workspace" in (result.error or "")
+    assert not escape.exists()
+
+
+def test_write_inside_the_workspace_is_allowed_and_build_still_works(tmp_path: Path):
+    snippet = (
+        "from build123d import Box, export_step\n"
+        "open('inside.txt', 'w').write('hi')\n"
+        "export_step(Box(5, 5, 5), 'part.step')\n"
+    )
+    code_path = _write_code(tmp_path, snippet)
+    result = Executor(out_dir=tmp_path, timeout_s=60).execute(code_path)
+    assert result.exit_code == 0
+    assert (tmp_path / "inside.txt").read_text() == "hi"
+    assert (tmp_path / "part.step").stat().st_size > 0
+
+
+def test_secrets_are_scrubbed_from_the_subprocess_env(tmp_path: Path, monkeypatch):
+    monkeypatch.setenv("TOUCH_FAKE_API_KEY", "secret123")
+    monkeypatch.setenv("TOUCH_FAKE_PUBLIC", "public-ok")
+    snippet = (
+        "import os\n"
+        "open('env.txt', 'w').write(repr(("
+        "os.environ.get('TOUCH_FAKE_API_KEY'), os.environ.get('TOUCH_FAKE_PUBLIC'))))\n"
+    )
+    Executor(out_dir=tmp_path, timeout_s=60).execute(_write_code(tmp_path, snippet))
+    # The *_KEY var is dropped (no secrets in env); the public var is kept.
+    assert (tmp_path / "env.txt").read_text() == repr((None, "public-ok"))
+
+
+def test_scrub_env_drops_secret_named_vars_keeps_path(monkeypatch):
+    monkeypatch.setenv("MY_TOKEN", "x")
+    monkeypatch.setenv("DB_PASSWORD", "y")
+    scrubbed = _scrub_env()
+    assert "MY_TOKEN" not in scrubbed and "DB_PASSWORD" not in scrubbed
+    assert "PATH" in scrubbed  # essentials kept so OCP still loads
+
+
+def test_import_lint_warns_on_risky_modules_only():
+    assert _import_lint("from build123d import *\nbody = Box(1, 1, 1)\n") == ()
+    warnings = _import_lint("import os\nimport socket\nfrom subprocess import run\n")
+    assert len(warnings) == 3
+    assert any("'os'" in w for w in warnings)
+    assert any("'socket'" in w for w in warnings)
+    assert any("'subprocess'" in w for w in warnings)
+
+
+def test_executor_surfaces_import_lint_warnings(tmp_path: Path):
+    result = Executor(out_dir=tmp_path, timeout_s=60).execute(
+        _write_code(tmp_path, "import os\nx = 1\n")
+    )
+    assert any("'os'" in w for w in result.warnings)
