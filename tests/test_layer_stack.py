@@ -358,3 +358,37 @@ def test_add_then_delete_round_trips_to_same_layers():
     # Append-only undo (delete-last) returns the layer set; revision keeps climbing.
     assert [layer.id for layer in stack.layers] == ["L0"]
     assert stack.revision == 2
+
+
+# ---------- layer-native (de)serialization (Day 7) ------------------------
+
+
+def test_to_dict_from_dict_round_trips_template_code_and_selection():
+    from touch_backend._generated.protocol import Selection
+
+    selection = Selection.model_validate(
+        {
+            "target": "face",
+            "point_xyz": [0, 0, 5],
+            "finder": [
+                {"kind": "contains_point", "point_xyz": [0, 0, 5], "tol_mm": 0.5}
+            ],
+            "entity_id_at_capture": 2,
+        }
+    )
+    stack = LayerStack(
+        layers=[
+            _box_layer(),
+            Layer.from_code(_CODE_LAYER, id="L1", selection=selection),
+        ],
+        revision=4,
+    )
+
+    restored = LayerStack.from_dict(stack.to_dict())
+    assert restored == stack
+    assert restored.revision == 4
+    assert restored.layers[1].selection == selection
+
+
+def test_to_dict_is_schema_versioned():
+    assert _box_only_stack().to_dict()["schema_version"] == 3

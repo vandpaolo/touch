@@ -20,11 +20,14 @@ finder-scoped chamfer (selection-resolved, not all-edges) stays a code layer.
 
 from __future__ import annotations
 
+import json
 from collections.abc import Sequence
+from pathlib import Path
 
 from touch_backend import operation_adapter, templates
 from touch_backend._generated.protocol import Operation
-from touch_backend.layer_stack import Layer, LayerStack
+from touch_backend.document import TouchDocument
+from touch_backend.layer_stack import LAYER_SCHEMA_VERSION, Layer, LayerStack
 
 
 def layer_from_operation(operation: Operation) -> Layer:
@@ -48,3 +51,22 @@ def layers_from_history(history: Sequence[Operation]) -> LayerStack:
     the same failure the op-history path raised, so callers handle it unchanged.
     """
     return LayerStack(layers=[layer_from_operation(op) for op in history])
+
+
+def save_stack(stack: LayerStack, path: Path) -> None:
+    """Persist a Layer Stack as layer-native `.touch` JSON (Day 7, N7)."""
+    path.write_text(json.dumps(stack.to_dict(), indent=2) + "\n", encoding="utf-8")
+
+
+def load_stack(path: Path) -> LayerStack:
+    """Load a `.touch` as a Layer Stack, migrating the op-history format forward.
+
+    A layer-native file (schema >= 3) loads directly; an older op-history file
+    (schema <= 2, T0-T5) is migrated by bridging its history to layers — so old
+    parts keep opening as stacks (N7). A migrated template op becomes a template
+    layer; a migrated finder-scoped chamfer becomes a code layer.
+    """
+    data = json.loads(path.read_text(encoding="utf-8"))
+    if int(data.get("schema_version", 0)) >= LAYER_SCHEMA_VERSION:
+        return LayerStack.from_dict(data)
+    return layers_from_history(TouchDocument.load(path).history)

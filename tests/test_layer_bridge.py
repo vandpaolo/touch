@@ -5,9 +5,16 @@ from __future__ import annotations
 import pytest
 
 from touch_backend import operation_adapter
-from touch_backend._generated.protocol import Operation
+from touch_backend._generated.protocol import Operation, Selection
 from touch_backend.adapters import AdapterRefusal
-from touch_backend.layer_bridge import layer_from_operation, layers_from_history
+from touch_backend.document import TouchDocument
+from touch_backend.layer_bridge import (
+    layer_from_operation,
+    layers_from_history,
+    load_stack,
+    save_stack,
+)
+from touch_backend.layer_stack import Layer, LayerStack
 
 _FACE_SEL = {
     "target": "face",
@@ -92,3 +99,40 @@ def test_layers_from_history_preserves_order_and_ids():
     assert stack.layers[0].kind == "template"
     assert stack.layers[1].kind == "code"
     assert stack.revision == 0
+
+
+# ---------- layer-native .touch persistence + migration (Day 7) -----------
+
+
+def test_save_then_load_round_trips_a_code_layer_with_selection(tmp_path):
+    stack = LayerStack(
+        layers=[
+            Layer.from_template(
+                "box", {"length": 10.0, "width": 10.0, "height": 10.0}, id="L0"
+            ),
+            Layer.from_code(
+                "inner = Cylinder(2.0, 50.0)\nbody = body - inner",
+                id="L1",
+                selection=Selection.model_validate(_FACE_SEL),
+            ),
+        ],
+        revision=3,
+    )
+    path = tmp_path / "part.touch"
+    save_stack(stack, path)
+
+    # Round-trips exactly: template params, verbatim code source, selection, revision.
+    assert load_stack(path) == stack
+
+
+def test_load_migrates_an_op_history_touch_to_a_stack(tmp_path):
+    doc = TouchDocument(name="old")
+    doc.append(_box_op("a"))
+    doc.append(_chamfer_op("b"))
+    path = tmp_path / "old.touch"
+    doc.save(path)  # schema 2 (op-history)
+
+    stack = load_stack(path)
+    assert [layer.kind for layer in stack.layers] == ["template", "code"]
+    assert stack.layers[0].template == "box"
+    assert "resolve_face(body," in stack.layers[1].source

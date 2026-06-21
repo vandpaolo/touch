@@ -33,7 +33,7 @@ from __future__ import annotations
 import hashlib
 from collections.abc import Callable
 from dataclasses import dataclass, field, replace
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from touch_backend._generated.protocol import Selection
 from touch_backend.mesh_cache import MeshCache
@@ -43,6 +43,10 @@ if TYPE_CHECKING:
 
 LayerKind = Literal["template", "code"]
 Template = Literal["box", "cylinder", "sphere", "chamfer"]
+
+# `.touch` schema versions: 1-2 = op-history (T0-T5), 3 = layer-native (the
+# Layer Stack). Migration from <=2 lives in `layer_bridge.load_stack`.
+LAYER_SCHEMA_VERSION = 3
 
 # The module-scope build123d variable every layer reads/reassigns. Kept equal to
 # the T0-T5 export variable (ADR-0004) so recognised-template snippets are
@@ -157,6 +161,22 @@ class LayerStack:
     layers: list[Layer] = field(default_factory=list)
     revision: int = 0
 
+    def to_dict(self) -> dict[str, Any]:
+        """Layer-native `.touch` JSON: layers (source + selection verbatim) +
+        revision. Derived per-layer hashes are not persisted (recomputed on
+        rebuild). Human-readable + diff-friendly (N7)."""
+        return {
+            "schema_version": LAYER_SCHEMA_VERSION,
+            "revision": self.revision,
+            "layers": [_layer_to_dict(layer) for layer in self.layers],
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> LayerStack:
+        """Reconstruct a layer-native stack (the inverse of `to_dict`)."""
+        layers = [_layer_from_dict(entry) for entry in data.get("layers", [])]
+        return cls(layers=layers, revision=int(data.get("revision", 0)))
+
     def add_layer(self, layer: Layer, *, expect_rev: int) -> int:
         """Append a layer (compare-and-swap on `expect_rev`); return the new revision.
 
@@ -257,6 +277,38 @@ def emit(stack: LayerStack) -> str:
         sections.append(f"{header}\n{layer.source.strip()}")
     sections.append(_EXPORT)
     return "\n\n".join(sections) + "\n"
+
+
+# ---------- layer-native (de)serialization (Day 7) ------------------------
+
+
+def _layer_to_dict(layer: Layer) -> dict[str, Any]:
+    return {
+        "id": layer.id,
+        "kind": layer.kind,
+        "source": layer.source,
+        "template": layer.template,
+        "params": dict(layer.params),
+        "selection": (
+            layer.selection.model_dump(mode="json")
+            if layer.selection is not None
+            else None
+        ),
+    }
+
+
+def _layer_from_dict(data: dict[str, Any]) -> Layer:
+    selection = data.get("selection")
+    # Reconstruct directly (source persisted verbatim) — not via from_code/
+    # from_template — so a code layer round-trips byte-for-byte.
+    return Layer(
+        id=data["id"],
+        kind=data["kind"],
+        source=data["source"],
+        template=data.get("template"),
+        params=dict(data.get("params", {})),
+        selection=Selection.model_validate(selection) if selection else None,
+    )
 
 
 # ---------- recognised-template emitters (thread `body`) -------------------
