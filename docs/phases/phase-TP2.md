@@ -1,8 +1,8 @@
 ---
 id: TP2
 title: MCP server + agent loop (MCP-first)
-status: planned
-started: null
+status: in_progress
+started: 2026-06-22
 finished: null
 min_goal_met: null
 max_goal_met: null

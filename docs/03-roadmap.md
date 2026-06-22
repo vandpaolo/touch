@@ -1,6 +1,6 @@
 ---
 project_status: building   # planning | building | shipped — Touch v0 in progress; T0 packaging spike kicked off 2026-05-30
-active_phase: null   # TP1 closed 2026-06-22 (done; min met, max partial — see phase-TP1-report.md; re-scoped per blocker 2026-06-22-tp1-bridge-rescope). Next: TP2 (doc cutover + MCP) via /pm-phase-plan
+active_phase: TP2   # started 2026-06-22 (doc cutover → MCP server → agent loop; see phase-TP2.md). TP1 closed 2026-06-22 (done; re-scoped per blocker 2026-06-22-tp1-bridge-rescope)
 ---
 
 # 03 — Roadmap
