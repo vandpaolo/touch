@@ -1,6 +1,6 @@
 ---
 project_status: building   # planning | building | shipped — Touch v0 in progress; T0 packaging spike kicked off 2026-05-30
-active_phase: TP1   # started 2026-06-19 (Layer Stack backend; pre-TP1 audit 8 PASS / 1 accepted-historical FAIL — docs/audits/2026-06-19-pre-TP1.md). T5 closed 2026-06-04 (see phase-T5-report.md)
+active_phase: null   # TP1 closed 2026-06-22 (done; min met, max partial — see phase-TP1-report.md; re-scoped per blocker 2026-06-22-tp1-bridge-rescope). Next: TP2 (doc cutover + MCP) via /pm-phase-plan
 ---
 
 # 03 — Roadmap
