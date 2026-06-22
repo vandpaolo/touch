@@ -2,9 +2,9 @@
 id: 2026-06-22-tp1-bridge-rescope
 phase: TP1
 severity: soft
-status: open
+status: resolved
 discovered: 2026-06-22
-resolved: null
+resolved: 2026-06-22
 re_entry: architecture
 ---
 
@@ -94,4 +94,29 @@ resolve this blocker, then `/pm-phase-report` closes TP1 on the corrected scope.
 
 ## Resolution
 
-<!-- left empty until the re-scope is locked -->
+**Decided 2026-06-22: keep the bridge** (validated by an independent 4-agent eval
++ a 3-lens decision panel — the deferred items' consumers arrive in TP2/TP3, so
+wiring them live now would build ahead of consumers and re-open risk R-A). The
+re-scope was locked across the design layers:
+
+- **Roadmap** (`/pm-roadmap`, commit `a24cde7`): TP1 = the Layer Stack backend
+  **primitives**; **TP2 sprint 1** = the document cutover (make the shared
+  `LayerStack` canonical + CAS **live** + switch the session to layer-native
+  `.touch`) **before** the MCP tools; **F45** context packets → TP2; **F39** FE
+  click→owning-layer highlight → **TP3**. Requirements F38–F47 unchanged.
+- **Architecture** (`/pm-architecture`, commit `c3f8cf3`): `02-classes.md` module
+  map reconciled (`operation_adapter` + `agent.executor`; corrected
+  `layer_stack`/`provenance`/`templates` signatures; **added `layer_bridge` +
+  `live_build`**; `mcp_server`/`context_packets` marked **NOT BUILT — TP2**);
+  `02-architecture.md` "TP1 reality" note (op-history canonical, stack derived per
+  rebuild, shared-doc/CAS built-but-unwired); `02-data-model.md` `Mesh.face_provenance`;
+  **ADR-0013** deferred-live status note.
+
+Also done in the same round: two real bugs found by the eval fixed (`0dc8f58` —
+provenance plane-sign instability, layer-native `.touch` silent-load guard); a
+DRY cleanup (`67afc30`); the **M1/M2** provenance accuracy limits (single-owner on
+a fused face; symmetric-trim false-negative) recorded as known R-B limits.
+
+Outcome: the bridge stays; TP1's true delivery is now reflected in the design
+docs; the deferred live integration is owned by TP2/TP3. TP1 returns to
+`in_progress` on the corrected scope; `/pm-phase-report` closes it next.
