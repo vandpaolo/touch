@@ -1,12 +1,12 @@
 ---
 id: TP1
 title: Layer Stack backend
-status: in_progress
+status: blocked
 started: 2026-06-19
 finished: null
 min_goal_met: null
 max_goal_met: null
-blocker: null
+blocker: blockers/2026-06-22-tp1-bridge-rescope.md
 depends_on: [T5]
 ---
 
