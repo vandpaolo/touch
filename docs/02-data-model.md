@@ -222,6 +222,11 @@ the per-triangle face IDs the frontend uses for picking (F20).
 - `face_id_to_finder_hint: map[u32 → Selection]` (sent as JSON envelope
   alongside the binary frame) — for the FE, lets the click→selection
   flow populate the finder for the picked face from the kernel.
+- `face_provenance: map[u32 → ProvenanceEntry]` (TP1; **backend-side only, not
+  yet on the wire**) — per-face layer attribution (`created_by` /
+  `last_modified_by` layer-id **sets**), computed by `provenance` and baked into
+  the `Mesh` after a layer-stack rebuild (F39). The FE channel that ships this
+  for live click→layer highlight is **TP3**.
 
 **Invariants:** `face_tag_per_triangle.length === indices.length / 3`.
 All IDs reference faces/edges that exist in `Session.current_solid`.

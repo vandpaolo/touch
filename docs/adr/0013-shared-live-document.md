@@ -5,6 +5,14 @@
 - **Deciders:** vandpaolo
 - **Relates to:** [ADR-0012](./0012-layer-stack-authoring.md), [ADR-0014](./0014-mcp-boundary.md); pulls in the deferred T4b multi-doc-ready refactor.
 
+> **Implementation status (2026-06-22).** Accepted, but **deferred-live**. TP1
+> built the versioned `LayerStack` + compare-and-swap as a tested **capability**
+> and kept the op-history canonical via a transitional bridge (the stack is
+> derived per rebuild) — sound, because no second mutator exists yet. The shared
+> live document + **live** CAS land in **TP2 sprint 1** (the document cutover,
+> before the MCP tools), where the agent is the first concurrent writer this ADR
+> coordinates. See blocker `2026-06-22-tp1-bridge-rescope`.
+
 ## Context
 
 In the pivot, two surfaces act on the *same* part: the 3D **viewport** and the

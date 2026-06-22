@@ -201,6 +201,20 @@ executor work). One op at a time per session (queue + cancel token).
 > changes: from an in-process planner to the **user's own Claude Code over MCP**,
 > with the structured planner kept only as an optional fallback.
 
+> **TP1 reality (2026-06-22, blocker `2026-06-22-tp1-bridge-rescope`).** TP1
+> shipped the backend **primitives** via a transitional **bridge**, not the live
+> shared document. The op-history (`TouchDocument`) is still **canonical** (wire /
+> persistence / undo-redo); the `LayerStack` is **derived from it per rebuild**
+> (`layer_bridge.layers_from_history` → `live_build.build_mesh`) to fold, cache,
+> and bake provenance into the mesh, then discarded. So in the table below:
+> `layer_stack` + `provenance` + `templates` + the hardened `agent.executor` are
+> **live**; the **shared-doc + compare-and-swap** API and **layer-native `.touch`**
+> are built **capabilities with no live caller yet** (`Session` is still
+> per-connection and saves op-history); `mcp_server` + `context_packets` are **not
+> built**. The **document cutover** (make `LayerStack` canonical + CAS live +
+> layer-native persistence) is **TP2 sprint 1**, before the MCP tools; the FE
+> click→layer highlight is **TP3**. Requirements unchanged — a *when*, not a *what*.
+
 | Component | Container | Responsibility | Delivers |
 |---|---|---|---|
 | `layer_stack` (BE) | backend | The active part as an ordered list of **layers** (build123d code blocks); deterministic ordered re-execution (fold) + per-layer content cache (via `mesh_cache`); **versioned** with compare-and-swap; append-only v0 | F38, F44, N16 |
