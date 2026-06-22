@@ -788,3 +788,20 @@ with a turn cap (reuse F7's cap). To validate in the MCP-first spike.
   routing/consistency = versioned layer stack + CAS; two context packets) and
   /pm-requirements (the two surfaces; finder-reference selection). Refines the
   2026-06-04 pivot entry above (two brains → one brain, two surfaces).
+
+## 2026-06-22 — /pm-phase-plan (TP2)
+- Q (push-back B1): TP2 hit 10 days (cutover folded in). Keep one phase or split into TP1.5?
+- A: Keep the cutover as TP2 sprint 1 (its first real consumer — the agent/second writer — arrives in the same phase).
+- → docs/phases/phase-TP2.md § Sprint 1 / Depends on
+
+- Q (probe P1): Exit benchmark's extrusion + hole — code layers or new recognized templates?
+- A: Code layers (chamfer stays a template). Matches the v0 vocabulary; exercises the code-layer path (the agent's main authoring mode); no new recognition work.
+- → docs/phases/phase-TP2.md § Exit criterion / Day 6
+
+- Q (push-back B2 / gap G1): N15 (flat per-turn context) — Min or Max? What bar?
+- A: Min, with the flat-token bar (≥20-edit session: per-turn input tokens ~flat + prompt-cache read-hits > 0).
+- → docs/phases/phase-TP2.md § Day 9 / Exit criteria
+
+- Q (conflict C1): F41 names edit_layer/reorder_layer but v0 is append-only (F38). v0 tool semantics?
+- A: **Resolved → option A (last-layer-only edit/delete + structured reorder refusal).** Initial pick was "implement fully", but that reopens toponaming (R16), contradicts F38's "append-only in v0" must, and pulls T15 (which needs T11 evaluator + T12 schema-v2a first) into TP2 — for zero exit-benchmark payoff (the build is a pure append sequence). The user asked for my opinion + an unbiased panel: 3 independent evaluators (architecture/risk, product/scope, agent-UX) + the plan author were unanimous on A at high confidence. All independently flagged the same residual risk + mitigation: the refusal must be a **permanent/non-retryable, actionable** envelope (name the legal alternative `delete_layer`→`add_layer` + the last-layer id) so the agent re-plans instead of retry-thrashing. Full re-edit/reorder stays T15.
+- → docs/phases/phase-TP2.md § Day 6 / § Known risks (C1)
