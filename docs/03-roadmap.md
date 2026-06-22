@@ -51,7 +51,7 @@ gantt
     Phase T5   Clarify + face resolution  :done, pT5, after pT4, 4d
     section v0 Claude-Code pivot (new critical path)
     Phase TP1  Layer Stack backend        :pTP1, after pT5, 6d
-    Phase TP2  MCP server (MCP-first)     :pTP2, after pTP1, 5d
+    Phase TP2  Doc cutover + MCP server   :pTP2, after pTP1, 7d
     Phase TP3  Embed Claude Code panel    :pTP3, after pTP2, 6d
     section v0 finish
     Phase T6   Settings (fallback + CC detect) :pT6, after pTP3, 3d
@@ -242,21 +242,38 @@ Gantt is ordering only — no calendar dates committed.
 
 ### Phase TP1 — Layer Stack backend
 
-- **Goal:** Refactor authoring to the **Layer Stack** — a part is an ordered
-  list of build123d layers, clickable via computed provenance, held as one
-  shared versioned live document.
-- **Min:** Layers + deterministic ordered re-execution (fold) + per-layer
-  content cache; **provenance** → clickable layers (F39); **recognized
-  templates** (box/cylinder/sphere/chamfer) as parametric cards, else code cards
-  (F40); **one shared live document** + versioned stack + compare-and-swap
-  (F44/N16); **workspace-confined executor** (F46); selection as **finder
-  references** (F45); append-only.
-- **Max:** robust provenance through booleans/fillets; a richer recognized-
-  template set; the FE Layer Stack panel polish.
-- **Exit criterion:** build a part as a stack including a freeform **code
-  layer**; click a face → its owning layer highlights and vice-versa; undo/redo
-  per layer; reopen → identical; a stale-revision mutation is rejected.
-- **Delivers:** F38, F39, F40, F44, F45, F46, N16.
+> *Re-scoped 2026-06-22 (blocker
+> [2026-06-22-tp1-bridge-rescope](blockers/2026-06-22-tp1-bridge-rescope.md)):
+> TP1 delivered the Layer Stack **backend primitives** via a deliberate
+> op-history→stack **bridge** — the op-history stays the canonical live document
+> and the stack is derived per rebuild (de-risks R-A). The **live document
+> cutover** (shared stack + CAS live + layer-native session persistence) moved to
+> **TP2 sprint 1**; the **F45 context-packets** module to TP2; the **F39 FE
+> click→highlight** to TP3. Requirements F38–F47 are unchanged — a* when*, not a*
+> what*.*
+
+- **Goal:** The **Layer Stack** backend — a part is an ordered list of build123d
+  layers, deterministically re-executed, with computed provenance attributing
+  each face to its owning layer.
+- **Min (delivered):** Layers + deterministic fold + per-layer content cache
+  (F38); **provenance** computed and **baked into the mesh** on the live rebuild
+  (F39, backend half); **recognized templates** (box/cylinder/sphere/chamfer) vs
+  code layers (F40); **workspace-confined executor** (F46); selection carried as
+  a **finder reference** (F45, selection-shape half); **layer-native `.touch`** +
+  op-history migration and the **versioned stack + compare-and-swap** as built
+  **capabilities** (F44/N16); the op-history→stack **bridge** keeps the T0–T5
+  green path; append-only.
+- **Max:** robust provenance through booleans/fillets (single-owner on a fused
+  face is a known R-B limit); a richer recognized-template set; a minimal
+  read-only FE Layer Stack list.
+- **Exit criterion:** build a part as a stack including a freeform **code layer**;
+  each face attributes to its owning layer (provenance); undo/redo per layer;
+  layer-native save → reopen → identical stack; a stale-revision mutation is
+  rejected (stack API). *(The* live *click→highlight and live shared-doc/CAS are
+  demonstrated in TP2/TP3 against their consumers — see the re-scope note.)*
+- **Delivers:** F38, F40, F46; F39 (computed provenance, backend); F45
+  (finder-reference selection); F44/N16 + layer-native `.touch` as built
+  capabilities (wired live in TP2).
 - **Plan:** [phase-TP1.md](phases/phase-TP1.md)
 
 ### Phase TP2 — MCP server + agent loop (MCP-first)
@@ -264,18 +281,26 @@ Gantt is ordering only — no calendar dates committed.
 - **Goal:** Expose Touch's geometry over an **MCP server** the user's **own
   Claude Code** drives — validate the full agent loop on the subscription, no
   API tokens, before embedding.
-- **Min:** MCP server with the geometry tools (query/select/render-to-image/
-  list/get/add/edit/reorder/delete layer) + the structured mutating envelope,
-  forwarding to the live backend (F41); **positional + macro context packets**
-  (F45/N15); driven from the user's **existing** Claude Code (F42); the agent
-  **sees renders** and self-corrects.
+- **Min:** **Sprint 1 — the document cutover (deferred from TP1, *before* the MCP
+  tools):** make the shared **`LayerStack` the canonical live document** with
+  **compare-and-swap live** (F44/N16) and switch the session save/open to the
+  **layer-native `.touch`** format — the substrate the agent acts on. Then: MCP
+  server with the geometry tools (query/select/render-to-image/list/get/add/edit/
+  reorder/delete layer) + the structured mutating envelope, forwarding to the live
+  backend (F41); **positional + macro context packets** (F45/N15); driven from the
+  user's **existing** Claude Code (F42); the agent **sees renders** and
+  self-corrects.
 - **Max:** downstream-delta / finder-rebind warnings; thumbnail + context
   tuning; multi-edit batching; usage/quota surfacing.
 - **Exit criterion (the agent-path benchmark):** point your own Claude Code at
   Touch → "build a part with an extrusion, a hole, and a chamfer" (positional +
   macro) → it builds via MCP, sees renders, appears live in the viewport —
-  **entirely on the subscription, zero API tokens** (N14).
-- **Delivers:** F41, F42, F43 (agent loop), N14, N15.
+  **entirely on the subscription, zero API tokens** (N14). The two surfaces
+  (viewport + agent) edit the one shared document; a stale-revision edit is
+  rejected and re-planned (N16) — the live CAS the cutover wired in.
+- **Delivers:** F41, F42, F43 (agent loop), F44, N14, N15, N16; F45 (context
+  packets). *(F44/N16 + layer-native `.touch` are wired **live** here, atop the
+  TP1 capabilities.)*
 - **Plan:** [phase-TP2.md](phases/phase-TP2.md)
 
 ### Phase TP3 — Embed Claude Code panel
@@ -285,13 +310,16 @@ Gantt is ordering only — no calendar dates committed.
 - **Min:** launch/detect/login Claude Code from the app; **right-side agent
   panel** (streaming chat, geometry-aware tool-call cards, inline renders);
   positional click **spawns a subagent from the main thread** that summarizes
-  back; **Layer Stack panel** (parametric / code cards); the **two-way
+  back; **Layer Stack panel** (parametric / code cards) consuming **per-layer
+  provenance over the wire** so a **click on a face highlights its owning layer
+  and vice-versa** (F39, the live FE half deferred from TP1); the **two-way
   selection bridge**.
 - **Max:** the "discuss → accept → implement" click bubble; quota meter; panel
   polish.
 - **Exit criterion:** the agent-path benchmark runs **inside Touch's own panel**
-  on a packaged build, signed in (no external terminal).
-- **Delivers:** F43, F47.
+  on a packaged build, signed in (no external terminal); clicking a face in the
+  viewport highlights its owning layer in the Layer Stack panel (F39).
+- **Delivers:** F43, F47, F39 (live FE click→highlight).
 - **Plan:** [phase-TP3.md](phases/phase-TP3.md)
 
 ### Phase T5b — Edge identity + edge targeting
