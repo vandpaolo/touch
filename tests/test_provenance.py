@@ -117,3 +117,12 @@ def test_bake_aligns_provenance_to_mesh_face_ids():
 
 def test_empty_provenance_map_default():
     assert ProvenanceMap().faces == {}
+
+
+def test_plane_key_sign_is_stable_under_near_zero_noise():
+    """H1 regression: the same plane (normal ~+Z) with opposite tiny noise in a
+    near-zero component must produce the SAME canonical key — else an untouched
+    face is misattributed after a boolean."""
+    from touch_backend.provenance import _canon_plane
+
+    assert _canon_plane(1e-8, 0.0, 1.0, -20.0) == _canon_plane(-1e-8, 0.0, 1.0, -20.0)

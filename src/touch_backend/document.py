@@ -89,6 +89,15 @@ def _migrate(data: dict[str, Any]) -> dict[str, Any]:
     defaults.
     """
     version = int(data.get("schema_version", 0))
+    if version > SCHEMA_VERSION:
+        # A newer schema (e.g. the layer-native stack, v3+) is NOT an op-history;
+        # reading it here would silently yield an empty document. Fail loud — open
+        # it via `layer_bridge.load_stack` instead.
+        raise ValueError(
+            f".touch schema v{version} is newer than the op-history loader "
+            f"(v{SCHEMA_VERSION}); it is a layer-native stack — open via "
+            "layer_bridge.load_stack"
+        )
     if version < 1:
         # v0 -> v1: nothing structural changed; load() fills missing fields.
         version = 1

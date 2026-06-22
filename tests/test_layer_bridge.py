@@ -136,3 +136,19 @@ def test_load_migrates_an_op_history_touch_to_a_stack(tmp_path):
     assert [layer.kind for layer in stack.layers] == ["template", "code"]
     assert stack.layers[0].template == "box"
     assert "resolve_face(body," in stack.layers[1].source
+
+
+def test_op_history_loader_rejects_a_layer_native_file(tmp_path):
+    """H2 regression: a layer-native (schema 3) file must NOT silently load as an
+    empty op-history document — TouchDocument.load fails loud."""
+    path = tmp_path / "stack.touch"
+    save_stack(LayerStack(layers=[_box_layer_helper()]), path)  # schema 3
+
+    with pytest.raises(ValueError, match="newer than"):
+        TouchDocument.load(path)
+
+
+def _box_layer_helper() -> Layer:
+    return Layer.from_template(
+        "box", {"length": 10.0, "width": 10.0, "height": 10.0}, id="b"
+    )

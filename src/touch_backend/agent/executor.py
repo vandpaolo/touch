@@ -52,6 +52,9 @@ _RISKY_MODULES = ("os", "socket", "subprocess")
 # ADR-0016). A NUDGE, not a security boundary — a real OS sandbox replaces this
 # before opening untrusted parts. Disables Python sockets and Python-level writes
 # outside the workspace; OCC's C++ STEP write (`part.step`, in cwd) is unaffected.
+# Scope caveat: the write-guard hooks `builtins.open` only — `os.open` / pathlib
+# / native writes bypass it. That's acceptable for a nudge (the OS sandbox is the
+# real boundary); it catches the common accidental `open(abs_path, "w")`, no more.
 _SECURITY_PREAMBLE = """\
 # --- Touch executor guards (F46, ADR-0016): a nudge, not a security boundary.
 import builtins as _tb, os as _tos, socket as _tsock, sys as _tsys

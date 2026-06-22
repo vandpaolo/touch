@@ -234,3 +234,15 @@ def test_clarify_caps_at_max_turns(tmp_path):
 def test_reply_without_a_conversation_errors(tmp_path):
     msgs = _send(_session(tmp_path), _user_reply("hello?"))
     assert _of_type(msgs, "error")["code"] == "no_conversation"
+
+
+def test_open_layer_native_file_returns_structured_error(tmp_path):
+    """H2: opening a layer-native (schema 3) part via the op-history session path
+    must surface a structured error, not crash or silently load an empty doc."""
+    s = _session(tmp_path)
+    (tmp_path / "stack.touch").write_text(
+        '{"schema_version": 3, "revision": 0, "layers": []}', encoding="utf-8"
+    )
+    [err] = _send(s, {"type": "open", "name": "stack"})
+    assert err["type"] == "error"
+    assert err["code"] == "open_failed"

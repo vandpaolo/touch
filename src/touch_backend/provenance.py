@@ -199,12 +199,15 @@ def _surface_key(face: Any) -> tuple:
 def _canon_plane(
     a: float, b: float, c: float, d: float
 ) -> tuple[float, float, float, float]:
-    """Plane coefficients with a sign-canonical normal (orientation-independent)."""
-    sign = 1.0
-    for component in (a, b, c):
-        if abs(component) > _EPS:
-            sign = 1.0 if component > 0 else -1.0
-            break
+    """Plane coefficients with a sign-canonical normal (orientation-independent).
+
+    The sign comes from the **largest-magnitude** normal component, not the first
+    non-zero one: float noise in a near-zero component must not flip the canonical
+    sign (which would make the same plane key differently before/after a boolean
+    and misattribute an untouched face).
+    """
+    dominant = max((a, b, c), key=abs)
+    sign = -1.0 if dominant < 0 else 1.0
     return (
         round(a * sign, _NDIG),
         round(b * sign, _NDIG),

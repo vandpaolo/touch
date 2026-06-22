@@ -330,7 +330,7 @@ class Session:
             ]
         try:
             self.document = TouchDocument.load(path)
-        except (json.JSONDecodeError, ValidationError, OSError):
+        except (json.JSONDecodeError, ValidationError, OSError, ValueError):
             return [
                 self._error(
                     "open_failed", "could not read the .touch file", where="open"
@@ -408,7 +408,7 @@ class Session:
             ]
         try:
             self.document = TouchDocument.load(path)
-        except (json.JSONDecodeError, ValidationError, OSError):
+        except (json.JSONDecodeError, ValidationError, OSError, ValueError):
             return [
                 self._error(
                     "open_failed", "could not read the .touch part", where="openPart"
