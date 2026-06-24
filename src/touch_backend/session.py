@@ -1,13 +1,21 @@
 """Per-connection session: protocol parsing + dispatch.
 
-The session owns the open `TouchDocument` and an `LLMClient` (built lazily from
-a factory on first use). Parsing goes through the generated protocol models; any
-failure becomes a structured `error` (F21) — never a traceback.
+The canonical live document is the **Layer Stack** (ADR-0013): the session holds
+one `LayerStack`, every mutation is compare-and-swap'd on its `revision` (the
+coordination point the agent over MCP will share in TP2 sprint 2), and geometry
+is folded from the stack. The op-history `TouchDocument` is no longer live state
+— it is built transiently only for `.touch` I/O (op-native until the Day-2
+layer-native cutover), and `_wire_ops` mirrors the layers 1:1 purely to serialize
+the op-based `MsgDocument.history` until the protocol carries a layer manifest
+(Day 3). The session also owns an `LLMClient` (built lazily on first use).
+Parsing goes through the generated protocol models; any failure becomes a
+structured `error` (F21) — never a traceback.
 
-Wired: `plan` (append an op + re-mesh), document lifecycle (`newDoc`/`open`/
-`save`/`listFiles`, F10), and `undo`/`redo` (F9). Every document change emits a
-`document` snapshot so the FE mirror stays in sync. File I/O is confined to the
-project dir (`out_root`); names are sanitized (no path traversal).
+Wired: `plan` (append a layer + re-mesh), document lifecycle (`newDoc`/`open`/
+`save`/`listFiles`, F10), and `undo`/`redo` (F9, as delete-last / re-add on the
+stack). Every document change emits a `document` snapshot so the FE mirror stays
+in sync. File I/O is confined to the project dir (`out_root`); names are
+sanitized (no path traversal).
 """
 
 from __future__ import annotations
@@ -21,7 +29,7 @@ from pathlib import Path
 
 from pydantic import ValidationError
 
-from touch_backend import planner
+from touch_backend import layer_bridge, planner
 from touch_backend._generated.protocol import (
     ClarifyingQuestion,
     ConversationTurn,
@@ -58,6 +66,7 @@ from touch_backend._generated.protocol import (
 from touch_backend.adapters import AdapterRefusal
 from touch_backend.document import TouchDocument
 from touch_backend.frames import mesh_frame_envelope, pack
+from touch_backend.layer_stack import LayerStack
 from touch_backend.live_build import GeometryError as _GeometryError
 from touch_backend.llm_client.base import LLMClient
 from touch_backend.mesh_cache import MeshCache
@@ -119,15 +128,65 @@ class Session:
         *,
         project_dir: Path = Path("output"),
     ) -> None:
-        self.document = TouchDocument()
+        self.stack = LayerStack()
+        self._wire_ops: list[Operation] = []
+        self._name = "untitled"
         self._project_dir = project_dir
         self._workspace_root: Path | None = None
         self._client_factory = client_factory
         self._llm: LLMClient | None = None
         self._dirty = False
+        # Redo holds undone ops; the layer is re-derived on redo (deterministic).
         self._redo: list[Operation] = []
         self._mesh_cache = MeshCache()
         self._conv: _Conversation | None = None
+
+    @property
+    def history(self) -> list[Operation]:
+        """The op-history wire view (one op per layer).
+
+        Transitional: the canonical document is `self.stack`; this mirror exists
+        only to serialize `MsgDocument.history` until the protocol carries a layer
+        manifest (Day 3)."""
+        return self._wire_ops
+
+    def _append_op(self, operation: Operation) -> None:
+        """Append `operation` to the canonical stack (compare-and-swap) + the wire
+        mirror. Raises `AdapterRefusal` on an unsupported op kind (before any
+        mutation); `StaleRevisionError` cannot occur with a single in-process
+        writer (the head is read inline)."""
+        layer = layer_bridge.layer_from_operation(operation)
+        self.stack.add_layer(layer, expect_rev=self.stack.revision)
+        self._wire_ops.append(operation)
+
+    def _rollback_last(self) -> None:
+        """Undo the most recent `_append_op` (a failed geometry build)."""
+        self.stack.delete_last(expect_rev=self.stack.revision)
+        self._wire_ops.pop()
+
+    def _reset(self, *, name: str) -> None:
+        """Reset to an empty canonical document (new / new-part)."""
+        self.stack = LayerStack()
+        self._wire_ops = []
+        self._name = name
+        self._redo = []
+        self._dirty = False
+
+    def _load_doc(self, doc: TouchDocument) -> None:
+        """Adopt a loaded op-history document as the canonical stack + wire mirror.
+
+        Bridges the history to layers (`AdapterRefusal` propagates on an
+        unsupported op kind). Op-native load; the layer-native path is Day 2."""
+        self.stack = layer_bridge.layers_from_history(doc.history)
+        self._wire_ops = list(doc.history)
+        self._name = doc.name
+        self._redo = []
+        self._dirty = False
+
+    def _save_to(self, path: Path) -> None:
+        """Write the current document as an op-history `.touch` (op-native until
+        the Day-2 layer-native cutover)."""
+        TouchDocument(name=self._name, history=list(self._wire_ops)).save(path)
 
     def ready(self) -> str:
         """The `ready` envelope sent once on connect (F15)."""
@@ -137,7 +196,7 @@ class Session:
         """Dev-only (config.demo_mesh): seed the document with a connect-time
         cube as the default canvas, so the click->prompt flow has a base solid.
         Throwaway dev affordance; `New` gives an empty document."""
-        self.document.append(_DEMO_OP)
+        self._append_op(_DEMO_OP)
         mesh = self._rebuild_mesh()
         return [
             self._snapshot(),
@@ -290,15 +349,18 @@ class Session:
         return self._apply_operation(result)
 
     def _apply_operation(self, operation: Operation) -> list[Response]:
-        """Append an operation, rebuild geometry, emit op + snapshot + mesh."""
-        self.document.append(operation)
+        """Append a layer (CAS), rebuild geometry, emit op + snapshot + mesh."""
+        try:
+            self._append_op(operation)  # may refuse an unsupported kind pre-mutation
+        except AdapterRefusal as exc:
+            return [self._error("adapter_refusal", exc.reason, where=exc.where)]
         try:
             mesh = self._rebuild_mesh()
         except AdapterRefusal as exc:
-            self.document.history.pop()  # the op didn't take; don't keep it
+            self._rollback_last()  # the layer didn't build; don't keep it
             return [self._error("adapter_refusal", exc.reason, where=exc.where)]
         except _GeometryError as exc:
-            self.document.history.pop()
+            self._rollback_last()
             return [self._error("geometry_failed", str(exc), where="execute")]
 
         self._redo = []  # a new op invalidates the redo stack
@@ -314,9 +376,7 @@ class Session:
     # --- document lifecycle (F10) --------------------------------------
 
     def _handle_new(self) -> list[Response]:
-        self.document = TouchDocument()
-        self._redo = []
-        self._dirty = False
+        self._reset(name="untitled")
         return [self._snapshot()]
 
     def _handle_open(self, message: MsgOpen) -> list[Response]:
@@ -329,15 +389,17 @@ class Session:
                 self._error("not_found", f"no such file: {message.name}", where="open")
             ]
         try:
-            self.document = TouchDocument.load(path)
+            doc = TouchDocument.load(path)
         except (json.JSONDecodeError, ValidationError, OSError, ValueError):
             return [
                 self._error(
                     "open_failed", "could not read the .touch file", where="open"
                 )
             ]
-        self._redo = []
-        self._dirty = False
+        try:
+            self._load_doc(doc)
+        except AdapterRefusal as exc:
+            return [self._error("adapter_refusal", exc.reason, where="open")]
         return self._snapshot_with_mesh(where="open")
 
     def _handle_save(self, message: MsgSave) -> list[Response]:
@@ -345,9 +407,9 @@ class Session:
             path = self._doc_path(message.name)
         except _DocError as exc:
             return [self._error("invalid_path", str(exc), where="save")]
-        self.document.name = path.stem
+        self._name = path.stem
         try:
-            self.document.save(path)
+            self._save_to(path)
         except OSError:
             return [
                 self._error(
@@ -363,16 +425,23 @@ class Session:
     # --- undo / redo (F9) ----------------------------------------------
 
     def _handle_undo(self) -> list[Response]:
-        if not self.document.history:
+        if not self.stack.layers:
             return [self._error("nothing_to_undo", "history is empty", where="undo")]
-        self._redo.append(self.document.history.pop())
+        # Append-only undo = delete-last on the stack (ADR-0012), CAS on the head.
+        self.stack.delete_last(expect_rev=self.stack.revision)
+        self._redo.append(self._wire_ops.pop())
         self._dirty = True
         return self._snapshot_with_mesh(where="undo")
 
     def _handle_redo(self) -> list[Response]:
         if not self._redo:
             return [self._error("nothing_to_redo", "nothing to redo", where="redo")]
-        self.document.history.append(self._redo.pop())
+        op = self._redo.pop()
+        try:
+            self._append_op(op)  # re-derive the layer; CAS re-add
+        except AdapterRefusal as exc:
+            self._redo.append(op)  # restore the redo stack on failure
+            return [self._error("adapter_refusal", exc.reason, where="redo")]
         self._dirty = True
         return self._snapshot_with_mesh(where="redo")
 
@@ -407,15 +476,17 @@ class Session:
                 )
             ]
         try:
-            self.document = TouchDocument.load(path)
+            doc = TouchDocument.load(path)
         except (json.JSONDecodeError, ValidationError, OSError, ValueError):
             return [
                 self._error(
                     "open_failed", "could not read the .touch part", where="openPart"
                 )
             ]
-        self._redo = []
-        self._dirty = False
+        try:
+            self._load_doc(doc)
+        except AdapterRefusal as exc:
+            return [self._error("adapter_refusal", exc.reason, where="openPart")]
         return self._snapshot_with_mesh(where="openPart")
 
     def _handle_save_part(self, message: MsgSavePart) -> list[Response]:
@@ -423,10 +494,10 @@ class Session:
             path = self._resolve_in_workspace(message.path)
         except _DocError as exc:
             return [self._error("invalid_path", str(exc), where="savePart")]
-        self.document.name = path.stem
+        self._name = path.stem
         try:
             path.parent.mkdir(parents=True, exist_ok=True)
-            self.document.save(path)
+            self._save_to(path)
         except OSError:
             return [
                 self._error(
@@ -447,12 +518,10 @@ class Session:
                     "exists", f"already exists: {message.path}", where="newPart"
                 )
             ]
-        self.document = TouchDocument(name=path.stem)
-        self._redo = []
-        self._dirty = False
+        self._reset(name=path.stem)
         try:
             path.parent.mkdir(parents=True, exist_ok=True)
-            self.document.save(path)
+            self._save_to(path)
         except OSError:
             return [
                 self._error(
@@ -575,17 +644,17 @@ class Session:
     def _snapshot(self) -> str:
         return MsgDocument(
             type="document",
-            name=self.document.name,
-            history=self.document.history,
+            name=self._name,
+            history=self._wire_ops,
             dirty=self._dirty,
-            can_undo=len(self.document.history) > 0,
+            can_undo=len(self.stack.layers) > 0,
             can_redo=len(self._redo) > 0,
         ).model_dump_json(by_alias=True)  # history ops' turns -> `from`, not `from_`
 
     def _snapshot_with_mesh(self, *, where: str) -> list[Response]:
         """Emit the document snapshot + the re-meshed geometry (or just the
         snapshot for an empty document — the viewport clears)."""
-        if not self.document.history:
+        if not self.stack.layers:
             return [self._snapshot()]
         try:
             mesh = self._rebuild_mesh()
@@ -605,25 +674,21 @@ class Session:
             pack(mesh),
         ]
 
-    def _rebuild_mesh(self, history: list[Operation] | None = None):
-        """Build the solid for the current history and tessellate it.
+    def _rebuild_mesh(self):
+        """Fold the canonical Layer Stack to a provenance-baked mesh.
 
-        The live geometry document is the Layer Stack (ADR-0012/0013): the
-        op-history is bridged to a `LayerStack`, folded through
-        `LayerStack.rebuild` (content-addressed cache → undo/redo/reopen revisits
-        are free). The geometry build is provenance-aware (`live_build`): it bakes
-        per-layer attribution into the mesh so a clicked face maps to its layer
-        (F39). The op-history remains the wire/undo/redo truth this phase.
+        The build folds `self.stack` through `LayerStack.rebuild` (content-
+        addressed cache → undo/redo/reopen revisits are free) and is
+        provenance-aware (`live_build`): it bakes per-layer attribution into the
+        mesh so a clicked face maps to its layer (F39).
         """
-        from touch_backend import layer_bridge, live_build
+        from touch_backend import live_build
 
-        if history is None:
-            history = self.document.history
-        stack = layer_bridge.layers_from_history(history)
+        stack = self.stack
 
-        # The build ignores the (cache-key) source and rebuilds from the stack
-        # so it can export per-layer solids for provenance; the cache still keys
-        # on emit(stack), so revisits return the provenance-baked mesh.
+        # rebuild keys the cache on emit(stack); the build ignores that source and
+        # rebuilds from the stack so it can export per-layer solids for provenance.
+        # Revisits (undo/redo/reopen) return the provenance-baked mesh from cache.
         def build(_source: str):
             return live_build.build_mesh(stack, timeout_s=_EXEC_TIMEOUT_S)
 

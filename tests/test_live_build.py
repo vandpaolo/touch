@@ -76,13 +76,13 @@ def test_chamfer_faces_attribute_to_the_chamfer_layer():
 def test_session_rebuild_is_clickable_and_undoable(tmp_path):
     """The live session flow: click→chamfer is clickable (provenance) + undoable."""
     session = Session(lambda: None, project_dir=tmp_path)
-    session.document.append(_box_op("box1"))
-    session.document.append(_chamfer_op("cham1"))
+    session._append_op(_box_op("box1"))
+    session._append_op(_chamfer_op("cham1"))
 
     mesh = session._rebuild_mesh()
     assert any("cham1" in e.last_modified_by for e in mesh.face_provenance.values())
 
-    # Undo (op-history pop) → the stack re-derives; all faces revert to the box.
-    session.document.history.pop()
+    # Undo = delete-last on the canonical stack; all faces revert to the box.
+    session._rollback_last()
     reverted = session._rebuild_mesh()
     assert all(e.created_by == {"box1"} for e in reverted.face_provenance.values())

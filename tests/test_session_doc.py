@@ -61,7 +61,7 @@ def _of_type(msgs: list[dict], t: str) -> dict:
 
 def test_new_doc_emits_empty_snapshot(tmp_path):
     s = _session(tmp_path)
-    s.document.append(_box_op())
+    s._append_op(_box_op())
     msgs = _send(s, {"type": "newDoc"})
     snap = _of_type(msgs, "document")
     assert snap["history"] == []
@@ -76,7 +76,7 @@ def test_list_files_empty(tmp_path):
 
 def test_save_then_list_shows_file(tmp_path):
     s = _session(tmp_path)
-    s.document.append(_box_op())
+    s._append_op(_box_op())
     msgs = _send(s, {"type": "save", "name": "mypart"})
 
     assert (tmp_path / "mypart.touch").exists()
@@ -86,7 +86,7 @@ def test_save_then_list_shows_file(tmp_path):
 
 def test_save_rejects_path_traversal(tmp_path):
     s = _session(tmp_path)
-    s.document.append(_box_op())
+    s._append_op(_box_op())
     [err] = _send(s, {"type": "save", "name": "../escape"})
     assert err["type"] == "error"
     assert err["code"] == "invalid_path"
@@ -101,7 +101,7 @@ def test_open_missing_file_errors(tmp_path):
 
 def test_undo_to_empty_then_redo_state(tmp_path):
     s = _session(tmp_path)
-    s.document.append(_box_op())
+    s._append_op(_box_op())
     # undo the only op → empty doc, snapshot only (no mesh to render)
     msgs = _send(s, {"type": "undo"})
     snap = _of_type(msgs, "document")
@@ -120,7 +120,7 @@ def test_redo_when_empty_errors(tmp_path):
 
 def test_save_then_open_round_trip_rebuilds(tmp_path):
     s = _session(tmp_path)
-    s.document.append(_box_op())
+    s._append_op(_box_op())
     _send(s, {"type": "save", "name": "cube"})
     _send(s, {"type": "newDoc"})  # clear
 
@@ -135,7 +135,7 @@ def test_save_then_open_round_trip_rebuilds(tmp_path):
 
 def test_redo_rebuilds_geometry(tmp_path):
     s = _session(tmp_path)
-    s.document.append(_box_op())
+    s._append_op(_box_op())
     _send(s, {"type": "undo"})  # → empty
     msgs = _send(s, {"type": "redo"})  # → box again, rebuilt
     assert len(_of_type(msgs, "document")["history"]) == 1
@@ -166,7 +166,7 @@ def test_underspecified_plan_emits_conversation_turn(tmp_path):
     assert "length" in turn["turn"]["text"].lower()
     assert turn["question"]["question"]  # the structured ClarifyingQuestion
     # nothing applied — no op, no mesh.
-    assert s.document.history == []
+    assert s.history == []
     assert not any(m["type"] in ("op", "meshFrame") for m in msgs)
 
 
@@ -204,7 +204,7 @@ class _AskThenAnswerClient:
 
 def test_clarify_then_reply_applies_op_and_records_thread(tmp_path):
     s = Session(lambda: _AskThenAnswerClient(), project_dir=tmp_path)
-    s.document.append(_box_op())  # a base solid to chamfer
+    s._append_op(_box_op())  # a base solid to chamfer
 
     asked = _send(s, {"type": "plan", "prompt_text": "chamfer", "selection": _FACE_SEL})
     assert _of_type(asked, "conversationTurn")  # it asked
@@ -217,12 +217,12 @@ def test_clarify_then_reply_applies_op_and_records_thread(tmp_path):
     froms = [t["from"] for t in op["conversation"]]
     assert "assistant" in froms and "user" in froms
     assert any(m["type"] == "meshFrame" for m in msgs)
-    assert len(s.document.history) == 2  # box + chamfer
+    assert len(s.history) == 2  # box + chamfer
 
 
 def test_clarify_caps_at_max_turns(tmp_path):
     s = Session(lambda: _ClarifyClient(), project_dir=tmp_path)  # always asks
-    s.document.append(_box_op())
+    s._append_op(_box_op())
     _send(s, {"type": "plan", "prompt_text": "chamfer", "selection": _FACE_SEL})  # a=1
     _send(s, _user_reply("uh"))  # a=2, asks
     _send(s, _user_reply("um"))  # a=3, asks

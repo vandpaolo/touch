@@ -99,7 +99,7 @@ def test_new_part_creates_and_opens(tmp_path):
 def test_save_then_open_round_trip(tmp_path):
     s = _session(tmp_path)
     _send(s, {"type": "openFolder", "path": str(tmp_path)})
-    s.document.history.append(_box_op())  # pretend we modelled a cube
+    s._append_op(_box_op())  # pretend we modelled a cube
     _send(s, {"type": "savePart", "path": "cube.touch"})
     assert (tmp_path / "cube.touch").exists()
 
