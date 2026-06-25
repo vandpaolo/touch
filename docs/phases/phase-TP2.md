@@ -91,12 +91,19 @@ summarizes one line back — otherwise lands with the embedded panel in TP3).
 
 ### Sprint 1 — the document cutover (the hard/risky part; before the MCP tools)
 
-| Day | Task | Output | Done when |
-|-----|------|--------|-----------|
-| 1 | **`LayerStack` becomes the canonical live doc + CAS path.** `Session` attaches to one shared active `LayerStack` (not a per-connection op-history `TouchDocument`); the click→prompt path appends a layer via `add_layer(layer, expect_rev=head)`; undo = `delete_last(expect_rev=head)`, redo re-adds; the head revision is the live coordination point. | refactored `session` (canonical stack). | A click→chamfer appends a layer through the CAS API; undo/redo step the stack; the canonical live doc is the `LayerStack`; existing `session`/`server` tests pass; **T0–T5 green**. |
-| 2 | **Layer-native `.touch` save/open + migration (live).** Session save → `layer_bridge.save_stack`; open → `load_stack`; an old op-history `.touch` migrates on open. Schema-version bump. | session persistence cutover. | Save a part (incl. a code layer) → reopen → identical stack; an old op-history `.touch` opens migrated; round-trip + migration tests; the app now *writes* the layer-native format. |
-| 3 | **Protocol + wire: revision + live change feed.** Add `revision` to geometry-update frames; a notify event so a second writer's mutation pushes the new mesh+revision; FE `doc-store` tracks revision and applies agent-originated updates live. Regen protocol types (TS + pydantic). | protocol bump + FE doc-store. | A backend-side mutation emits `geometryUpdated(revision, meshDelta)`; the viewport reflects it; protocol contract test green both directions; codegen clean (no drift). |
-| 4 | **CAS live end-to-end + stale-rejection.** A mutation carrying a stale `expect_rev` is rejected with a structured error → caller re-plans; a scripted race (two writers, same rev) → one applied, one rejected. (Second writer simulated; the real agent arrives Day 6.) | live CAS + stale path. | A race test → one applied + one rejected-and-replanned (N16); the stack never corrupts; structured (not traceback) rejection on the wire; **T0–T5 green**. |
+> **Re-sequenced during implementation (2026-06-25).** D2 surfaced that a code
+> layer can't be serialized over an op-shaped wire, so the **wire layer-manifest +
+> revision (originally D3) folded into D2** — the full layer-native cutover (no
+> op-history compat) per the user's call (see `notes/decisions.md` 2026-06-25). D3
+> is now the remaining live **change-feed** + lifting the active document **above
+> the Session** (shared-doc), which is also what D4's two-writer race needs.
+
+| Day | Task | Output | Done when | Status |
+|-----|------|--------|-----------|--------|
+| 1 | **`LayerStack` becomes the canonical live doc + CAS path.** `Session` holds the canonical `LayerStack` (not an op-history `TouchDocument`); the click→prompt path appends a layer via `add_layer(layer, expect_rev=head)`; undo = `delete_last(expect_rev=head)`, redo re-adds the layer; the head revision is the coordination point. | refactored `session` (canonical stack). | A click→chamfer appends a layer through the CAS API; undo/redo step the stack; the canonical live doc is the `LayerStack`; existing `session`/`server` tests pass; **T0–T5 green**. | **done** (`fca1821`) |
+| 2 | **Full layer-native cutover — persistence + wire (absorbed D3's manifest).** Session save → `save_stack`, open → `load_stack` (old op-history migrates). The wire drops op-history: `MsgDocument` carries a compact `LayerSummary[]` manifest + `revision` (codegen regen); `_wire_ops` removed; FE `doc-store` mirrors layers + revision. | layer-native persistence + wire. | Save a part (incl. a code layer) → reopen → identical stack; the app writes layer-native; the wire carries layers + revision; **326 backend + 16 web green**. | **done** (`241ab04`) |
+| 3 | **Shared active document + live change-feed.** Lift the active `LayerStack` **above the `Session`** into a `Server`-level shared holder both the viewport WS and the (Day-6) MCP forwarder act on; a second-writer mutation pushes an unsolicited `document` + mesh frame to the viewport (revision-stamped); FE applies agent-originated updates live. | shared-doc holder + change feed. | A backend-side mutation on the shared doc pushes `document`(revision) + mesh to a connected viewport; the viewport reflects it; protocol contract green; codegen clean. | next |
+| 4 | **CAS live end-to-end + stale-rejection.** A mutation carrying a stale `expect_rev` is rejected with a structured error → caller re-plans; a scripted race (two writers, same rev) → one applied, one rejected. (Second writer simulated; the real agent arrives Day 6.) | live CAS + stale path. | A race test → one applied + one rejected-and-replanned (N16); the stack never corrupts; structured (not traceback) rejection on the wire; **T0–T5 green**. | |
 
 ### Sprint 2 — MCP server + tools
 
