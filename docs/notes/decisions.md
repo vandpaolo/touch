@@ -805,3 +805,21 @@ with a turn cap (reuse F7's cap). To validate in the MCP-first spike.
 - Q (conflict C1): F41 names edit_layer/reorder_layer but v0 is append-only (F38). v0 tool semantics?
 - A: **Resolved → option A (last-layer-only edit/delete + structured reorder refusal).** Initial pick was "implement fully", but that reopens toponaming (R16), contradicts F38's "append-only in v0" must, and pulls T15 (which needs T11 evaluator + T12 schema-v2a first) into TP2 — for zero exit-benchmark payoff (the build is a pure append sequence). The user asked for my opinion + an unbiased panel: 3 independent evaluators (architecture/risk, product/scope, agent-UX) + the plan author were unanimous on A at high confidence. All independently flagged the same residual risk + mitigation: the refusal must be a **permanent/non-retryable, actionable** envelope (name the legal alternative `delete_layer`→`add_layer` + the last-layer id) so the agent re-plans instead of retry-thrashing. Full re-edit/reorder stays T15.
 - → docs/phases/phase-TP2.md § Day 6 / § Known risks (C1)
+
+## 2026-06-25 — TP2 D2 implementation: full layer-native cutover (wire + persistence)
+- Q: Implementing the layer-native `.touch` save/open (D2) surfaced that a code
+  layer can't be serialized over the op-history wire (`MsgDocument.history:
+  Operation[]`) — the layer→op reverse is lossy (chamfer distance lives in
+  source; F40 forbids decompiling it). The op-wire and FE stay op-based through
+  TP2 (the FE layer panel is TP3), so persistence and wire conflicted.
+- A (user, 2026-06-25): "migrate to layers immediately, who cares about the old
+  architecture — swap it without regret." Full cutover: no op-history compat.
+  `MsgDocument` now carries a compact `LayerSummary[]` manifest (id/kind/template/
+  params/has_selection, no source — N15) + the stack `revision`. The session
+  drops `_wire_ops`; undo/redo are delete-last/re-add of Layers. `.touch` is
+  layer-native (an old op-history file still migrates forward on open).
+- This **folds the wire half of D3 into D2** (a code layer can't go over an
+  op-shaped wire). D3 remainder = the live change-feed push (revision-driven).
+- → src/touch_backend/session.py, protocol/schema.json (+LayerSummary), regen;
+  web/src/doc-store + App.tsx. Commit 241ab04. Reshapes docs/phases/phase-TP2.md
+  Days 2-3 (an implementation re-sequence within the phase, not a scope change).
