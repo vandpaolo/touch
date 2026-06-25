@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING
 
 from touch_backend import layer_bridge
 from touch_backend.adapters import AdapterRefusal
-from touch_backend.layer_stack import Layer, LayerStack
+from touch_backend.layer_stack import Layer, LayerStack, StaleRevisionError
 from touch_backend.live_build import GeometryError
 from touch_backend.mesh_cache import MeshCache
 
@@ -70,10 +70,17 @@ class ActiveDocument:
         layer = layer_bridge.layer_from_operation(operation)
         self.stack.add_layer(layer, expect_rev=self.stack.revision)
 
-    def add_layer(self, layer: Layer) -> int:
-        """Append a pre-built `Layer` (the agent/second-writer entry, CAS on the
-        head); clears redo + marks dirty. Returns the new revision."""
-        rev = self.stack.add_layer(layer, expect_rev=self.stack.revision)
+    def add_layer(self, layer: Layer, *, expect_rev: int) -> int:
+        """Append a pre-built `Layer` against an explicit expected revision — the
+        external-writer (agent over MCP, sprint 2) compare-and-swap entry.
+
+        Raises `StaleRevisionError` if the shared head moved since the caller read
+        it (N16): the stack is left untouched and the caller re-reads + re-plans.
+        Clears redo + marks dirty on success. Returns the new revision.
+
+        (The click path uses `append_op`/`undo`/`redo`, which read the head inline
+        — a single in-process writer can't be stale against itself.)"""
+        rev = self.stack.add_layer(layer, expect_rev=expect_rev)
         self._redo = []
         self.dirty = True
         return rev
@@ -134,4 +141,9 @@ class ActiveDocument:
         return stack.rebuild(build=build, cache=self._mesh_cache).mesh
 
 
-__all__ = ["ActiveDocument", "AdapterRefusal", "GeometryError"]
+__all__ = [
+    "ActiveDocument",
+    "AdapterRefusal",
+    "GeometryError",
+    "StaleRevisionError",
+]
