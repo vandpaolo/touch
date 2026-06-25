@@ -32,7 +32,7 @@ describe('DocStore', () => {
     expect(seen?.dirty).toBe(false)
   })
 
-  it('applyOp appends to history and marks dirty', () => {
+  it('applyOp marks dirty (the manifest arrives in the document snapshot)', () => {
     const store = new DocStore()
     const op = {
       id: 'op1',
@@ -46,8 +46,26 @@ describe('DocStore', () => {
 
     store.applyOp(op)
 
-    expect(store.getState().history).toHaveLength(1)
     expect(store.getState().dirty).toBe(true)
+  })
+
+  it('applyDocument mirrors the layer manifest + revision authoritatively', () => {
+    const store = new DocStore()
+    const snap = {
+      type: 'document',
+      name: 'part',
+      layers: [{ id: 'box1', kind: 'template', template: 'box', params: {}, has_selection: false }],
+      revision: 3,
+      dirty: false,
+      can_undo: true,
+      can_redo: false,
+    } as unknown as Parameters<DocStore['applyDocument']>[0]
+
+    store.applyDocument(snap)
+
+    expect(store.getState().layers).toHaveLength(1)
+    expect(store.getState().revision).toBe(3)
+    expect(store.getState().canUndo).toBe(true)
   })
 
   it('unsubscribe stops notifications', () => {

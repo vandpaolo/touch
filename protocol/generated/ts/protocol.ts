@@ -291,15 +291,28 @@ export interface MsgFileList {
   files: string[];
 }
 /**
- * BE->FE: a snapshot of the current document for the FE mirror — history, name, dirty + undo/redo availability (F8/F9/F10).
+ * BE->FE: a snapshot of the current document (the canonical Layer Stack) for the FE mirror — the compact layer manifest + stack revision, name, dirty + undo/redo availability (F8/F9/F44/N16). Revision is the compare-and-swap coordination point the agent shares (ADR-0013).
  */
 export interface MsgDocument {
   type: "document";
   name: string;
-  history: Operation[];
+  layers: LayerSummary[];
+  revision: number;
   dirty: boolean;
   can_undo: boolean;
   can_redo: boolean;
+}
+/**
+ * Compact, by-id view of one layer in the canonical Layer Stack, for the FE mirror (N15): identity + kind + recognised-template params. The build123d source is pulled on demand (TP2 MCP get_layer), never auto-sent.
+ */
+export interface LayerSummary {
+  id: string;
+  kind: "template" | "code";
+  template: string | null;
+  params: {
+    [k: string]: number | string | boolean;
+  };
+  has_selection: boolean;
 }
 /**
  * FE->BE: set the workspace root to this folder path (ADR-0010); the backend replies with the root `dir` listing.

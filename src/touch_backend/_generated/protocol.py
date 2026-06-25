@@ -250,6 +250,26 @@ class Operation(BaseModel):
     created_at: AwareDatetime
 
 
+class Kind(StrEnum):
+    template = 'template'
+    code = 'code'
+
+
+class LayerSummary(BaseModel):
+    """
+    Compact, by-id view of one layer in the canonical Layer Stack, for the FE mirror (N15): identity + kind + recognised-template params. The build123d source is pulled on demand (TP2 MCP get_layer), never auto-sent.
+    """
+
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    id: str
+    kind: Kind
+    template: str | None
+    params: dict[str, float | str | bool]
+    has_selection: bool
+
+
 class ClarifyingQuestion(BaseModel):
     """
     The planner's request for disambiguation (F7) when a prompt is ambiguous.
@@ -486,7 +506,7 @@ class MsgFileList(BaseModel):
 
 class MsgDocument(BaseModel):
     """
-    BE->FE: a snapshot of the current document for the FE mirror — history, name, dirty + undo/redo availability (F8/F9/F10).
+    BE->FE: a snapshot of the current document (the canonical Layer Stack) for the FE mirror — the compact layer manifest + stack revision, name, dirty + undo/redo availability (F8/F9/F44/N16). Revision is the compare-and-swap coordination point the agent shares (ADR-0013).
     """
 
     model_config = ConfigDict(
@@ -494,7 +514,8 @@ class MsgDocument(BaseModel):
     )
     type: Literal['document']
     name: str
-    history: list[Operation]
+    layers: list[LayerSummary]
+    revision: int
     dirty: bool
     can_undo: bool
     can_redo: bool

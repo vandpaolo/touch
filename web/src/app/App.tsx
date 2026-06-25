@@ -41,7 +41,8 @@ function transportOpts(): TransportOptions {
 const EMPTY_DOC: DocState = {
   mesh: null,
   name: 'untitled',
-  history: [],
+  layers: [],
+  revision: 0,
   dirty: false,
   canUndo: false,
   canRedo: false,
@@ -104,7 +105,7 @@ export function App() {
       }),
       transport.on('document', (d) => {
         store.applyDocument(d)
-        if (d.history.length === 0) viewport.clear()
+        if (d.layers.length === 0) viewport.clear()
       }),
       // The planner asked a clarifying question (F7): keep the panel open as a
       // chat thread; the user's reply resumes planning.

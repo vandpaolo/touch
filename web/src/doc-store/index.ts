@@ -1,9 +1,9 @@
 // web/doc-store — FE-side mirror of the document state: the current mesh, the
-// operation-history (stub until T3/T4), and a dirty flag. Pure state container
-// with a subscribe API; it has no outbound module deps (the transport pushes
-// into it; the viewport subscribes to it). MeshData is a type-only import (the
-// decoded value object originates in transport).
-import type { MsgDocument, Operation } from '../protocol-types'
+// canonical Layer Stack manifest + revision, and a dirty flag. Pure state
+// container with a subscribe API; it has no outbound module deps (the transport
+// pushes into it; the viewport subscribes to it). MeshData is a type-only import
+// (the decoded value object originates in transport).
+import type { LayerSummary, MsgDocument, Operation } from '../protocol-types'
 import type { MeshData } from '../transport'
 
 export interface DocState {
@@ -11,8 +11,10 @@ export interface DocState {
   mesh: MeshData | null
   /** Document name (from the backend snapshot). */
   name: string
-  /** Operation history mirror (authoritative copy from the backend snapshot). */
-  history: Operation[]
+  /** Layer-stack manifest mirror (authoritative copy from the backend snapshot). */
+  layers: LayerSummary[]
+  /** Monotonic stack revision — the CAS coordination point (ADR-0013, N16). */
+  revision: number
   /** Unsaved-changes flag. */
   dirty: boolean
   /** Undo/redo availability (drives the controls). */
@@ -25,7 +27,8 @@ type Listener = (state: DocState) => void
 const EMPTY: DocState = {
   mesh: null,
   name: 'untitled',
-  history: [],
+  layers: [],
+  revision: 0,
   dirty: false,
   canUndo: false,
   canRedo: false,
@@ -49,18 +52,21 @@ export class DocStore {
     this.notify()
   }
 
-  /** Append an operation to the history mirror and mark the document dirty. */
-  applyOp(op: Operation): void {
-    this.state = { ...this.state, history: [...this.state.history, op], dirty: true }
+  /** A click-path op was applied; mark dirty optimistically. The authoritative
+   * layer manifest + revision arrive in the document snapshot that follows. */
+  applyOp(_op: Operation): void {
+    this.state = { ...this.state, dirty: true }
     this.notify()
   }
 
-  /** Mirror an authoritative document snapshot from the backend (T4). */
+  /** Mirror an authoritative document snapshot from the backend (the canonical
+   * Layer Stack manifest + revision). */
   applyDocument(snap: MsgDocument): void {
     this.state = {
       ...this.state,
       name: snap.name,
-      history: snap.history,
+      layers: snap.layers,
+      revision: snap.revision,
       dirty: snap.dirty,
       canUndo: snap.can_undo,
       canRedo: snap.can_redo,

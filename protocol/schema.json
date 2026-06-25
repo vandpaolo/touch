@@ -176,6 +176,23 @@
       "required": ["id", "kind", "params", "prompt_text", "conversation", "created_at"],
       "additionalProperties": false
     },
+    "LayerSummary": {
+      "title": "LayerSummary",
+      "description": "Compact, by-id view of one layer in the canonical Layer Stack, for the FE mirror (N15): identity + kind + recognised-template params. The build123d source is pulled on demand (TP2 MCP get_layer), never auto-sent.",
+      "type": "object",
+      "properties": {
+        "id": {"type": "string"},
+        "kind": {"type": "string", "enum": ["template", "code"]},
+        "template": {"type": ["string", "null"]},
+        "params": {
+          "type": "object",
+          "additionalProperties": {"type": ["number", "string", "boolean"]}
+        },
+        "has_selection": {"type": "boolean"}
+      },
+      "required": ["id", "kind", "template", "params", "has_selection"],
+      "additionalProperties": false
+    },
     "ClarifyingQuestion": {
       "title": "ClarifyingQuestion",
       "description": "The planner's request for disambiguation (F7) when a prompt is ambiguous.",
@@ -386,17 +403,18 @@
     },
     "MsgDocument": {
       "title": "MsgDocument",
-      "description": "BE->FE: a snapshot of the current document for the FE mirror — history, name, dirty + undo/redo availability (F8/F9/F10).",
+      "description": "BE->FE: a snapshot of the current document (the canonical Layer Stack) for the FE mirror — the compact layer manifest + stack revision, name, dirty + undo/redo availability (F8/F9/F44/N16). Revision is the compare-and-swap coordination point the agent shares (ADR-0013).",
       "type": "object",
       "properties": {
         "type": {"const": "document"},
         "name": {"type": "string"},
-        "history": {"type": "array", "items": {"$ref": "#/$defs/Operation"}},
+        "layers": {"type": "array", "items": {"$ref": "#/$defs/LayerSummary"}},
+        "revision": {"type": "integer"},
         "dirty": {"type": "boolean"},
         "can_undo": {"type": "boolean"},
         "can_redo": {"type": "boolean"}
       },
-      "required": ["type", "name", "history", "dirty", "can_undo", "can_redo"],
+      "required": ["type", "name", "layers", "revision", "dirty", "can_undo", "can_redo"],
       "additionalProperties": false
     },
     "DirEntry": {

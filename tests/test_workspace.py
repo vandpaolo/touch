@@ -92,7 +92,7 @@ def test_new_part_creates_and_opens(tmp_path):
     msgs = _send(s, {"type": "newPart", "path": "widget.touch"})
 
     assert (tmp_path / "widget.touch").exists()
-    assert _of_type(msgs, "document")["history"] == []
+    assert _of_type(msgs, "document")["layers"] == []
     assert any(e["name"] == "widget.touch" for e in _of_type(msgs, "dir")["entries"])
 
 
@@ -106,8 +106,8 @@ def test_save_then_open_round_trip(tmp_path):
     _send(s, {"type": "newDoc"})  # clear the session
     msgs = _send(s, {"type": "openPart", "path": "cube.touch"})
     snap = _of_type(msgs, "document")
-    assert len(snap["history"]) == 1 and snap["history"][0]["kind"] == "box"
-    assert any(m["type"] == "meshFrame" for m in msgs)  # replayed to geometry
+    assert len(snap["layers"]) == 1 and snap["layers"][0]["template"] == "box"
+    assert any(m["type"] == "meshFrame" for m in msgs)  # rebuilt to geometry
 
 
 def test_rename_part(tmp_path):

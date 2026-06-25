@@ -132,7 +132,8 @@ def test_plan_returns_structured_op_and_real_face_id_mesh():
     assert op_msg["operation"]["kind"] == "box"
     # plan now also emits a document snapshot (T4) for the FE mirror
     assert doc_msg["type"] == "document"
-    assert len(doc_msg["history"]) == 1
+    assert len(doc_msg["layers"]) == 1
+    assert doc_msg["revision"] == 1
     assert doc_msg["dirty"] is True
     assert frame_msg["type"] == "meshFrame"
     assert frame_msg["triangle_count"] == 12

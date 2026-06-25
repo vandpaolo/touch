@@ -64,7 +64,7 @@ def test_new_doc_emits_empty_snapshot(tmp_path):
     s._append_op(_box_op())
     msgs = _send(s, {"type": "newDoc"})
     snap = _of_type(msgs, "document")
-    assert snap["history"] == []
+    assert snap["layers"] == []
     assert snap["dirty"] is False
     assert snap["can_undo"] is False
 
@@ -105,7 +105,7 @@ def test_undo_to_empty_then_redo_state(tmp_path):
     # undo the only op → empty doc, snapshot only (no mesh to render)
     msgs = _send(s, {"type": "undo"})
     snap = _of_type(msgs, "document")
-    assert snap["history"] == []
+    assert snap["layers"] == []
     assert snap["can_redo"] is True
 
 
@@ -127,9 +127,9 @@ def test_save_then_open_round_trip_rebuilds(tmp_path):
     msgs = _send(s, {"type": "open", "name": "cube"})
     snap = _of_type(msgs, "document")
     assert snap["name"] == "cube"
-    assert len(snap["history"]) == 1
-    assert snap["history"][0]["kind"] == "box"
-    # open replays history → a mesh frame is emitted (string envelope present)
+    assert len(snap["layers"]) == 1
+    assert snap["layers"][0]["template"] == "box"
+    # open rebuilds the stack → a mesh frame is emitted (string envelope present)
     assert any(m["type"] == "meshFrame" for m in msgs)
 
 
@@ -138,7 +138,7 @@ def test_redo_rebuilds_geometry(tmp_path):
     s._append_op(_box_op())
     _send(s, {"type": "undo"})  # → empty
     msgs = _send(s, {"type": "redo"})  # → box again, rebuilt
-    assert len(_of_type(msgs, "document")["history"]) == 1
+    assert len(_of_type(msgs, "document")["layers"]) == 1
     assert any(m["type"] == "meshFrame" for m in msgs)
 
 
@@ -166,7 +166,7 @@ def test_underspecified_plan_emits_conversation_turn(tmp_path):
     assert "length" in turn["turn"]["text"].lower()
     assert turn["question"]["question"]  # the structured ClarifyingQuestion
     # nothing applied — no op, no mesh.
-    assert s.history == []
+    assert len(s.stack.layers) == 0
     assert not any(m["type"] in ("op", "meshFrame") for m in msgs)
 
 
@@ -217,7 +217,7 @@ def test_clarify_then_reply_applies_op_and_records_thread(tmp_path):
     froms = [t["from"] for t in op["conversation"]]
     assert "assistant" in froms and "user" in froms
     assert any(m["type"] == "meshFrame" for m in msgs)
-    assert len(s.history) == 2  # box + chamfer
+    assert len(s.stack.layers) == 2  # box + chamfer
 
 
 def test_clarify_caps_at_max_turns(tmp_path):
@@ -236,13 +236,32 @@ def test_reply_without_a_conversation_errors(tmp_path):
     assert _of_type(msgs, "error")["code"] == "no_conversation"
 
 
-def test_open_layer_native_file_returns_structured_error(tmp_path):
-    """H2: opening a layer-native (schema 3) part via the op-history session path
-    must surface a structured error, not crash or silently load an empty doc."""
+def test_open_layer_native_file_loads_as_a_stack(tmp_path):
+    """The session is layer-native: a schema-3 `.touch` opens as a Layer Stack
+    (rebuilt to geometry), not an error."""
     s = _session(tmp_path)
     (tmp_path / "stack.touch").write_text(
-        '{"schema_version": 3, "revision": 0, "layers": []}', encoding="utf-8"
+        json.dumps(
+            {
+                "schema_version": 3,
+                "revision": 1,
+                "layers": [
+                    {
+                        "id": "box1",
+                        "kind": "template",
+                        "source": "body = Box(40.0, 40.0, 40.0)",
+                        "template": "box",
+                        "params": {"length": 40, "width": 40, "height": 40},
+                        "selection": None,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
     )
-    [err] = _send(s, {"type": "open", "name": "stack"})
-    assert err["type"] == "error"
-    assert err["code"] == "open_failed"
+    msgs = _send(s, {"type": "open", "name": "stack"})
+    snap = _of_type(msgs, "document")
+    assert len(snap["layers"]) == 1
+    assert snap["layers"][0]["template"] == "box"
+    assert snap["revision"] == 1
+    assert any(m["type"] == "meshFrame" for m in msgs)
