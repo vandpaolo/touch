@@ -152,3 +152,51 @@ def test_plan_returns_structured_op_and_real_face_id_mesh():
 
     extents = mesh.vertices.max(axis=0) - mesh.vertices.min(axis=0)
     assert np.allclose(np.sort(extents), [10.0, 20.0, 30.0], atol=1e-3)
+
+
+async def _recv_until(ws, msg_type: str, *, timeout: float = 30.0) -> dict:
+    """Read messages until a JSON envelope of `msg_type` arrives (binary frames
+    skipped)."""
+    while True:
+        raw = await asyncio.wait_for(ws.recv(), timeout=timeout)
+        if isinstance(raw, str):
+            msg = json.loads(raw)
+            if msg.get("type") == msg_type:
+                return msg
+
+
+def test_change_feed_pushes_a_mutation_to_other_viewports():
+    """Two viewports share ONE document (ADR-0013): a mutation from connection A
+    is pushed live to connection B via the change feed (N16 substrate)."""
+
+    async def scenario():
+        server = await Server(
+            Config(ws_port=0), client_factory=lambda: _MockClient()
+        ).start()
+        port = server.sockets[0].getsockname()[1]
+        try:
+            async with (
+                connect(f"ws://127.0.0.1:{port}") as a,
+                connect(f"ws://127.0.0.1:{port}") as b,
+            ):
+                await _recv_until(a, "ready")
+                await _recv_until(b, "ready")
+                # A mutates the shared document.
+                await a.send(
+                    json.dumps(
+                        {"type": "plan", "prompt_text": "a box", "selection": None}
+                    )
+                )
+                # B receives the pushed snapshot (it never sent anything itself).
+                b_doc = await _recv_until(b, "document")
+                b_frame = await _recv_until(b, "meshFrame")
+                return b_doc, b_frame
+        finally:
+            server.close()
+            await server.wait_closed()
+
+    b_doc, b_frame = asyncio.run(scenario())
+    assert len(b_doc["layers"]) == 1
+    assert b_doc["layers"][0]["template"] == "box"
+    assert b_doc["revision"] == 1  # the shared stack advanced one revision
+    assert b_frame["type"] == "meshFrame"  # B sees the agent/peer's geometry live

@@ -173,6 +173,12 @@ class Session:
         """The `ready` envelope sent once on connect (F15)."""
         return MsgReady(type="ready", schema_version=SCHEMA_VERSION).model_dump_json()
 
+    def snapshot_frames(self) -> list[Response]:
+        """The current shared-document snapshot + mesh — for a newly-joined
+        viewport, or a change-feed push when another writer mutates the shared
+        document (ADR-0013). Just the snapshot when the document is empty."""
+        return self._snapshot_with_mesh(where="sync")
+
     def demo_mesh(self) -> list[Response]:
         """Dev-only (config.demo_mesh): seed the document with a connect-time
         cube as the default canvas, so the click->prompt flow has a base solid.
