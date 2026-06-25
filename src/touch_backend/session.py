@@ -29,7 +29,7 @@ from pathlib import Path
 
 from pydantic import ValidationError
 
-from touch_backend import layer_bridge, planner
+from touch_backend import planner
 from touch_backend._generated.protocol import (
     ClarifyingQuestion,
     ConversationTurn,
@@ -65,15 +65,14 @@ from touch_backend._generated.protocol import (
     Selection,
     TouchProtocol,
 )
+from touch_backend.active_document import ActiveDocument
 from touch_backend.adapters import AdapterRefusal
 from touch_backend.frames import mesh_frame_envelope, pack
 from touch_backend.layer_stack import Layer, LayerStack, LayerStackError
 from touch_backend.live_build import GeometryError as _GeometryError
 from touch_backend.llm_client.base import LLMClient
-from touch_backend.mesh_cache import MeshCache
 
 SCHEMA_VERSION = 1
-_EXEC_TIMEOUT_S = 30.0
 
 
 class _DocError(Exception):
@@ -128,50 +127,35 @@ class Session:
         client_factory: Callable[[], LLMClient],
         *,
         project_dir: Path = Path("output"),
+        document: ActiveDocument | None = None,
     ) -> None:
-        self.stack = LayerStack()
-        self._name = "untitled"
+        # The canonical document is the shared `ActiveDocument` (ADR-0013); a
+        # standalone one is created when none is injected (the Server passes the
+        # one shared instance so the viewport + agent act on the same part).
+        self.doc = document if document is not None else ActiveDocument()
         self._project_dir = project_dir
         self._workspace_root: Path | None = None
         self._client_factory = client_factory
         self._llm: LLMClient | None = None
-        self._dirty = False
-        # Redo holds undone layers, re-added verbatim on redo (append-only).
-        self._redo: list[Layer] = []
-        self._mesh_cache = MeshCache()
         self._conv: _Conversation | None = None
 
+    @property
+    def stack(self) -> LayerStack:
+        """The canonical Layer Stack (held on the shared `ActiveDocument`)."""
+        return self.doc.stack
+
     def _append_op(self, operation: Operation) -> None:
-        """Apply a click-path `Operation` as a new layer on the canonical stack
-        (compare-and-swap on the head). Raises `AdapterRefusal` on an unsupported
-        op kind (before any mutation); `StaleRevisionError` cannot occur with a
-        single in-process writer (the head is read inline)."""
-        layer = layer_bridge.layer_from_operation(operation)
-        self.stack.add_layer(layer, expect_rev=self.stack.revision)
+        """Add a click-path `Operation` as a layer on the canonical stack (CAS,
+        add-only — the rebuild is a separate step). Raises `AdapterRefusal`."""
+        self.doc.append_op(operation)
 
     def _rollback_last(self) -> None:
-        """Undo the most recent `add_layer` (a failed geometry build)."""
-        self.stack.delete_last(expect_rev=self.stack.revision)
+        """Undo the most recent `append_op` (a failed geometry build)."""
+        self.doc.rollback_last()
 
-    def _reset(self, *, name: str) -> None:
-        """Reset to an empty canonical document (new / new-part)."""
-        self.stack = LayerStack()
-        self._name = name
-        self._redo = []
-        self._dirty = False
-
-    def _open_into_stack(self, path: Path) -> None:
-        """Load a `.touch` into the canonical stack (layer-native; an old
-        op-history file is migrated forward by `load_stack`). Name comes from the
-        file stem. Raises on a malformed / unsupported file."""
-        self.stack = layer_bridge.load_stack(path)
-        self._name = path.stem
-        self._redo = []
-        self._dirty = False
-
-    def _save_to(self, path: Path) -> None:
-        """Write the canonical stack as a layer-native `.touch` (schema 3)."""
-        layer_bridge.save_stack(self.stack, path)
+    def _rebuild_mesh(self):
+        """Fold the canonical stack to a provenance-baked mesh."""
+        return self.doc.rebuild_mesh()
 
     @staticmethod
     def _layer_summary(layer: Layer) -> LayerSummary:
@@ -360,8 +344,8 @@ class Session:
             self._rollback_last()
             return [self._error("geometry_failed", str(exc), where="execute")]
 
-        self._redo = []  # a new op invalidates the redo stack
-        self._dirty = True
+        self.doc.clear_redo()  # a new op invalidates the redo stack
+        self.doc.dirty = True
         return [
             # by_alias: the op's conversation turns serialize `from`, not `from_`.
             MsgOp(type="op", operation=operation).model_dump_json(by_alias=True),
@@ -373,7 +357,7 @@ class Session:
     # --- document lifecycle (F10) --------------------------------------
 
     def _handle_new(self) -> list[Response]:
-        self._reset(name="untitled")
+        self.doc.reset(name="untitled")
         return [self._snapshot()]
 
     def _handle_open(self, message: MsgOpen) -> list[Response]:
@@ -386,7 +370,7 @@ class Session:
                 self._error("not_found", f"no such file: {message.name}", where="open")
             ]
         try:
-            self._open_into_stack(path)
+            self.doc.open(path)
         except AdapterRefusal as exc:
             return [self._error("adapter_refusal", exc.reason, where="open")]
         except (
@@ -409,16 +393,15 @@ class Session:
             path = self._doc_path(message.name)
         except _DocError as exc:
             return [self._error("invalid_path", str(exc), where="save")]
-        self._name = path.stem
+        self.doc.name = path.stem
         try:
-            self._save_to(path)
+            self.doc.save(path)
         except OSError:
             return [
                 self._error(
                     "save_failed", "could not write the .touch file", where="save"
                 )
             ]
-        self._dirty = False
         return [self._snapshot(), self._file_list()]
 
     def _handle_list_files(self) -> list[Response]:
@@ -427,20 +410,15 @@ class Session:
     # --- undo / redo (F9) ----------------------------------------------
 
     def _handle_undo(self) -> list[Response]:
-        if not self.stack.layers:
+        if not self.doc.can_undo:
             return [self._error("nothing_to_undo", "history is empty", where="undo")]
-        # Append-only undo = delete-last on the stack (ADR-0012), CAS on the head;
-        # the removed layer is stashed for redo.
-        self._redo.append(self.stack.delete_last(expect_rev=self.stack.revision))
-        self._dirty = True
+        self.doc.undo()  # append-only delete-last (CAS), stashes the layer for redo
         return self._snapshot_with_mesh(where="undo")
 
     def _handle_redo(self) -> list[Response]:
-        if not self._redo:
+        if not self.doc.can_redo:
             return [self._error("nothing_to_redo", "nothing to redo", where="redo")]
-        # Redo = re-add the undone layer verbatim (CAS on the head).
-        self.stack.add_layer(self._redo.pop(), expect_rev=self.stack.revision)
-        self._dirty = True
+        self.doc.redo()  # re-add the undone layer verbatim (CAS)
         return self._snapshot_with_mesh(where="redo")
 
     # --- workspace folder (ADR-0010) -----------------------------------
@@ -474,7 +452,7 @@ class Session:
                 )
             ]
         try:
-            self._open_into_stack(path)
+            self.doc.open(path)
         except AdapterRefusal as exc:
             return [self._error("adapter_refusal", exc.reason, where="openPart")]
         except (
@@ -497,17 +475,16 @@ class Session:
             path = self._resolve_in_workspace(message.path)
         except _DocError as exc:
             return [self._error("invalid_path", str(exc), where="savePart")]
-        self._name = path.stem
+        self.doc.name = path.stem
         try:
             path.parent.mkdir(parents=True, exist_ok=True)
-            self._save_to(path)
+            self.doc.save(path)
         except OSError:
             return [
                 self._error(
                     "save_failed", "could not write the .touch part", where="savePart"
                 )
             ]
-        self._dirty = False
         return [self._snapshot(), self._list_dir(self._rel(path.parent))]
 
     def _handle_new_part(self, message: MsgNewPart) -> list[Response]:
@@ -521,10 +498,10 @@ class Session:
                     "exists", f"already exists: {message.path}", where="newPart"
                 )
             ]
-        self._reset(name=path.stem)
+        self.doc.reset(name=path.stem)
         try:
             path.parent.mkdir(parents=True, exist_ok=True)
-            self._save_to(path)
+            self.doc.save(path)
         except OSError:
             return [
                 self._error(
@@ -647,21 +624,21 @@ class Session:
     def _snapshot(self) -> str:
         return MsgDocument(
             type="document",
-            name=self._name,
-            layers=[self._layer_summary(layer) for layer in self.stack.layers],
-            revision=self.stack.revision,
-            dirty=self._dirty,
-            can_undo=len(self.stack.layers) > 0,
-            can_redo=len(self._redo) > 0,
+            name=self.doc.name,
+            layers=[self._layer_summary(layer) for layer in self.doc.layers],
+            revision=self.doc.revision,
+            dirty=self.doc.dirty,
+            can_undo=self.doc.can_undo,
+            can_redo=self.doc.can_redo,
         ).model_dump_json(by_alias=True)
 
     def _snapshot_with_mesh(self, *, where: str) -> list[Response]:
         """Emit the document snapshot + the re-meshed geometry (or just the
         snapshot for an empty document — the viewport clears)."""
-        if not self.stack.layers:
+        if not self.doc.layers:
             return [self._snapshot()]
         try:
-            mesh = self._rebuild_mesh()
+            mesh = self.doc.rebuild_mesh()
         except AdapterRefusal as exc:
             return [
                 self._snapshot(),
@@ -677,26 +654,6 @@ class Session:
             mesh_frame_envelope(mesh).model_dump_json(),
             pack(mesh),
         ]
-
-    def _rebuild_mesh(self):
-        """Fold the canonical Layer Stack to a provenance-baked mesh.
-
-        The build folds `self.stack` through `LayerStack.rebuild` (content-
-        addressed cache → undo/redo/reopen revisits are free) and is
-        provenance-aware (`live_build`): it bakes per-layer attribution into the
-        mesh so a clicked face maps to its layer (F39).
-        """
-        from touch_backend import live_build
-
-        stack = self.stack
-
-        # rebuild keys the cache on emit(stack); the build ignores that source and
-        # rebuilds from the stack so it can export per-layer solids for provenance.
-        # Revisits (undo/redo/reopen) return the provenance-baked mesh from cache.
-        def build(_source: str):
-            return live_build.build_mesh(stack, timeout_s=_EXEC_TIMEOUT_S)
-
-        return stack.rebuild(build=build, cache=self._mesh_cache).mesh
 
     @staticmethod
     def _clarify_message(question: ClarifyingQuestion) -> str:
