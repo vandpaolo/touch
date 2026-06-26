@@ -13,15 +13,27 @@ subprocess.
 
 from __future__ import annotations
 
+import json
 import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import numpy as np
+
 from touch_backend import layer_stack
+from touch_backend.mesh_dump import MESH_JSON, MESH_NPZ
 
 if TYPE_CHECKING:
     from touch_backend.layer_stack import LayerStack
     from touch_backend.tessellate import Mesh
+
+# Appended to the emitted stack so tessellation + provenance run in the SAME
+# (sandboxed) subprocess that built the solids — build123d/OCP load there, never
+# in the backend (the "orchestrator imports no native CAD kernel" contract). The
+# worker writes mesh.npz + mesh.json, which `_read_mesh` reconstructs OCP-free.
+_MESH_EPILOGUE = (
+    "\n\nfrom touch_backend.mesh_dump import dump_mesh\ndump_mesh('.', {layer_ids!r})\n"
+)
 
 
 class GeometryError(Exception):
@@ -29,13 +41,21 @@ class GeometryError(Exception):
 
 
 def build_mesh(stack: LayerStack, *, timeout_s: float) -> Mesh:
-    """Fold the stack to a tessellated mesh with per-layer provenance baked in."""
-    from build123d import import_step
+    """Fold the stack to a tessellated mesh with per-layer provenance baked in.
 
+    All build123d/OCP work runs in the executor subprocess: the emitted stack
+    (which writes `part.step` + per-layer `body_{i}.step`) is followed by a
+    `mesh_dump.dump_mesh` epilogue that tessellates + attributes provenance and
+    serializes the `Mesh`. This function reconstructs that `Mesh` with numpy +
+    json only, so the backend process imports no OCP and stays GL-clean for
+    off-screen rendering (auto-memory `render-backend`).
+    """
     from touch_backend.agent.executor import Executor
-    from touch_backend.tessellate import tessellate
 
-    source = layer_stack.emit_layerwise(stack)
+    layer_ids = [layer.id for layer in stack.layers]
+    source = layer_stack.emit_layerwise(stack) + _MESH_EPILOGUE.format(
+        layer_ids=layer_ids
+    )
     with tempfile.TemporaryDirectory(prefix="touch-rebuild-") as tmp:
         out_dir = Path(tmp)
         code_path = out_dir / "code.py"
@@ -43,26 +63,35 @@ def build_mesh(stack: LayerStack, *, timeout_s: float) -> Mesh:
         result = Executor(out_dir, timeout_s).execute(code_path)
         if result.step_path is None:
             raise GeometryError(result.error or "execution produced no solid")
-        # solid_0 … solid_N (one per layer); the last is the part.
-        solids = [
-            import_step(out_dir / f"body_{i}.step") for i in range(len(stack.layers))
-        ]
-
-    mesh = tessellate(solids[-1])
-    _bake_provenance(mesh, solids, stack)
-    return mesh
+        if not (out_dir / MESH_NPZ).exists():
+            raise GeometryError("execution produced a solid but no mesh artifact")
+        return _read_mesh(out_dir)
 
 
-def _bake_provenance(mesh: Mesh, solids: list, stack: LayerStack) -> None:
-    """Attribute faces to layers and bake into the mesh — best-effort (R-B).
+def _read_mesh(out_dir: Path) -> Mesh:
+    """Reconstruct a `Mesh` from the worker's `mesh.npz` + `mesh.json` (no OCP)."""
+    from touch_backend.provenance import ProvenanceEntry
+    from touch_backend.tessellate import Mesh
 
-    Provenance is heuristic; a failure (e.g. an ambiguous boolean) must never
-    fail the rebuild. The part still renders, just without per-layer attribution.
-    """
-    from touch_backend import provenance
-
-    try:
-        prov = provenance.attribute_stack(solids, [layer.id for layer in stack.layers])
-        provenance.bake(mesh, prov)
-    except Exception:  # noqa: BLE001 — provenance is advisory, geometry is not
-        pass
+    buffers = np.load(out_dir / MESH_NPZ)
+    meta = json.loads((out_dir / MESH_JSON).read_text(encoding="utf-8"))
+    face_provenance = {
+        int(fid): ProvenanceEntry(
+            created_by=set(entry["created_by"]),
+            last_modified_by=set(entry["last_modified_by"]),
+        )
+        for fid, entry in meta["face_provenance"].items()
+    }
+    return Mesh(
+        version=meta["version"],
+        vertices=buffers["vertices"],
+        normals=buffers["normals"],
+        indices=buffers["indices"],
+        face_tag_per_triangle=buffers["face_tag_per_triangle"],
+        edge_tag_per_segment=buffers["edge_tag_per_segment"],
+        face_ids=[int(fid) for fid in meta["face_ids"]],
+        face_anchor={
+            int(fid): tuple(point) for fid, point in meta["face_anchor"].items()
+        },
+        face_provenance=face_provenance,
+    )

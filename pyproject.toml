@@ -324,3 +324,25 @@ source_modules = [
     "touch_backend.keychain_bridge",
 ]
 forbidden_modules = ["touch_backend.server"]
+
+# --- TP2: the backend orchestrator stays GL-clean (OCP in the worker only) ---
+
+[[tool.importlinter.contracts]]
+name = "backend orchestrator imports no native CAD kernel directly (OCP/build123d run only in the mesh_dump worker subprocess, so the long-lived backend stays GL-clean for off-screen render — auto-memory render-backend)"
+type = "forbidden"
+# Only DIRECT imports are forbidden: the orchestrator may reference the Mesh /
+# ProvenanceEntry types (which live in modules that import OCP *lazily inside
+# functions*), because it never calls those OCP paths in-process — the mesh_dump
+# epilogue does, in the executor subprocess. Same pattern as the cli contract.
+allow_indirect_imports = "true"
+source_modules = [
+    "touch_backend.server",
+    "touch_backend.session",
+    "touch_backend.active_document",
+    "touch_backend.live_build",
+    "touch_backend.frames",
+    "touch_backend.layer_stack",
+    "touch_backend.layer_bridge",
+    "touch_backend.mesh_cache",
+]
+forbidden_modules = ["build123d", "OCP"]
