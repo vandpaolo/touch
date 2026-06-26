@@ -823,3 +823,32 @@ with a turn cap (reuse F7's cap). To validate in the MCP-first spike.
 - → src/touch_backend/session.py, protocol/schema.json (+LayerSummary), regen;
   web/src/doc-store + App.tsx. Commit 241ab04. Reshapes docs/phases/phase-TP2.md
   Days 2-3 (an implementation re-sequence within the phase, not a scope change).
+
+## 2026-06-26 — TP2 D5-prep: isolate OCP to a worker subprocess (GL-clean backend)
+- Q: Wiring `render_view` (Day 5) surfaced that the long-lived backend process is
+  permanently **OSMesa-poisoned**: `live_build.build_mesh` imported build123d/OCP
+  *in-parent* (to `import_step` the per-layer solids + tessellate + bake
+  provenance), and once OCP grabs the process-global Mesa GL context, any
+  in-process off-screen render returns blank (auto-memory `render-backend`). So
+  the backend could never render. Two fixes considered: (A) keep poisoning, render
+  in a separate clean process; (B) push **all** OCP behind a subprocess boundary so
+  the backend orchestrator imports zero OCP — then it renders in-process.
+- A (user, 2026-06-26): **fix the root cause — approach B, combined worker.** The
+  user explicitly wanted the long-term-correct boundary, not a render-only patch.
+  Decided the *combined* worker variant (build + tessellate + provenance in ONE
+  subprocess) over a two-hop STEP-mediated worker, because the combined worker
+  pays the OCP import once per build (protects N2 latency) and is cohesive.
+- Why it's more than rendering: this also advances **N8** (a geometry segfault
+  kills a worker, not the server) and **R13** (OCP confined to the worker makes the
+  executor the *real* sandbox chokepoint). The boundary is lifecycle-agnostic — if
+  N2 later needs a *persistent* geometry worker, swap the per-build spawn for RPC
+  behind the same `Mesh` serialization interface, with no orchestrator change.
+- Implementation: new `mesh_dump.py` (in-subprocess worker → `mesh.npz`+`mesh.json`);
+  `build_mesh` appends a `dump_mesh` epilogue to the emitted stack and reconstructs
+  the `Mesh` numpy/json-only; a 15th import-linter contract forbids *direct*
+  build123d/OCP imports in the orchestrator (`allow_indirect_imports` so the
+  Mesh/ProvenanceEntry type refs through the lazily-OCP modules are fine). 331
+  tests green (incl. the existing exact-set provenance round-trip assertions).
+- → src/touch_backend/mesh_dump.py (new), live_build.py, pyproject.toml. Commit
+  ca3fd4f. Candidate for a short ADR + 02-architecture reconcile at /pm-phase-report
+  (the "all OCP behind the worker boundary" rule belongs in the design-of-record).
