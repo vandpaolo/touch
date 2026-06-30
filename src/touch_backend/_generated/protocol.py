@@ -631,6 +631,93 @@ class MsgDir(BaseModel):
     entries: list[DirEntry]
 
 
+class MsgGetModelState(BaseModel):
+    """
+    MCP->BE (TP2): request the current document snapshot on demand. The backend replies with a `document` (the layer manifest + revision). Backs the agent's get_model_state / list_layers read tools (F41).
+    """
+
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    type: Literal['getModelState']
+
+
+class MsgGetSelection(BaseModel):
+    """
+    MCP->BE (TP2): request the viewport's current selection. Backs the agent's get_selection read tool (F45). The backend replies with a `selectionState`.
+    """
+
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    type: Literal['getSelection']
+
+
+class MsgGetLayer(BaseModel):
+    """
+    MCP->BE (TP2): request one layer's build123d source by id (the manifest omits source by design, N15). The backend replies with a `layerSource`. Backs the agent's get_layer read tool (F41).
+    """
+
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    type: Literal['getLayer']
+    id: str
+
+
+class MsgRenderView(BaseModel):
+    """
+    MCP->BE (TP2): render the current part to an image so the agent can see it and self-correct (F41, N15: on demand). The backend replies with a `renderResult`.
+    """
+
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    type: Literal['renderView']
+    size: int | None = Field(
+        None,
+        description='Optional square thumbnail edge in px; the backend picks a default when null.',
+    )
+
+
+class MsgLayerSource(BaseModel):
+    """
+    BE->MCP (TP2): one layer's build123d source, in reply to getLayer.
+    """
+
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    type: Literal['layerSource']
+    id: str
+    source: str
+
+
+class MsgSelectionState(BaseModel):
+    """
+    BE->MCP (TP2): the viewport's current selection (or null when nothing is selected), in reply to getSelection.
+    """
+
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    type: Literal['selectionState']
+    selection: Selection | None
+
+
+class MsgRenderResult(BaseModel):
+    """
+    BE->MCP (TP2): a rendered thumbnail of the current part, in reply to renderView. The PNG is base64-encoded inline (renders are small + on demand, N15).
+    """
+
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    type: Literal['renderResult']
+    media_type: str
+    image_base64: str
+
+
 class Message(
     RootModel[
         MsgPlan
@@ -660,6 +747,13 @@ class Message(
         | MsgRenamePart
         | MsgRemovePart
         | MsgDir
+        | MsgGetModelState
+        | MsgGetSelection
+        | MsgGetLayer
+        | MsgRenderView
+        | MsgLayerSource
+        | MsgSelectionState
+        | MsgRenderResult
     ]
 ):
     root: (
@@ -690,6 +784,13 @@ class Message(
         | MsgRenamePart
         | MsgRemovePart
         | MsgDir
+        | MsgGetModelState
+        | MsgGetSelection
+        | MsgGetLayer
+        | MsgRenderView
+        | MsgLayerSource
+        | MsgSelectionState
+        | MsgRenderResult
     ) = Field(
         ...,
         description='Any control-message envelope on the wire (discriminated by `type`).',

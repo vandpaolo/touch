@@ -518,6 +518,81 @@
       "required": ["type", "path", "entries"],
       "additionalProperties": false
     },
+    "MsgGetModelState": {
+      "title": "MsgGetModelState",
+      "description": "MCP->BE (TP2): request the current document snapshot on demand. The backend replies with a `document` (the layer manifest + revision). Backs the agent's get_model_state / list_layers read tools (F41).",
+      "type": "object",
+      "properties": {"type": {"const": "getModelState"}},
+      "required": ["type"],
+      "additionalProperties": false
+    },
+    "MsgGetSelection": {
+      "title": "MsgGetSelection",
+      "description": "MCP->BE (TP2): request the viewport's current selection. Backs the agent's get_selection read tool (F45). The backend replies with a `selectionState`.",
+      "type": "object",
+      "properties": {"type": {"const": "getSelection"}},
+      "required": ["type"],
+      "additionalProperties": false
+    },
+    "MsgGetLayer": {
+      "title": "MsgGetLayer",
+      "description": "MCP->BE (TP2): request one layer's build123d source by id (the manifest omits source by design, N15). The backend replies with a `layerSource`. Backs the agent's get_layer read tool (F41).",
+      "type": "object",
+      "properties": {
+        "type": {"const": "getLayer"},
+        "id": {"type": "string"}
+      },
+      "required": ["type", "id"],
+      "additionalProperties": false
+    },
+    "MsgRenderView": {
+      "title": "MsgRenderView",
+      "description": "MCP->BE (TP2): render the current part to an image so the agent can see it and self-correct (F41, N15: on demand). The backend replies with a `renderResult`.",
+      "type": "object",
+      "properties": {
+        "type": {"const": "renderView"},
+        "size": {"type": ["integer", "null"], "description": "Optional square thumbnail edge in px; the backend picks a default when null."}
+      },
+      "required": ["type"],
+      "additionalProperties": false
+    },
+    "MsgLayerSource": {
+      "title": "MsgLayerSource",
+      "description": "BE->MCP (TP2): one layer's build123d source, in reply to getLayer.",
+      "type": "object",
+      "properties": {
+        "type": {"const": "layerSource"},
+        "id": {"type": "string"},
+        "source": {"type": "string"}
+      },
+      "required": ["type", "id", "source"],
+      "additionalProperties": false
+    },
+    "MsgSelectionState": {
+      "title": "MsgSelectionState",
+      "description": "BE->MCP (TP2): the viewport's current selection (or null when nothing is selected), in reply to getSelection.",
+      "type": "object",
+      "properties": {
+        "type": {"const": "selectionState"},
+        "selection": {
+          "oneOf": [{"$ref": "#/$defs/Selection"}, {"type": "null"}]
+        }
+      },
+      "required": ["type", "selection"],
+      "additionalProperties": false
+    },
+    "MsgRenderResult": {
+      "title": "MsgRenderResult",
+      "description": "BE->MCP (TP2): a rendered thumbnail of the current part, in reply to renderView. The PNG is base64-encoded inline (renders are small + on demand, N15).",
+      "type": "object",
+      "properties": {
+        "type": {"const": "renderResult"},
+        "media_type": {"type": "string"},
+        "image_base64": {"type": "string"}
+      },
+      "required": ["type", "media_type", "image_base64"],
+      "additionalProperties": false
+    },
     "Message": {
       "title": "Message",
       "description": "Any control-message envelope on the wire (discriminated by `type`).",
@@ -548,7 +623,14 @@
         {"$ref": "#/$defs/MsgNewPart"},
         {"$ref": "#/$defs/MsgRenamePart"},
         {"$ref": "#/$defs/MsgRemovePart"},
-        {"$ref": "#/$defs/MsgDir"}
+        {"$ref": "#/$defs/MsgDir"},
+        {"$ref": "#/$defs/MsgGetModelState"},
+        {"$ref": "#/$defs/MsgGetSelection"},
+        {"$ref": "#/$defs/MsgGetLayer"},
+        {"$ref": "#/$defs/MsgRenderView"},
+        {"$ref": "#/$defs/MsgLayerSource"},
+        {"$ref": "#/$defs/MsgSelectionState"},
+        {"$ref": "#/$defs/MsgRenderResult"}
       ]
     }
   },

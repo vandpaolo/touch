@@ -35,6 +35,10 @@ dependencies = [
     "websockets~=14.0",
     "numpy~=2.0",
     "keyring~=25.0",
+    # MCP server SDK (FastMCP, stdio) — the agent-neutral geometry port the user's
+    # own Claude Code drives (F41, ADR-0014). Spike-verified 2026-06-04; image
+    # ingestion confirmed (the agent sees tool-returned renders).
+    "mcp~=1.28",
     # claude-agent-sdk (F31 Claude Code mode) is import-guarded and added as a
     # hard dep in T6 when the client is actually exercised against a live CLI.
 ]
@@ -52,6 +56,9 @@ dev = [
 [project.scripts]
 # NB: not `touch` — that shadows GNU /usr/bin/touch inside an active venv.
 touch-backend = "touch_backend.cli:app"
+# The MCP server Claude Code spawns (stdio); forwards to the running backend over
+# WS (F41, ADR-0014). Also runnable as `python -m touch_backend.mcp_server`.
+touch-backend-mcp = "touch_backend.mcp_server:main"
 
 [project.urls]
 Documentation = "https://github.com/vandpaolo/touch/tree/main/docs"
@@ -340,9 +347,33 @@ source_modules = [
     "touch_backend.session",
     "touch_backend.active_document",
     "touch_backend.live_build",
+    "touch_backend.live_render",
     "touch_backend.frames",
     "touch_backend.layer_stack",
     "touch_backend.layer_bridge",
     "touch_backend.mesh_cache",
 ]
 forbidden_modules = ["build123d", "OCP"]
+
+[[tool.importlinter.contracts]]
+name = "mcp_server is a decoupled wire edge — no engine/geometry imports (it forwards JSON over WS to the running backend; ADR-0014)"
+type = "forbidden"
+source_modules = ["touch_backend.mcp_server"]
+forbidden_modules = [
+    "touch_backend.server",
+    "touch_backend.session",
+    "touch_backend.active_document",
+    "touch_backend.live_build",
+    "touch_backend.live_render",
+    "touch_backend.layer_stack",
+    "touch_backend.layer_bridge",
+    "touch_backend.tessellate",
+    "touch_backend.provenance",
+    "touch_backend.mesh_dump",
+    "touch_backend.render",
+    "touch_backend.agent",
+    "touch_backend.frames",
+    "build123d",
+    "OCP",
+    "pyvista",
+]

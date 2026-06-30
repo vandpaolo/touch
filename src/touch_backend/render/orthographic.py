@@ -70,6 +70,23 @@ def orthographic(step_path: Path, out_dir: Path) -> list[Path]:
     return paths
 
 
+def isometric(step_path: Path, out_dir: Path, *, size: int = 512) -> Path:
+    """Render one isometric PNG thumbnail of ``step_path`` under ``out_dir/renders``.
+
+    A single agent-facing thumbnail at a modest size (N15: renders on demand),
+    as opposed to ``orthographic``'s three measured front/side/top views. Used by
+    the MCP ``render_view`` tool so the agent can see the part and self-correct.
+    """
+    renders_dir = out_dir / "renders"
+    renders_dir.mkdir(parents=True, exist_ok=True)
+    mesh = _load_mesh(step_path)
+    png_path = _render_view(
+        mesh, "view_isometric", renders_dir / "iso.png", window_size=[size, size]
+    )
+    pv.close_all()
+    return png_path
+
+
 def _load_mesh(step_path: Path) -> pv.DataSet | pv.MultiBlock:
     """STEP -> tessellated surface mesh, via a transient STL.
 
@@ -93,9 +110,13 @@ def _load_mesh(step_path: Path) -> pv.DataSet | pv.MultiBlock:
 
 
 def _render_view(
-    mesh: pv.DataSet | pv.MultiBlock, view_method: str, out_path: Path
+    mesh: pv.DataSet | pv.MultiBlock,
+    view_method: str,
+    out_path: Path,
+    *,
+    window_size: list[int] = _WINDOW_SIZE,
 ) -> Path:
-    plotter = pv.Plotter(off_screen=True, window_size=_WINDOW_SIZE)
+    plotter = pv.Plotter(off_screen=True, window_size=window_size)
     try:
         plotter.add_mesh(mesh, color=_MESH_COLOR, show_edges=True)
         getattr(plotter, view_method)()

@@ -20,6 +20,7 @@ sanitized (no path traversal).
 
 from __future__ import annotations
 
+import base64
 import json
 import shutil
 from collections.abc import Callable
@@ -29,7 +30,7 @@ from pathlib import Path
 
 from pydantic import ValidationError
 
-from touch_backend import planner
+from touch_backend import live_render, planner
 from touch_backend._generated.protocol import (
     ClarifyingQuestion,
     ConversationTurn,
@@ -44,6 +45,10 @@ from touch_backend._generated.protocol import (
     MsgError,
     MsgExportStep,
     MsgFileList,
+    MsgGetLayer,
+    MsgGetModelState,
+    MsgGetSelection,
+    MsgLayerSource,
     MsgListDir,
     MsgListFiles,
     MsgNewDoc,
@@ -58,8 +63,11 @@ from touch_backend._generated.protocol import (
     MsgRedo,
     MsgRemovePart,
     MsgRenamePart,
+    MsgRenderResult,
+    MsgRenderView,
     MsgSave,
     MsgSavePart,
+    MsgSelectionState,
     MsgUndo,
     Operation,
     Selection,
@@ -84,6 +92,8 @@ class _DocError(Exception):
 _STUBBED_MESSAGES = (MsgApplyOp, MsgCancel, MsgRebuild, MsgExportStep)
 
 _MAX_CLARIFY_TURNS = 3  # cap the clarification loop (F7); config-tunable later
+
+_RENDER_TIMEOUT_S = 30.0  # wall-clock cap for an on-demand render (matches rebuild)
 
 
 @dataclass
@@ -138,6 +148,10 @@ class Session:
         self._client_factory = client_factory
         self._llm: LLMClient | None = None
         self._conv: _Conversation | None = None
+        # The viewport's current pick, reported by the FE (TP2). The agent reads
+        # it via getSelection (F45). None until the FE selection report lands
+        # (Day 9); the read tool + wire are in place now.
+        self._current_selection: Selection | None = None
 
     @property
     def stack(self) -> LayerStack:
@@ -254,6 +268,14 @@ class Session:
             return self._handle_rename_part(message)
         if isinstance(message, MsgRemovePart):
             return self._handle_remove_part(message)
+        if isinstance(message, MsgGetModelState):
+            return self._handle_get_model_state()
+        if isinstance(message, MsgGetSelection):
+            return self._handle_get_selection()
+        if isinstance(message, MsgGetLayer):
+            return self._handle_get_layer(message)
+        if isinstance(message, MsgRenderView):
+            return self._handle_render_view(message)
         if isinstance(message, _STUBBED_MESSAGES):
             return [
                 self._error(
@@ -567,6 +589,56 @@ class Session:
                 self._error("remove_failed", "could not remove", where="removePart")
             ]
         return [self._list_dir(self._rel(path.parent))]
+
+    # --- MCP read tools (TP2, forwarded from the mcp_server) ------------
+
+    def _handle_get_model_state(self) -> list[Response]:
+        """The current document snapshot on demand (layer manifest + revision).
+        Backs the agent's get_model_state / list_layers tools (F41, N15)."""
+        return [self._snapshot()]
+
+    def _handle_get_selection(self) -> list[Response]:
+        """The viewport's current pick — None until the FE reports it (Day 9)."""
+        return [
+            MsgSelectionState(
+                type="selectionState", selection=self._current_selection
+            ).model_dump_json()
+        ]
+
+    def _handle_get_layer(self, message: MsgGetLayer) -> list[Response]:
+        """One layer's build123d source by id (the manifest omits source, N15)."""
+        for layer in self.doc.layers:
+            if layer.id == message.id:
+                return [
+                    MsgLayerSource(
+                        type="layerSource", id=layer.id, source=layer.source
+                    ).model_dump_json()
+                ]
+        return [
+            self._error("not_found", f"no layer with id {message.id}", where="getLayer")
+        ]
+
+    def _handle_render_view(self, message: MsgRenderView) -> list[Response]:
+        """Render the current part to an isometric PNG thumbnail (F41, N15: on
+        demand). Blocks like a rebuild (the single-op-at-a-time v0 model)."""
+        if not self.doc.layers:
+            return [
+                self._error("empty_document", "nothing to render", where="renderView")
+            ]
+        kwargs = {"size": message.size} if message.size else {}
+        try:
+            png = live_render.render_thumbnail(
+                self.stack, timeout_s=_RENDER_TIMEOUT_S, **kwargs
+            )
+        except _GeometryError as exc:
+            return [self._error("geometry_failed", str(exc), where="renderView")]
+        return [
+            MsgRenderResult(
+                type="renderResult",
+                media_type="image/png",
+                image_base64=base64.b64encode(png).decode("ascii"),
+            ).model_dump_json()
+        ]
 
     def _resolve_in_workspace(self, relpath: str) -> Path:
         """Resolve a workspace-relative path, contained to the open root (no
