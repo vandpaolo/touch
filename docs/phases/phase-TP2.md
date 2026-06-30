@@ -115,6 +115,26 @@ summarizes one line back — otherwise lands with the embedded panel in TP3).
 | 6 | **MCP mutating tools + structured envelope.** `add_layer`, `edit_layer`(last only), `delete_layer`(last only) — through the Day-1/4 CAS path; each returns `{ ok|error, render thumbnail, validity (manifold/non-empty), downstream delta + finder-rebind warnings }`. `reorder_layer` (and edit/delete on a **non-last** layer) returns a structured **append-only refusal**: `permanent`/non-retryable + names the legal alternative (`delete_layer` then `add_layer`) + the last-layer id (C1). | mutating MCP tools. | An MCP `add_layer` builds a layer on the live doc via CAS, returns the envelope (thumbnail + manifold check), appears live in the viewport; a stale `add` is rejected; `reorder` / non-last-edit refuse with a **permanent, actionable** envelope; an agent test confirms it re-plans (delete-last → re-add) rather than retry-thrashing. |
 | 7 | **Context packets (F45/N15).** `context_packets.positional(selection)` (selection + owning layer + finder ref + picked point/normal + 1-ring + touchable params + revision) vs `macro(stack)` (param table + compact layer outline + bbox + units; **no** picked point/1-ring); wire into `get_selection`/`get_model_state`. Finder-ref lint (flag raw `.faces()[i]`). | `context_packets` (+ lint). | The two packets differ exactly as specified; generated layer code references geometry via finder helpers (lint flags raw indices); `lint-imports` green with the `context_packets` contract. |
 
+> **D5-prep inserted during implementation (2026-06-26).** Wiring `render_view`
+> surfaced that the backend process was permanently OSMesa-poisoned (`build_mesh`
+> imported OCP in-parent), so it could never render. Rather than a render-only
+> workaround, the root cause was fixed first: **all OCP work was isolated to the
+> `mesh_dump` worker subprocess so the backend stays GL-clean** and renders
+> in-process (commit `ca3fd4f`; decision + rationale in `notes/decisions.md`
+> 2026-06-26 — combined-worker, approach B). This also advances N8 (crash
+> isolation) + R13 (the executor is now the real OCP chokepoint). Candidate for a
+> short ADR + `02-architecture` reconcile at `/pm-phase-report`.
+
+**Day 5 done** — 2026-06-26, commit `528085c` (atop `ca3fd4f` D5-prep). The
+`mcp_server` (FastMCP stdio + WS client) exposes the five read tools
+(`get_model_state` / `list_layers` / `get_layer` / `get_selection` /
+`render_view`); seven new WS messages + codegen + Session handlers on the shared
+doc; `render_view` rasterises **in-process** on the GL-clean backend (non-blank
+PNG proven end-to-end in a clean subprocess); `mcp_server` import-linter contract
+(16 contracts kept). backend 335 + web 16 green. `get_selection` is the Day-9
+seam (returns null until the FE reports a pick). Next: Day 6 — mutating tools +
+the C1 append-only envelope.
+
 ### Sprint 3 — agent loop + benchmark
 
 | Day | Task | Output | Done when |

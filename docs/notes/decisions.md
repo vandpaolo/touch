@@ -852,3 +852,30 @@ with a turn cap (reuse F7's cap). To validate in the MCP-first spike.
 - → src/touch_backend/mesh_dump.py (new), live_build.py, pyproject.toml. Commit
   ca3fd4f. Candidate for a short ADR + 02-architecture reconcile at /pm-phase-report
   (the "all OCP behind the worker boundary" rule belongs in the design-of-record).
+
+## 2026-06-26 — TP2 D5: where render_view runs + how the image crosses the wire
+- Q: The MCP `render_view` tool needs an image of the live part. Render backend-
+  side (in the WS process) or MCP-side (ship a STEP, render in the MCP process)?
+  And a render blocks for ~seconds — does it freeze the viewport's asyncio loop?
+- A: **Render backend-side, in-process, synchronously.** Decided after reading
+  server.py: `session.handle` is already synchronous and the existing `plan` path
+  already runs `build_mesh` (a multi-second executor build) inline — v0's accepted
+  model is "one op at a time, the loop blocks during a build" (02-architecture:
+  "a single asyncio loop runs the WS server + executor work"). So an in-process
+  render is no new sin, and it's the cohesive choice: ONE render path the Day-6
+  envelope thumbnail reuses, complete in one round-trip, a small PNG over the wire
+  instead of a heavy STEP. This is exactly what the D5-prep OCP isolation unlocked
+  (the GL-clean backend can render in-process). No threading added.
+- Image on the wire: **base64 PNG inline** in a `renderResult` JSON message (not a
+  binary frame) — renders are small + on demand (N15), and it keeps the MCP client
+  simple (no JSON+binary frame pairing). Revisit to a binary frame only if size bites.
+- Correlation: the protocol has no request id, so the MCP client reads until the
+  matching response `type` arrives, skipping unsolicited change-feed pushes; reads
+  are idempotent so a skipped/duplicate `document` is harmless. A request-id is a
+  candidate if Day-9 interleaving (live selection + mutations) needs it.
+- render_view/list_layers reuse the existing `document` snapshot (get_model_state
+  just requests it on demand); get_layer adds source (manifest omits it, N15);
+  get_selection is a seam (backend-tracked current_selection, null until the FE
+  reports it — Day 9).
+- → src/touch_backend/{mcp_server.py, live_render.py, session.py, render/orthographic.py},
+  protocol/schema.json (+7 messages), regen. Commit 528085c.

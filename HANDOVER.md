@@ -13,13 +13,15 @@
 - **Repo** `~/projects/touch`, GitHub `vandpaolo/touch`, package
   `src/touch_backend/`, CLI `touch-backend`. Frontend `web/` (React+Vite+three.js).
 - **TP2 is `in_progress`** (`active_phase: TP2`, started 2026-06-22). **Sprint 1
-  (the document cutover) is DONE** (6 code commits, 2026-06-25). **Sprint 2 — the
-  MCP server + tools — is next** (plan Days 5–7 in [phase-TP2.md](docs/phases/phase-TP2.md)).
+  (document cutover) DONE** (6 commits, 2026-06-25). **Sprint 2 (MCP server) is
+  half-built: Day 5 (read tools) DONE** (`528085c`, atop D5-prep `ca3fd4f`);
+  **Day 6 (mutating tools + the C1 append-only envelope) is next** (plan in
+  [phase-TP2.md](docs/phases/phase-TP2.md) sprint 2).
 - **Scope freeze is ON** (TP2 in_progress): no edits to `00`/`01`/`02`/`03-roadmap`
   design docs until TP2 is `done` or `blocked`. The phase plan + `notes/` are fine.
-- **CI is green:** backend **331** passed, web **16** passed; ruff + ruff format +
-  pyright + import-linter (14 contracts) + codegen-drift all clean.
-- **`main` is pushed** — synced with `origin/main` (HEAD `65f9a98`). Clean tree.
+- **CI is green:** backend **335** passed, web **16** passed; ruff + ruff format +
+  pyright + import-linter (**16 contracts**) + codegen-drift all clean.
+- **`main` is pushed** — synced with `origin/main` (HEAD `528085c`). Clean tree.
 
 ## What's done — TP2 sprint 1 (the document cutover) — READ THIS
 
@@ -76,28 +78,28 @@ What landed, in order (all green, all on `main`):
 - **`MsgOp` (the click-path `op` message) is still emitted**; the FE `applyOp` now
   just marks dirty (the `LayerSummary[]` manifest in the following `document`
   snapshot is authoritative). The agent path won't emit `MsgOp`.
-- **`mcp` / FastMCP is NOT a dependency yet** — Day 5's first step adds it to
-  `pyproject.toml` (env change: new package + lockfile). The 2026-06-04 spike used
-  a throwaway venv at `/tmp/touch-spike` (may vanish on reboot).
+- **`mcp` / FastMCP is now a dependency** (`mcp~=1.28`, resolved 1.28.0; added Day 5).
+  No lockfile in this pip/hatchling setup — `pyproject.toml` records it. Install with
+  plain `pip install mcp` (NOT `pip install -e .`, which re-pulls stock `vtk` and
+  shadows `vtk-osmesa` — gotcha #3).
 
-## What to do next — TP2 sprint 2 (the MCP server + tools)
+## What to do next — TP2 sprint 2 (Day 6 next; Day 5 DONE)
 
-Plan: [phase-TP2.md](docs/phases/phase-TP2.md) sprint 2 (Days 5–7). Architecture is
+Plan: [phase-TP2.md](docs/phases/phase-TP2.md) sprint 2. Architecture is
 **locked by [ADR-0014](docs/adr/0014-mcp-boundary.md)**: a **separate stdio process
 Claude Code spawns**, which **forwards to the running backend over the WS protocol**
 and acts on the shared `ActiveDocument` (so the agent + viewport share a part
 automatically — sprint 1 built exactly this substrate).
 
-- **Day 5 — MCP skeleton + read-only tools.** Add the `mcp` dep. New module
-  `mcp_server` (FastMCP, stdio) that opens a **WS client** to the backend.
-  Read tools: `get_model_state`, `get_selection`, `list_layers` (ids+summary+
-  thumbnail, **not** source), `get_layer`, `render_view → image`. **This needs new
-  WS protocol messages** (`getModelState`/`listLayers`/`getLayer`/`renderView` +
-  responses) in `protocol/schema.json` → `make codegen` → backend `Session`
-  handlers. Render: `render/orthographic.py` `orthographic(step_path, out_dir)`
-  turns the executor's `part.step` into PNGs (headless vtk-osmesa). **Assert a
-  non-blank PNG** (the spike used a real 64×64 — the vision API rejects degenerate
-  sizes; see render-backend gotchas). Add the `mcp_server` import-linter contract.
+- **Day 5 — MCP skeleton + read-only tools — DONE** (`528085c`). `mcp_server`
+  (FastMCP stdio + WS client) with `get_model_state`/`list_layers`/`get_layer`/
+  `get_selection`/`render_view`; 7 new WS messages + codegen + `Session` handlers;
+  `render_view` rasterises **in-process** (the backend is GL-clean after D5-prep
+  `ca3fd4f` — `live_render` folds the stack → isometric PNG). `mcp` dep added;
+  `touch-backend-mcp` entry. `get_selection` is a seam (null until the FE reports a
+  pick, Day 9). Render tests run in a **clean subprocess** (the pytest interpreter
+  is OCP-poisoned by sibling suites — render in-process there blanks). **GOTCHA for
+  Day 6+:** any new in-process render test must spawn a clean subprocess.
 - **Day 6 — MCP mutating tools + the structured envelope.** `add_layer`,
   `edit_layer`(**last only**), `delete_layer`(**last only**) through the
   `ActiveDocument.add_layer(expect_rev=…)` CAS path; each returns
